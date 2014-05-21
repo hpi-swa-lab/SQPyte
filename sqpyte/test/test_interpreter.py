@@ -1,4 +1,4 @@
-from sqpyte.interpreter import opendb, prepare
+from sqpyte.interpreter import opendb, prepare, mainloop
 
 import os
 
@@ -30,3 +30,13 @@ def test_prepare():
 	assert stmt.aOp[2].p1 == 0
 	assert stmt.aOp[2].p2 == 12
 	assert stmt.aOp[2].p3 == 0
+
+def test_mainloop():
+	db = opendb(testdb)
+	ops = prepare(db, 'select name from contacts;')
+	pc = mainloop(ops)
+	assert pc == ops.nOp
+
+def test_allocateCursor():
+	db = db = opendb(testdb)
+	stmt = prepare(db, 'select * from contacts;')
