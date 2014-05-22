@@ -1,4 +1,4 @@
-from sqpyte.interpreter import opendb, prepare, mainloop
+from sqpyte.interpreter import opendb, prepare, mainloop, allocateCursor
 
 import os
 
@@ -20,7 +20,6 @@ def test_prepare():
 	assert stmt.aOp[0].p2 == 14
 	assert stmt.aOp[0].p3 == 0
 
-
 	assert stmt.aOp[1].opcode == 52
 	assert stmt.aOp[1].p1 == 0
 	assert stmt.aOp[1].p2 == 2
@@ -40,3 +39,4 @@ def test_mainloop():
 def test_allocateCursor():
 	db = db = opendb(testdb)
 	stmt = prepare(db, 'select * from contacts;')
+	vdbe = allocateCursor(stmt, stmt.aOp[0].p1, stmt.aOp[0].p4.i, stmt.aOp[0].p3, 1)
