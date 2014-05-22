@@ -4,3 +4,4 @@ syntax: glob
 *~
 .*.swp
 __pycache__
+.DS_Store
