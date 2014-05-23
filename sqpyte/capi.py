@@ -16,9 +16,11 @@ class CConfig:
     i16 = platform.SimpleType('int16_t', rffi.SHORT)
     u32 = platform.SimpleType('uint32_t', rffi.UINT)
     i32 = platform.SimpleType('int32_t', rffi.INT)
+    u64 = platform.SimpleType('uint64_t', rffi.ULONGLONG)
+    i64 = platform.SimpleType('int64_t', rffi.LONGLONG)
 
 opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite']
-p4names = ['P4_INT32']
+p4names = ['P4_INT32', 'P4_KEYINFO']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT']
 
@@ -30,6 +32,17 @@ CConfig.__dict__.update(platform.configure(CConfig))
 for name in p4names:
 	setattr(CConfig, name, chr(256 + getattr(CConfig, name)))
 
+SQLITE3 = lltype.ForwardReference()
+SQLITE3P = lltype.Ptr(SQLITE3)
+SQLITE3PP = rffi.CArrayPtr(SQLITE3P)
+VDBE = lltype.ForwardReference()
+VDBEP = lltype.Ptr(VDBE)
+VDBECURSOR = lltype.ForwardReference()
+VDBECURSORP = lltype.Ptr(VDBECURSOR)
+VDBECURSORPP = rffi.CArrayPtr(VDBECURSORP)
+# MEM = lltype.ForwardReference()
+# MEMP = rffi.CArrayPtr(MEM)
+# MEMPP = rffi.CArrayPtr(MEMP)
 
 VDBEOP = lltype.Struct("VdbeOp",
 	("opcode", CConfig.u8),
@@ -42,8 +55,7 @@ VDBEOP = lltype.Struct("VdbeOp",
 	("p4", lltype.Struct("p4",
 		("i", rffi.INT),
 		("pReal", rffi.DOUBLE),
-		hints={"union": True})),
-
+		hints={"union": True}))
 	)
 
 # struct VdbeOp {
@@ -79,101 +91,6 @@ VDBEOP = lltype.Struct("VdbeOp",
 # #ifdef SQLITE_VDBE_COVERAGE
 #   int iSrcLine;            /* Source-code line that generated this opcode */
 # #endif
-# };
-
-SQLITE3 = lltype.ForwardReference()
-SQLITE3P = lltype.Ptr(SQLITE3)
-SQLITE3PP = rffi.CArrayPtr(SQLITE3P)
-VDBE = lltype.ForwardReference()
-VDBEP = lltype.Ptr(VDBE)
-VDBECURSOR = lltype.ForwardReference()
-VDBECURSORP = lltype.Ptr(VDBECURSOR)
-VDBECURSORPP = rffi.CArrayPtr(VDBECURSORP)
-
-VDBE.become(lltype.Struct("Vdbe",
-	("db", SQLITE3P),
-	("aOp", lltype.Ptr(lltype.Array(VDBEOP, hints={'nolength': True}))),
-	("aMem", rffi.VOIDP),
-	("apArg", rffi.VOIDPP),
-	("aColName", rffi.VOIDP),
-	("pResultSet", rffi.VOIDP),
-	("pParse", rffi.VOIDP),
-	("nMen", rffi.INT),
-	("nOp", rffi.INT),
-	("nCursor", rffi.INT),
-	("magic", CConfig.u32),
-	("zErrMsg", rffi.CCHARP),
-	("pPrev", VDBEP),
-	("pNext", VDBEP),
-	("apCsr", VDBECURSORPP),
-	("aVar", rffi.VOIDP),
-	("azVar", rffi.CCHARPP),
-	("nVar", rffi.INT),
-	("nzVar", rffi.INT),
-	("cacheCtr", CConfig.u32)
-	))
-
-# struct Vdbe {
-#   sqlite3 *db;            /* The database connection that owns this statement */
-#   Op *aOp;                /* Space to hold the virtual machine's program */
-#   Mem *aMem;              /* The memory locations */
-#   Mem **apArg;            /* Arguments to currently executing user function */
-#   Mem *aColName;          /* Column names to return */
-#   Mem *pResultSet;        /* Pointer to an array of results */
-#   Parse *pParse;          /* Parsing context used to create this Vdbe */
-#   int nMem;               /* Number of memory locations currently allocated */
-#   int nOp;                /* Number of instructions in the program */
-#   int nCursor;            /* Number of slots in apCsr[] */
-#   u32 magic;              /* Magic number for sanity checking */
-#   char *zErrMsg;          /* Error message written here */
-#   Vdbe *pPrev,*pNext;     /* Linked list of VDBEs with the same Vdbe.db */
-#   VdbeCursor **apCsr;     /* One element of this array for each open cursor */
-#   Mem *aVar;              /* Values for the OP_Variable opcode. */
-#   char **azVar;           /* Name of variables */
-#   ynVar nVar;             /* Number of entries in aVar[] */
-#   ynVar nzVar;            /* Number of entries in azVar[] */
-#   u32 cacheCtr;           /* VdbeCursor row cache generation counter */
-#   int pc;                 /* The program counter */
-#   int rc;                 /* Value to return */
-#   u16 nResColumn;         /* Number of columns in one row of the result set */
-#   u8 errorAction;         /* Recovery action to do in case of an error */
-#   u8 minWriteFileFormat;  /* Minimum file format for writable database files */
-#   bft explain:2;          /* True if EXPLAIN present on SQL command */
-#   bft inVtabMethod:2;     /* See comments above */
-#   bft changeCntOn:1;      /* True to update the change-counter */
-#   bft expired:1;          /* True if the VM needs to be recompiled */
-#   bft runOnlyOnce:1;      /* Automatically expire on reset */
-#   bft usesStmtJournal:1;  /* True if uses a statement journal */
-#   bft readOnly:1;         /* True for statements that do not write */
-#   bft bIsReader:1;        /* True for statements that read */
-#   bft isPrepareV2:1;      /* True if prepared with prepare_v2() */
-#   bft doingRerun:1;       /* True if rerunning after an auto-reprepare */
-#   int nChange;            /* Number of db changes made since last reset */
-#   yDbMask btreeMask;      /* Bitmask of db->aDb[] entries referenced */
-#   yDbMask lockMask;       /* Subset of btreeMask that requires a lock */
-#   int iStatement;         /* Statement number (or 0 if has not opened stmt) */
-#   u32 aCounter[5];        /* Counters used by sqlite3_stmt_status() */
-# #ifndef SQLITE_OMIT_TRACE
-#   i64 startTime;          /* Time when query started - used for profiling */
-# #endif
-#   i64 iCurrentTime;       /* Value of julianday('now') for this statement */
-#   i64 nFkConstraint;      /* Number of imm. FK constraints this VM */
-#   i64 nStmtDefCons;       /* Number of def. constraints when stmt started */
-#   i64 nStmtDefImmCons;    /* Number of def. imm constraints when stmt started */
-#   char *zSql;             /* Text of the SQL statement that generated this */
-#   void *pFree;            /* Free this when deleting the vdbe */
-# #ifdef SQLITE_ENABLE_TREE_EXPLAIN
-#   Explain *pExplain;      /* The explainer */
-#   char *zExplain;         /* Explanation of data structures */
-# #endif
-#   VdbeFrame *pFrame;      /* Parent frame */
-#   VdbeFrame *pDelFrame;   /* List of frame objects to free on VM reset */
-#   int nFrame;             /* Number of frames in pFrame list */
-#   u32 expmask;            /* Binding to these vars invalidates VM */
-#   SubProgram *pProgram;   /* Linked list of all sub-programs used by VM */
-#   int nOnceFlag;          /* Size of array aOnceFlag[] */
-#   u8 *aOnceFlag;          /* Flags for OP_Once */
-#   AuxData *pAuxData;      /* Linked list of auxdata allocations */
 # };
 
 
@@ -297,6 +214,129 @@ SQLITE3.become(lltype.Struct("sqlite3",
 # #endif
 # };
 
+MEM = lltype.Struct("Mem",
+	("db", SQLITE3P),
+	("z", rffi.CCHARP),
+	("r", rffi.DOUBLE),
+	("u", lltype.Struct("u",
+	("i", CConfig.i64),
+	("nZero", rffi.INT),
+	hints={"union": True})),
+	("n", rffi.INT),
+	("flags", CConfig.u16),
+	("enc", CConfig.u8),
+	("xDel", rffi.VOIDP),
+	("zMalloc", rffi.VOIDP)	
+	)
+
+# struct Mem {
+#   sqlite3 *db;        /* The associated database connection */
+#   char *z;            /* String or BLOB value */
+#   double r;           /* Real value */
+#   union {
+#     i64 i;              /* Integer value used when MEM_Int is set in flags */
+#     int nZero;          /* Used when bit MEM_Zero is set in flags */
+#     FuncDef *pDef;      /* Used only when flags==MEM_Agg */
+#     RowSet *pRowSet;    /* Used only when flags==MEM_RowSet */
+#     VdbeFrame *pFrame;  /* Used when flags==MEM_Frame */
+#   } u;
+#   int n;              /* Number of characters in string value, excluding '\0' */
+#   u16 flags;          /* Some combination of MEM_Null, MEM_Str, MEM_Dyn, etc. */
+#   u8  enc;            /* SQLITE_UTF8, SQLITE_UTF16BE, SQLITE_UTF16LE */
+# #ifdef SQLITE_DEBUG
+#   Mem *pScopyFrom;    /* This Mem is a shallow copy of pScopyFrom */
+#   void *pFiller;      /* So that sizeof(Mem) is a multiple of 8 */
+# #endif
+#   void (*xDel)(void *);  /* If not null, call this function to delete Mem.z */
+#   char *zMalloc;      /* Dynamic buffer allocated by sqlite3_malloc() */
+# };
+
+
+VDBE.become(lltype.Struct("Vdbe",
+	("db", SQLITE3P),
+	("aOp", lltype.Ptr(lltype.Array(VDBEOP, hints={'nolength': True}))),
+	("aMem", rffi.CArrayPtr(MEM)),
+	("apArg", rffi.VOIDPP),
+	("aColName", rffi.VOIDP),
+	("pResultSet", rffi.VOIDP),
+	("pParse", rffi.VOIDP),
+	("nMen", rffi.INT),
+	("nOp", rffi.INT),
+	("nCursor", rffi.INT),
+	("magic", CConfig.u32),
+	("zErrMsg", rffi.CCHARP),
+	("pPrev", VDBEP),
+	("pNext", VDBEP),
+	("apCsr", VDBECURSORPP),
+	("aVar", rffi.VOIDP),
+	("azVar", rffi.CCHARPP),
+	("nVar", rffi.INT),
+	("nzVar", rffi.INT),
+	("cacheCtr", CConfig.u32)
+	))
+
+# struct Vdbe {
+#   sqlite3 *db;            /* The database connection that owns this statement */
+#   Op *aOp;                /* Space to hold the virtual machine's program */
+#   Mem *aMem;              /* The memory locations */
+#   Mem **apArg;            /* Arguments to currently executing user function */
+#   Mem *aColName;          /* Column names to return */
+#   Mem *pResultSet;        /* Pointer to an array of results */
+#   Parse *pParse;          /* Parsing context used to create this Vdbe */
+#   int nMem;               /* Number of memory locations currently allocated */
+#   int nOp;                /* Number of instructions in the program */
+#   int nCursor;            /* Number of slots in apCsr[] */
+#   u32 magic;              /* Magic number for sanity checking */
+#   char *zErrMsg;          /* Error message written here */
+#   Vdbe *pPrev,*pNext;     /* Linked list of VDBEs with the same Vdbe.db */
+#   VdbeCursor **apCsr;     /* One element of this array for each open cursor */
+#   Mem *aVar;              /* Values for the OP_Variable opcode. */
+#   char **azVar;           /* Name of variables */
+#   ynVar nVar;             /* Number of entries in aVar[] */
+#   ynVar nzVar;            /* Number of entries in azVar[] */
+#   u32 cacheCtr;           /* VdbeCursor row cache generation counter */
+#   int pc;                 /* The program counter */
+#   int rc;                 /* Value to return */
+#   u16 nResColumn;         /* Number of columns in one row of the result set */
+#   u8 errorAction;         /* Recovery action to do in case of an error */
+#   u8 minWriteFileFormat;  /* Minimum file format for writable database files */
+#   bft explain:2;          /* True if EXPLAIN present on SQL command */
+#   bft inVtabMethod:2;     /* See comments above */
+#   bft changeCntOn:1;      /* True to update the change-counter */
+#   bft expired:1;          /* True if the VM needs to be recompiled */
+#   bft runOnlyOnce:1;      /* Automatically expire on reset */
+#   bft usesStmtJournal:1;  /* True if uses a statement journal */
+#   bft readOnly:1;         /* True for statements that do not write */
+#   bft bIsReader:1;        /* True for statements that read */
+#   bft isPrepareV2:1;      /* True if prepared with prepare_v2() */
+#   bft doingRerun:1;       /* True if rerunning after an auto-reprepare */
+#   int nChange;            /* Number of db changes made since last reset */
+#   yDbMask btreeMask;      /* Bitmask of db->aDb[] entries referenced */
+#   yDbMask lockMask;       /* Subset of btreeMask that requires a lock */
+#   int iStatement;         /* Statement number (or 0 if has not opened stmt) */
+#   u32 aCounter[5];        /* Counters used by sqlite3_stmt_status() */
+# #ifndef SQLITE_OMIT_TRACE
+#   i64 startTime;          /* Time when query started - used for profiling */
+# #endif
+#   i64 iCurrentTime;       /* Value of julianday('now') for this statement */
+#   i64 nFkConstraint;      /* Number of imm. FK constraints this VM */
+#   i64 nStmtDefCons;       /* Number of def. constraints when stmt started */
+#   i64 nStmtDefImmCons;    /* Number of def. imm constraints when stmt started */
+#   char *zSql;             /* Text of the SQL statement that generated this */
+#   void *pFree;            /* Free this when deleting the vdbe */
+# #ifdef SQLITE_ENABLE_TREE_EXPLAIN
+#   Explain *pExplain;      /* The explainer */
+#   char *zExplain;         /* Explanation of data structures */
+# #endif
+#   VdbeFrame *pFrame;      /* Parent frame */
+#   VdbeFrame *pDelFrame;   /* List of frame objects to free on VM reset */
+#   int nFrame;             /* Number of frames in pFrame list */
+#   u32 expmask;            /* Binding to these vars invalidates VM */
+#   SubProgram *pProgram;   /* Linked list of all sub-programs used by VM */
+#   int nOnceFlag;          /* Size of array aOnceFlag[] */
+#   u8 *aOnceFlag;          /* Flags for OP_Once */
+#   AuxData *pAuxData;      /* Linked list of auxdata allocations */
+# };
 
 KEYINFO = lltype.Struct("KeyInfo",
 	("nRef", CConfig.u32),
@@ -373,9 +413,12 @@ VDBECURSOR.become(lltype.Struct("Vdbe",
 # };
 
 
+
 sqlite3_open = rffi.llexternal('sqlite3_open', [rffi.CCHARP, SQLITE3PP],
 							   rffi.INT, compilation_info=CConfig._compilation_info_)
 sqlite3_prepare = rffi.llexternal('sqlite3_prepare', [rffi.VOIDP, rffi.CCHARP, rffi.INT, rffi.VOIDPP, rffi.CCHARPP],
 								  rffi.INT, compilation_info=CConfig._compilation_info_)
 sqlite3_allocateCursor = rffi.llexternal('allocateCursor', [lltype.Ptr(VDBE), rffi.INT, rffi.INT, rffi.INT, rffi.INT],
 	rffi.VOIDP, compilation_info=CConfig._compilation_info_)
+sqlite3_sqlite3VdbeMemIntegerify = rffi.llexternal('sqlite3VdbeMemIntegerify', [lltype.Ptr(MEM)],
+	rffi.INT, compilation_info=CConfig._compilation_info_)
