@@ -1,8 +1,10 @@
 from rpython.rtyper.lltypesystem import rffi, lltype
+from capi import CConfig
 import sys
-from sqpyte.capi import CConfig
-from sqpyte import capi
+import os
+import capi
 
+testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test.db")
 
 def opendb(db_name):
 	with rffi.scoped_str2charp(db_name) as db_name, lltype.scoped_alloc(capi.SQLITE3PP.TO, 1) as result:
@@ -19,6 +21,9 @@ def prepare(db, query):
 
 def allocateCursor(vdbe_struct, p1, nField, iDb, isBtreeCursor):
 	return capi.sqlite3_allocateCursor(vdbe_struct, p1, nField, iDb, isBtreeCursor)	
+
+def sqlite3VdbeMemIntegerify(pMem):
+	return capi.sqlite3_sqlite3VdbeMemIntegerify(pMem)
 
 def mainloop(vdbe_struct):
 	pc = 0
@@ -72,7 +77,7 @@ def mainloop(vdbe_struct):
 				pIn2 = aMem[p2]
 				#     assert( memIsValid(pIn2) );
 				#     assert( (pIn2->flags & MEM_Int)!=0 );
-				#     sqlite3VdbeMemIntegerify(pIn2);
+				sqlite3VdbeMemIntegerify(pIn2)
 				p2 = rffi.cast(rffi.INT, pIn2.u.i)
 				#     /* The p2 value always comes from a prior OP_CreateTable opcode and
 				#     ** that opcode will always set the p2 value to 2 or more or else fail.
@@ -111,9 +116,26 @@ def mainloop(vdbe_struct):
 				#   ** since moved into the btree layer.  */
 				pCur.isTable = pOp.p4type != CConfig.P4_KEYINFO
 				break
-
+		else:
+			# raise Exception("unimplemented bytecode %s " % pOp.opcode)
+			pass
 
 		pc += 1
 
 	return pc
 
+
+def run():
+	db = opendb(testdb)
+	ops = prepare(db, 'select name from contacts;')
+	pc = mainloop(ops)
+
+def entry_point(argv):
+    run()
+    return 0
+
+def target(*args):
+    return entry_point, None
+    
+if __name__ == "__main__":
+    entry_point()
