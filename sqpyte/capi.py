@@ -40,86 +40,40 @@ VDBEP = lltype.Ptr(VDBE)
 VDBECURSOR = lltype.ForwardReference()
 VDBECURSORP = lltype.Ptr(VDBECURSOR)
 VDBECURSORPP = rffi.CArrayPtr(VDBECURSORP)
-# MEM = lltype.ForwardReference()
-# MEMP = rffi.CArrayPtr(MEM)
-# MEMPP = rffi.CArrayPtr(MEMP)
 
-VDBEOP = lltype.Struct("VdbeOp",
-	("opcode", CConfig.u8),
-	("p4type", rffi.CHAR),
-	("opflags", CConfig.u8),
-	("p5", CConfig.u8),
-	("p1", rffi.INT),
-	("p2", rffi.INT),
-	("p3", rffi.INT),
-	("p4", lltype.Struct("p4",
-		("i", rffi.INT),
-		("pReal", rffi.DOUBLE),
-		hints={"union": True}))
+DB = lltype.Struct("Db",			# src/sqliteInt.h: 845
+	("zName", rffi.CCHARP),			# Name of this database
+	("pBt", rffi.VOIDP),			#   Btree *pBt;          /* The B*Tree structure for this database file */
+	("safety_level", CConfig.u8),	# How aggressive at syncing data to disk
+	("pSchema", rffi.VOIDP)			#   Schema *pSchema;     /* Pointer to database schema (possibly shared) */
 	)
-
-# struct VdbeOp {
-#   u8 opcode;          /* What operation to perform */
-#   signed char p4type; /* One of the P4_xxx constants for p4 */
-#   u8 opflags;         /* Mask of the OPFLG_* flags in opcodes.h */
-#   u8 p5;              /* Fifth parameter is an unsigned character */
-#   int p1;             /* First operand */
-#   int p2;             /* Second parameter (often the jump destination) */
-#   int p3;             /* The third parameter */
-#   union {             /* fourth parameter */
-#     int i;                 /* Integer value if p4type==P4_INT32 */
-#     void *p;               /* Generic pointer */
-#     char *z;               /* Pointer to data for string (char array) types */
-#     i64 *pI64;             /* Used when p4type is P4_INT64 */
-#     double *pReal;         /* Used when p4type is P4_REAL */
-#     FuncDef *pFunc;        /* Used when p4type is P4_FUNCDEF */
-#     CollSeq *pColl;        /* Used when p4type is P4_COLLSEQ */
-#     Mem *pMem;             /* Used when p4type is P4_MEM */
-#     VTable *pVtab;         /* Used when p4type is P4_VTAB */
-#     KeyInfo *pKeyInfo;     /* Used when p4type is P4_KEYINFO */
-#     int *ai;               /* Used when p4type is P4_INTARRAY */
-#     SubProgram *pProgram;  /* Used when p4type is P4_SUBPROGRAM */
-#     int (*xAdvance)(BtCursor *, int *);
-#   } p4;
-# #ifdef SQLITE_ENABLE_EXPLAIN_COMMENTS
-#   char *zComment;          /* Comment to improve readability */
-# #endif
-# #ifdef VDBE_PROFILE
-#   u32 cnt;                 /* Number of times this instruction was executed */
-#   u64 cycles;              /* Total time spent executing this instruction */
-# #endif
-# #ifdef SQLITE_VDBE_COVERAGE
-#   int iSrcLine;            /* Source-code line that generated this opcode */
-# #endif
-# };
+DBP = lltype.Ptr(DB)
 
 
-SQLITE3.become(lltype.Struct("sqlite3",
-	("pVfs", rffi.VOIDP),
-	("pVdbe", lltype.Ptr(VDBE)),
-	("pDfltColl", rffi.VOIDP),
-	("mutex", rffi.VOIDP),
-	("aDb", rffi.VOIDP),
-	("nDb", rffi.INT),
-	("flags", rffi.INT)
+SQLITE3.become(lltype.Struct("sqlite3",		# src/sqliteInt.h: 960
+	("pVfs", rffi.VOIDP),					#   sqlite3_vfs *pVfs;            /* OS Interface */
+	("pVdbe", VDBEP),						# List of active virtual machines
+	("pDfltColl", rffi.VOIDP),				#   CollSeq *pDfltColl;           /* The default collating sequence (BINARY) */
+	("mutex", rffi.VOIDP),					#   sqlite3_mutex *mutex;         /* Connection mutex */
+	("aDb", lltype.Ptr(lltype.Array(DBP,	# All backends
+		hints={'nolength': True}))),
+	("nDb", rffi.INT),						# Number of backends currently in use
+	("flags", rffi.INT),					# Miscellaneous flags. See below
+	("lastRowid", CConfig.i64),				# ROWID of most recent insert (see above)
+	("szMmap", CConfig.i64),				# Default mmap_size setting
+	("openFlags", rffi.UINT),				# Flags passed to sqlite3_vfs.xOpen()
+	("errCode", rffi.INT),					# Most recent error code (SQLITE_*)
+	("errMask", rffi.INT),					# & result codes with this before returning
+	("dbOptFlags", CConfig.u16),			# Flags to enable/disable optimizations
+	("autoCommit", CConfig.u8),				# The auto-commit flag.
+	("temp_store", CConfig.u8),				# 1: file 2: memory 0: default
+	("mallocFailed", CConfig.u8),			# True if we have seen a malloc failure
+	("dfltLockMode", CConfig.u8),
+
 	))
 
 # struct sqlite3 {
-#   sqlite3_vfs *pVfs;            /* OS Interface */
-#   struct Vdbe *pVdbe;           /* List of active virtual machines */
-#   CollSeq *pDfltColl;           /* The default collating sequence (BINARY) */
-#   sqlite3_mutex *mutex;         /* Connection mutex */
-#   Db *aDb;                      /* All backends */
-#   int nDb;                      /* Number of backends currently in use */
-#   int flags;                    /* Miscellaneous flags. See below */
-#   i64 lastRowid;                /* ROWID of most recent insert (see above) */
-#   i64 szMmap;                   /* Default mmap_size setting */
-#   unsigned int openFlags;       /* Flags passed to sqlite3_vfs.xOpen() */
-#   int errCode;                  /* Most recent error code (SQLITE_*) */
-#   int errMask;                  /* & result codes with this before returning */
-#   u16 dbOptFlags;               /* Flags to enable/disable optimizations */
-#   u8 autoCommit;                /* The auto-commit flag. */
-#   u8 temp_store;                /* 1: file 2: memory 0: default */
+#	...
 #   u8 mallocFailed;              /* True if we have seen a malloc failure */
 #   u8 dfltLockMode;              /* Default locking-mode for attached dbs */
 #   signed char nextAutovac;      /* Autovac setting after VACUUM if >=0 */
@@ -214,43 +168,76 @@ SQLITE3.become(lltype.Struct("sqlite3",
 # #endif
 # };
 
-MEM = lltype.Struct("Mem",
-	("db", SQLITE3P),
-	("z", rffi.CCHARP),
-	("r", rffi.DOUBLE),
-	("u", lltype.Struct("u",
-	("i", CConfig.i64),
-	("nZero", rffi.INT),
-	hints={"union": True})),
-	("n", rffi.INT),
-	("flags", CConfig.u16),
-	("enc", CConfig.u8),
-	("xDel", rffi.VOIDP),
-	("zMalloc", rffi.VOIDP)	
+KEYINFO = lltype.Struct("KeyInfo",	# src/sqliteInt.h: 1616
+	("nRef", CConfig.u32),			# Number of references to this KeyInfo object
+	("enc", CConfig.u8),			# Text encoding - one of the SQLITE_UTF* values
+	("nField", CConfig.u16),		# Number of key columns in the index
+	("nXField", CConfig.u16),		# Number of columns beyond the key columns
+	("db", SQLITE3P),				# The database connection
+	("aSortOrder", CConfig.u8),		# Sort order for each column.
+	("aColl", rffi.VOIDP)			#   CollSeq *aColl[1];  /* Collating sequence for each term of the key */
 	)
+KEYINFOP = lltype.Ptr(KEYINFO)
 
-# struct Mem {
-#   sqlite3 *db;        /* The associated database connection */
-#   char *z;            /* String or BLOB value */
-#   double r;           /* Real value */
-#   union {
-#     i64 i;              /* Integer value used when MEM_Int is set in flags */
-#     int nZero;          /* Used when bit MEM_Zero is set in flags */
-#     FuncDef *pDef;      /* Used only when flags==MEM_Agg */
-#     RowSet *pRowSet;    /* Used only when flags==MEM_RowSet */
-#     VdbeFrame *pFrame;  /* Used when flags==MEM_Frame */
-#   } u;
-#   int n;              /* Number of characters in string value, excluding '\0' */
-#   u16 flags;          /* Some combination of MEM_Null, MEM_Str, MEM_Dyn, etc. */
-#   u8  enc;            /* SQLITE_UTF8, SQLITE_UTF16BE, SQLITE_UTF16LE */
-# #ifdef SQLITE_DEBUG
-#   Mem *pScopyFrom;    /* This Mem is a shallow copy of pScopyFrom */
-#   void *pFiller;      /* So that sizeof(Mem) is a multiple of 8 */
-# #endif
-#   void (*xDel)(void *);  /* If not null, call this function to delete Mem.z */
-#   char *zMalloc;      /* Dynamic buffer allocated by sqlite3_malloc() */
-# };
 
+MEM = lltype.Struct("Mem",			# src/vdbeInt.h: 159
+	("db", SQLITE3P),				# The associated database connection
+	("z", rffi.CCHARP),				# String or BLOB value
+	("r", rffi.DOUBLE),				# Real value
+	("u", lltype.Struct("u",
+		("i", CConfig.i64),			# Integer value used when MEM_Int is set in flags
+		("nZero", rffi.INT),		# Used when bit MEM_Zero is set in flags
+		("pDef", rffi.VOIDP),		#     FuncDef *pDef;      /* Used only when flags==MEM_Agg */
+		("pRowSet", rffi.VOIDP),	#     RowSet *pRowSet;    /* Used only when flags==MEM_RowSet */
+		("pFrame", rffi.VOIDP),		#     VdbeFrame *pFrame;  /* Used when flags==MEM_Frame */
+		hints={"union": True})),
+	("n", rffi.INT),				# Number of characters in string value, excluding '\0'
+	("flags", CConfig.u16),			# Some combination of MEM_Null, MEM_Str, MEM_Dyn, etc.
+	("enc", CConfig.u8),			# SQLITE_UTF8, SQLITE_UTF16BE, SQLITE_UTF16LE
+	# #ifdef SQLITE_DEBUG
+	#   Mem *pScopyFrom;    /* This Mem is a shallow copy of pScopyFrom */
+	#   void *pFiller;      /* So that sizeof(Mem) is a multiple of 8 */
+	# #endif
+	("xDel", rffi.VOIDP),			#   void (*xDel)(void *);  /* If not null, call this function to delete Mem.z */
+	("zMalloc", rffi.CCHARP)		# Dynamic buffer allocated by sqlite3_malloc()
+	)
+MEMP = lltype.Ptr(MEM)
+
+
+VDBEOP = lltype.Struct("VdbeOp",				# src/vdbe.h: 41
+	("opcode", CConfig.u8),						# What operation to perform
+	("p4type", rffi.CHAR),						# One of the P4_xxx constants for p4
+	("opflags", CConfig.u8),					# Mask of the OPFLG_* flags in opcodes.h
+	("p5", CConfig.u8),							# Fifth parameter is an unsigned character
+	("p1", rffi.INT),							# First operand
+	("p2", rffi.INT),							# Second parameter (often the jump destination)
+	("p3", rffi.INT),							# The third parameter
+	("p4", lltype.Struct("p4",					# fourth parameter
+		("i", rffi.INT),						# Integer value if p4type==P4_INT32
+		("p", rffi.VOIDP),						# Generic pointer
+		("z", rffi.CCHARP),						# Pointer to data for string (char array) types
+		("pI64", CConfig.i64),					# Used when p4type is P4_INT64
+		("pReal", rffi.DOUBLE),					# Used when p4type is P4_REAL
+		("pFunc", rffi.VOIDP),					#     FuncDef *pFunc;        /* Used when p4type is P4_FUNCDEF */
+		("pColl", rffi.VOIDP),					#     CollSeq *pColl;        /* Used when p4type is P4_COLLSEQ */
+		("pMem", MEMP),							# Used when p4type is P4_MEM
+		("pVtab", rffi.VOIDP),					#     VTable *pVtab;         /* Used when p4type is P4_VTAB */
+		("pKeyInfo", KEYINFOP),					# Used when p4type is P4_KEYINFO
+		("ai", rffi.VOIDP),						#     int *ai;               /* Used when p4type is P4_INTARRAY */
+		("pProgram", rffi.VOIDP),				#     SubProgram *pProgram;  /* Used when p4type is P4_SUBPROGRAM */
+		("xAdvance", rffi.VOIDP),				#     int (*xAdvance)(BtCursor *, int *);
+		hints={"union": True}))
+	# #ifdef SQLITE_ENABLE_EXPLAIN_COMMENTS
+	#   char *zComment;          /* Comment to improve readability */
+	# #endif
+	# #ifdef VDBE_PROFILE
+	#   u32 cnt;                 /* Number of times this instruction was executed */
+	#   u64 cycles;              /* Total time spent executing this instruction */
+	# #endif
+	# #ifdef SQLITE_VDBE_COVERAGE
+	#   int iSrcLine;            /* Source-code line that generated this opcode */
+	# #endif
+	)
 
 VDBE.become(lltype.Struct("Vdbe",
 	("db", SQLITE3P),
@@ -338,25 +325,6 @@ VDBE.become(lltype.Struct("Vdbe",
 #   AuxData *pAuxData;      /* Linked list of auxdata allocations */
 # };
 
-KEYINFO = lltype.Struct("KeyInfo",
-	("nRef", CConfig.u32),
-	("enc", CConfig.u8),
-	("nField", CConfig.u16),
-	("nXField", CConfig.u16),
-	("db", SQLITE3),
-	("aSortOrder", CConfig.u8),
-	("aColl", rffi.VOIDP)
-	)
-
-# struct KeyInfo {
-#   u32 nRef;           /* Number of references to this KeyInfo object */
-#   u8 enc;             /* Text encoding - one of the SQLITE_UTF* values */
-#   u16 nField;         /* Number of key columns in the index */
-#   u16 nXField;        /* Number of columns beyond the key columns */
-#   sqlite3 *db;        /* The database connection */
-#   u8 *aSortOrder;     /* Sort order for each column. */
-#   CollSeq *aColl[1];  /* Collating sequence for each term of the key */
-# };
 
 VDBECURSOR.become(lltype.Struct("Vdbe",
 	("pCursor", rffi.VOIDP),
@@ -414,11 +382,15 @@ VDBECURSOR.become(lltype.Struct("Vdbe",
 
 
 
+
 sqlite3_open = rffi.llexternal('sqlite3_open', [rffi.CCHARP, SQLITE3PP],
 							   rffi.INT, compilation_info=CConfig._compilation_info_)
 sqlite3_prepare = rffi.llexternal('sqlite3_prepare', [rffi.VOIDP, rffi.CCHARP, rffi.INT, rffi.VOIDPP, rffi.CCHARPP],
 								  rffi.INT, compilation_info=CConfig._compilation_info_)
 sqlite3_allocateCursor = rffi.llexternal('allocateCursor', [lltype.Ptr(VDBE), rffi.INT, rffi.INT, rffi.INT, rffi.INT],
-	rffi.VOIDP, compilation_info=CConfig._compilation_info_)
+	VDBECURSORP, compilation_info=CConfig._compilation_info_)
 sqlite3_sqlite3VdbeMemIntegerify = rffi.llexternal('sqlite3VdbeMemIntegerify', [lltype.Ptr(MEM)],
 	rffi.INT, compilation_info=CConfig._compilation_info_)
+sqlite3_sqlite3BtreeCursor = rffi.llexternal('sqlite3BtreeCursor', [rffi.VOIDP, rffi.INT, rffi.INT, rffi.VOIDP, rffi.VOIDP],
+	rffi.INT, compilation_info=CConfig._compilation_info_)
+
