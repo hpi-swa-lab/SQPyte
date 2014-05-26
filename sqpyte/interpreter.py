@@ -1,5 +1,6 @@
 from rpython.rtyper.lltypesystem import rffi, lltype
 from capi import CConfig
+from rpython.rlib.rarithmetic import intmask
 import sys
 import os
 import capi
@@ -24,6 +25,9 @@ def allocateCursor(vdbe_struct, p1, nField, iDb, isBtreeCursor):
 
 def sqlite3VdbeMemIntegerify(pMem):
 	return capi.sqlite3_sqlite3VdbeMemIntegerify(pMem)
+
+def sqlite3BtreeCursor(p, iTable, wrFlag, pKeyInfo, pCur):
+	return capi.sqlite3_sqlite3BtreeCursor(p, iTable, wrFlag, pKeyInfo, pCur)
 
 def mainloop(vdbe_struct):
 	pc = 0
@@ -54,6 +58,7 @@ def mainloop(vdbe_struct):
 			pKeyInfo = lltype.nullptr(capi.KEYINFO)
 			p2 = pOp.p2;
 			iDb = pOp.p3
+			wrFlag = 0
 
 			assert(iDb >= 0 and iDb < db.nDb)
 			#   assert( (p->btreeMask & (((yDbMask)1)<<iDb))!=0 );
@@ -91,7 +96,7 @@ def mainloop(vdbe_struct):
 					pKeyInfo = pOp.p4.pKeyInfo
 					#     assert( pKeyInfo->enc==ENC(db) );
 					assert(pKeyInfo.db == db)
-					nField = pKeyInfo.nField + pKeyInfo.nXField
+					nField = intmask(pKeyInfo.nField) + intmask(pKeyInfo.nXField)
 				elif pOp.p4type == CConfig.P4_INT32:
 					nField = pOp.p4.i
 
@@ -100,9 +105,10 @@ def mainloop(vdbe_struct):
 				#   testcase( nField==0 );  /* Table with INTEGER PRIMARY KEY and nothing else */
 				pCur = allocateCursor(p, pOp.p1, nField, iDb, 1)
 				#   if( pCur==0 ) goto no_mem;
-				pCur.nullRow = 1
-				pCur.isOrdered = 1
+				pCur.nullRow = rffi.cast(rffi.UCHAR, 1) #rffi.r_uchar(1)
+				pCur.isOrdered = bool(1)
 				#   rc = sqlite3BtreeCursor(pX, p2, wrFlag, pKeyInfo, pCur->pCursor);
+				rc = sqlite3BtreeCursor(pX, p2, wrFlag, pKeyInfo, pCur.pCursor)
 				pCur.pKeyInfo = pKeyInfo
 				#   assert( OPFLAG_BULKCSR==BTREE_BULKLOAD );
 				#   sqlite3BtreeCursorHints(pCur->pCursor, (pOp->p5 & OPFLAG_BULKCSR));
