@@ -41,11 +41,37 @@ VDBECURSOR = lltype.ForwardReference()
 VDBECURSORP = lltype.Ptr(VDBECURSOR)
 VDBECURSORPP = rffi.CArrayPtr(VDBECURSORP)
 
+HASH = lltype.Struct("Hash",				# src/hash.h: 43
+	("htsize", rffi.UINT),					# Number of buckets in the hash table
+	("count", rffi.UINT),					# Number of entries in this table
+	("first", rffi.VOIDP),					#   HashElem *first;          /* The first element of the array */
+	("ht", lltype.Ptr(lltype.Struct("_ht",	# the hash table
+		("count", rffi.INT),				# Number of entries with this hash
+		("chain", rffi.VOIDP))))			#     HashElem *chain;           /* Pointer to first entry with this hash */
+	)
+
+
+SCHEMA = lltype.Struct("Schema",	# src/sqliteInt.h: 869
+	("schema_cookie", rffi.INT),	# Database schema version number for this file
+	("iGeneration", rffi.INT),		# Generation counter.  Incremented with each change
+	("tblHash", HASH),				# All tables indexed by name
+	("idxHash", HASH),				# All (named) indices indexed by name
+	("trigHash", HASH),				# All triggers indexed by name
+	("fkeyHash", HASH),				# All foreign keys by referenced table name
+	("pSeqTab", rffi.VOIDP),		#   Table *pSeqTab;      /* The sqlite_sequence table used by AUTOINCREMENT */
+	("file_format", CConfig.u8),	# Schema format version for this file
+	("enc", CConfig.u8),			# Text encoding used by this database
+	("flags", CConfig.u16),			# Flags associated with this schema
+	("cache_size", rffi.INT)		# Number of pages to use in the cache
+	)
+SCHEMAP = lltype.Ptr(SCHEMA)
+
+
 DB = lltype.Struct("Db",			# src/sqliteInt.h: 845
 	("zName", rffi.CCHARP),			# Name of this database
 	("pBt", rffi.VOIDP),			#   Btree *pBt;          /* The B*Tree structure for this database file */
 	("safety_level", CConfig.u8),	# How aggressive at syncing data to disk
-	("pSchema", rffi.VOIDP)			#   Schema *pSchema;     /* Pointer to database schema (possibly shared) */
+	("pSchema", SCHEMAP)			#   Schema *pSchema;     /* Pointer to database schema (possibly shared) */
 	)
 DBP = lltype.Ptr(DB)
 
@@ -243,7 +269,7 @@ VDBE.become(lltype.Struct("Vdbe",				# src/vdbeInt.h: 308
 	("aColName", rffi.CArrayPtr(MEM)),			# Column names to return
 	("pResultSet", rffi.CArrayPtr(MEM)),		# Pointer to an array of results
 	("pParse", rffi.VOIDP),						#   Parse *pParse;          /* Parsing context used to create this Vdbe */
-	("nMen", rffi.INT),							# Number of memory locations currently allocated
+	("nMem", rffi.INT),							# Number of memory locations currently allocated
 	("nOp", rffi.INT),							# Number of instructions in the program
 	("nCursor", rffi.INT),						# Number of slots in apCsr[]
 	("magic", CConfig.u32),						# Magic number for sanity checking
