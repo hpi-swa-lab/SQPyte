@@ -4,7 +4,7 @@ from rpython.translator.tool.cbuild import ExternalCompilationInfo
 
 class CConfig:
     _compilation_info_ = ExternalCompilationInfo(
-        includes = ['sqlite3.h', 'stdint.h', 'sqliteInt.h'],
+        includes = ['sqlite3.h', 'stdint.h', 'sqliteInt.h', 'btreeInt.h'],
         libraries = ['sqlite3'],
         library_dirs = ['/Users/dkurilov/workspace/sqlite/'],
         include_dirs = ['/Users/dkurilov/workspace/sqlite/src/', '/Users/dkurilov/workspace/sqlite/'],
@@ -22,9 +22,10 @@ class CConfig:
 opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite']
 p4names = ['P4_INT32', 'P4_KEYINFO']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR']
-result_codes = ['SQLITE_OK', 'SQLITE_ABORT']
+result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT']
+btree_values = ['BTCURSOR_MAX_DEPTH']
 
-for name in p4names + opnames + p5flags + result_codes:
+for name in p4names + opnames + p5flags + result_codes + btree_values:
 	setattr(CConfig, name, platform.DefinedConstantInteger(name))
 
 CConfig.__dict__.update(platform.configure(CConfig))
@@ -40,6 +41,10 @@ VDBEP = lltype.Ptr(VDBE)
 VDBECURSOR = lltype.ForwardReference()
 VDBECURSORP = lltype.Ptr(VDBECURSOR)
 VDBECURSORPP = rffi.CArrayPtr(VDBECURSORP)
+BTREE = lltype.ForwardReference()
+BTREEP = lltype.Ptr(BTREE)
+BTCURSOR = lltype.ForwardReference()
+BTCURSORP = lltype.Ptr(BTCURSOR)
 
 HASH = lltype.Struct("Hash",				# src/hash.h: 43
 	("htsize", rffi.UINT),					# Number of buckets in the hash table
@@ -67,11 +72,75 @@ SCHEMA = lltype.Struct("Schema",	# src/sqliteInt.h: 869
 SCHEMAP = lltype.Ptr(SCHEMA)
 
 
+SQLITE3_MUTEX = lltype.Struct("sqlite3_mutex",	# src/mutex_unix.c: 41
+	("mutex", rffi.INT)							#   pthread_mutex_t mutex;     /* Mutex controlling the lock */
+	# #if SQLITE_MUTEX_NREF
+	#   int id;                    /* Mutex type */
+	#   volatile int nRef;         /* Number of entrances */
+	#   volatile pthread_t owner;  /* Thread that is within this mutex */
+	#   int trace;                 /* True to trace changes */
+	# #endif
+	)
+
+
+BTSHARED = lltype.Struct("BtShared",	# src/btreeInt.h: 406
+	("pPager", rffi.VOIDP),				# The page cache
+	("db", SQLITE3P),					# Database connection currently using this Btree
+	("pCursor", BTCURSORP),				# A list of all open cursors
+	("pPage1", rffi.VOIDP),				# First page of the database
+	("openFlags", CConfig.u8),			# Flags to sqlite3BtreeOpen()
+	# #ifndef SQLITE_OMIT_AUTOVACUUM
+	#   u8 autoVacuum;        /* True if auto-vacuum is enabled */
+	#   u8 incrVacuum;        /* True if incr-vacuum is enabled */
+	#   u8 bDoTruncate;       /* True to truncate db on commit */
+	# #endif
+	("inTransaction", CConfig.u8),		# Transaction state
+	("max1bytePayload", CConfig.u8),	# Maximum first byte of cell for a 1-byte payload
+	("btsFlags", CConfig.u16),			# Boolean parameters.  See BTS_* macros below
+	("maxLocal", CConfig.u16),			# Maximum local payload in non-LEAFDATA tables
+	("minLocal", CConfig.u16),			# Minimum local payload in non-LEAFDATA tables
+	("maxLeaf", CConfig.u16),			# Maximum local payload in a LEAFDATA table
+	("minLeaf", CConfig.u16),			# Minimum local payload in a LEAFDATA table
+	("pageSize", CConfig.u32),			# Total number of bytes on a page
+	("usableSize", CConfig.u32),		# Number of usable bytes on each page
+	("nTransaction", rffi.INT),			# Number of open transactions (read + write)
+	("nPage", CConfig.u32),				# Number of pages in the database
+	("pSchema", rffi.VOIDP),			# Pointer to space allocated by sqlite3BtreeSchema()
+	("xFreeSchema", rffi.VOIDP),		#   void (*xFreeSchema)(void*);  /* Destructor for BtShared.pSchema */
+	("mutex", rffi.VOIDP),				#   sqlite3_mutex *mutex; /* Non-recursive mutex required to access this object */
+	("pHasContent", rffi.VOIDP),		#   Bitvec *pHasContent;  /* Set of pages moved to free-list this transaction */
+	# #ifndef SQLITE_OMIT_SHARED_CACHE
+	#   int nRef;             /* Number of references to this structure */
+	#   BtShared *pNext;      /* Next on a list of sharable BtShared structs */
+	#   BtLock *pLock;        /* List of locks held on this shared-btree struct */
+	#   Btree *pWriter;       /* Btree with currently open write transaction */
+	# #endif
+	("pTmpSpace", rffi.UCHARP)			# BtShared.pageSize bytes of space for tmp use
+	)
+BTSHAREDP = lltype.Ptr(BTSHARED)
+
+
+BTREE.become(lltype.Struct("Btree",		# src/btreeInt.h: 345
+	("db", SQLITE3P),					# The database connection holding this btree
+	("pBt", BTSHAREDP),					# Sharable content of this btree
+	("inTrans", CConfig.u8),			# TRANS_NONE, TRANS_READ or TRANS_WRITE
+	("sharable", CConfig.u8),			# True if we can share pBt with another db
+	("locked", CConfig.u8),				# True if db currently has pBt locked
+	("wantToLock", rffi.INT),			# Number of nested calls to sqlite3BtreeEnter()
+	("nBackup", rffi.INT),				# Number of backup operations reading this btree
+	("pNext", BTREEP),					# List of other sharable Btrees from the same db
+	("pPrev", BTREEP)					# Back pointer of the same list
+	# #ifndef SQLITE_OMIT_SHARED_CACHE
+	#   BtLock lock;       /* Object used to lock page 1 */
+	# #endif
+	))
+
+
 DB = lltype.Struct("Db",			# src/sqliteInt.h: 845
 	("zName", rffi.CCHARP),			# Name of this database
-	("pBt", rffi.VOIDP),			#   Btree *pBt;          /* The B*Tree structure for this database file */
+	("pBt", BTREEP),				# The B*Tree structure for this database file
 	("safety_level", CConfig.u8),	# How aggressive at syncing data to disk
-	("pSchema", SCHEMAP)			#   Schema *pSchema;     /* Pointer to database schema (possibly shared) */
+	("pSchema", SCHEMAP)			# Pointer to database schema (possibly shared)
 	)
 DBP = lltype.Ptr(DB)
 
@@ -103,7 +172,8 @@ SQLITE3.become(lltype.Struct("sqlite3",			# src/sqliteInt.h: 960
 	("magic", CConfig.u32),						# Magic number for detect library misuse
 	("nChange", rffi.INT),						# Value returned by sqlite3_changes()
 	("nTotalChange", rffi.INT),					# Value returned by sqlite3_total_changes()
-	("aLimit", rffi.INT),						#   int aLimit[SQLITE_N_LIMIT];   /* Limits */
+	("aLimit", lltype.FixedSizeArray(rffi.INT,	# Limits
+		CConfig.SQLITE_N_LIMIT)),
 	("init", lltype.Struct("sqlite3InitInfo",	# Information used during initialization
 		("newTnum", rffi.INT),					# Rootpage of table being initialized
 		("iDb", CConfig.u8),					# Which db file is being initialized
@@ -197,6 +267,41 @@ KEYINFO = lltype.Struct("KeyInfo",	# src/sqliteInt.h: 1616
 	("aColl", rffi.VOIDP)			#   CollSeq *aColl[1];  /* Collating sequence for each term of the key */
 	)
 KEYINFOP = lltype.Ptr(KEYINFO)
+
+
+CELLINFO = lltype.Struct("CellInfo",	# src/btreeInt.h: 458
+	("nKey", CConfig.i64),				# The key for INTKEY tables, or number of bytes in key
+	("pCell", rffi.UCHARP),				# Pointer to the start of cell content
+	("nData", CConfig.u32),				# Number of bytes of data
+	("nPayload", CConfig.u32),			# Total amount of payload
+	("nHeader", CConfig.u16),			# Size of the cell content header in bytes
+	("nLocal", CConfig.u16),			# Amount of payload held locally
+	("iOverflow", CConfig.u16),			# Offset to overflow page number.  Zero if no overflow
+	("nSize", CConfig.u16)				# Size of the cell content on the main b-tree page
+	)
+
+
+BTCURSOR.become(lltype.Struct("BtCursor",			# src/btreeInt.h: 494
+	("pBtree", BTREEP),								# The Btree to which this cursor belongs
+	("pBt", rffi.VOIDP),							#   BtShared *pBt;            /* The BtShared this cursor points to */
+	("pNext", BTCURSORP),							# Forms a linked list of all cursors
+	("pPrev", BTCURSORP),							# Forms a linked list of all cursors
+	("pKeyInfo", KEYINFOP),							# Argument passed to comparison function
+	("aOverflow", rffi.UINTP),						# Cache of overflow page locations
+	("info", CELLINFO),								# A parse of the cell we are pointing at
+	("nKey", CConfig.i64),							# Size of pKey, or last integer key
+	("pKey", rffi.VOIDP),							# Saved key that was cursor last known position
+	("pgnoRoot", CConfig.u32),						# The root page of this tree
+	("nOvflAlloc", rffi.INT),						# Allocated size of aOverflow[] array
+	("skipNext", rffi.INT),							# Prev() is noop if negative. Next() is noop if positive
+	("curFlags", CConfig.u8),						# zero or more BTCF_* flags defined below
+	("eState", CConfig.u8),							# One of the CURSOR_XXX constants (see below)
+	("hints", CConfig.u8),							# As configured by CursorSetHints()
+	("iPage", CConfig.i16),							# Index of current page in apPage
+	("aiIdx", lltype.FixedSizeArray(CConfig.u16,	# Current index in apPage[i]
+		CConfig.BTCURSOR_MAX_DEPTH)),
+	("apPage", rffi.VOIDP)							#   MemPage *apPage[BTCURSOR_MAX_DEPTH];  /* Pages from root to current page */
+	))
 
 
 MEM = lltype.Struct("Mem",			# src/vdbeInt.h: 159
@@ -301,7 +406,7 @@ VDBE.become(lltype.Struct("Vdbe",				# src/vdbeInt.h: 308
 	("btreeMask", rffi.UINT),					#   yDbMask btreeMask;      /* Bitmask of db->aDb[] entries referenced */
 	("lockMask", rffi.UINT),					#   yDbMask lockMask;       /* Subset of btreeMask that requires a lock */
 	("iStatement", rffi.UINT),					# Statement number (or 0 if has not opened stmt)
-	("aCounter", CConfig.u32),					#   u32 aCounter[5];        /* Counters used by sqlite3_stmt_status() */
+	("aCounter", lltype.FixedSizeArray(CConfig.u32, 5)), # Counters used by sqlite3_stmt_status()
 	# #ifndef SQLITE_OMIT_TRACE
 	#   i64 startTime;          /* Time when query started - used for profiling */
 	# #endif
@@ -362,7 +467,7 @@ VDBECURSOR.become(lltype.Struct("VdbeCursor",	# src/vdbeInt.h: 63
 	("szRow", CConfig.u32),						# Byte available in aRow
 	("iHdrOffset", CConfig.u32),				# Offset to next unparsed byte of the header
 	("aRow", rffi.VOIDP),						#   const u8 *aRow;       /* Data for the current row, if all on one page */
-	("aType", rffi.VOIDP)						#   u32 aType[1];         /* Type values for all entries in the record */
+	("aType", lltype.FixedSizeArray(CConfig.u32, 1)) # Type values for all entries in the record
 	#   /* 2*nField extra array elements allocated for aType[], beyond the one
 	#   ** static element declared in the structure.  nField total array slots for
 	#   ** aType[] and nField+1 array slots for aOffset[] */
