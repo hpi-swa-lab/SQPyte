@@ -105,13 +105,12 @@ def mainloop(vdbe_struct):
                 #   testcase( nField==0 );  /* Table with INTEGER PRIMARY KEY and nothing else */
                 pCur = allocateCursor(p, pOp.p1, nField, iDb, 1)
                 #   if( pCur==0 ) goto no_mem;
-                pCur.nullRow = rffi.cast(rffi.UCHAR, 1) #rffi.r_uchar(1)
+                pCur.nullRow = 1
                 pCur.isOrdered = bool(1)
-                #   rc = sqlite3BtreeCursor(pX, p2, wrFlag, pKeyInfo, pCur->pCursor);
                 rc = sqlite3BtreeCursor(pX, p2, wrFlag, pKeyInfo, pCur.pCursor)
                 pCur.pKeyInfo = pKeyInfo
-                #   assert( OPFLAG_BULKCSR==BTREE_BULKLOAD );
-                #   sqlite3BtreeCursorHints(pCur->pCursor, (pOp->p5 & OPFLAG_BULKCSR));
+                assert(CConfig.OPFLAG_BULKCSR == CConfig.BTREE_BULKLOAD)
+                sqlite3BtreeCursorHints(pCur.pCursor, (pOp.p5 & CConfig.OPFLAG_BULKCSR))
 
                 #   /* Since it performs no memory allocation or IO, the only value that
                 #   ** sqlite3BtreeCursor() may return is SQLITE_OK. */

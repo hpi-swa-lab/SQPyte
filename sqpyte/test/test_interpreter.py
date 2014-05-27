@@ -39,7 +39,7 @@ def test_mainloop():
 
 def test_allocateCursor():
     db = opendb(testdb)
-    ops = prepare(db, 'select * from contacts;')
+    ops = prepare(db, 'select name from contacts;')
     vdbe = allocateCursor(ops, ops.aOp[0].p1, ops.aOp[0].p4.i, ops.aOp[0].p3, 1)
 
 def test_sqlite3VdbeMemIntegerify():

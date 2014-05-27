@@ -23,7 +23,7 @@ opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite']
 p4names = ['P4_INT32', 'P4_KEYINFO']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT']
-btree_values = ['BTCURSOR_MAX_DEPTH']
+btree_values = ['BTCURSOR_MAX_DEPTH', 'BTREE_BULKLOAD']
 
 for name in p4names + opnames + p5flags + result_codes + btree_values:
     setattr(CConfig, name, platform.DefinedConstantInteger(name))
