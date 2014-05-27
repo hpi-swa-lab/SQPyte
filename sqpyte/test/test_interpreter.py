@@ -1,6 +1,6 @@
 from rpython.rtyper.lltypesystem import rffi
 from sqpyte.interpreter import opendb, prepare, mainloop, allocateCursor, sqlite3VdbeMemIntegerify, sqlite3BtreeCursor
-
+from sqpyte.capi import CConfig
 import os, sys
 
 testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test.db")
@@ -50,29 +50,22 @@ def test_sqlite3VdbeMemIntegerify():
 	aMem = ops.aMem
 	pMem = aMem[p2]
 	rc = sqlite3VdbeMemIntegerify(pMem)
+	assert(rc == CConfig.SQLITE_OK)
 
 def test_sqlite3BtreeCursor():
 	db = opendb(testdb)
-
-	# pOp is op
-	# p is ops
-
-	ops = prepare(db, 'select name from contacts;')
-	op = ops.aOp[0]
-	# p2 = op.p2
+	ops = prepare(db, 'select name from contacts;') # a.k.a.  p
+	op = ops.aOp[0] # a.k.a.  pOp
 	p2 = op.p2
-	aMem = ops.aMem
-	pIn2 = aMem[p2]
-	p2 = rffi.cast(rffi.INT, pIn2.u.i)
-
 	iDb = op.p3
 	pDb = db.aDb[iDb]
 	pX = pDb.pBt
-	wrFlag = 0
+	wrFlag = 1
 	pKeyInfo = op.p4.pKeyInfo
 	nField = ops.aOp[0].p4.i
 	pCur = allocateCursor(ops, op.p1, nField, iDb, 1)
 	pCur.nullRow = rffi.r_uchar(1)
 	pCur.isOrdered = bool(1)
-	sqlite3BtreeCursor(pX, p2, wrFlag, pKeyInfo, pCur.pCursor)
+	rc = sqlite3BtreeCursor(pX, p2, wrFlag, pKeyInfo, pCur.pCursor)
+	assert(rc == CConfig.SQLITE_OK)
 

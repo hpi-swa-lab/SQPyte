@@ -150,7 +150,7 @@ SQLITE3.become(lltype.Struct("sqlite3",			# src/sqliteInt.h: 960
 	("pVdbe", VDBEP),							# List of active virtual machines
 	("pDfltColl", rffi.VOIDP),					#   CollSeq *pDfltColl;           /* The default collating sequence (BINARY) */
 	("mutex", rffi.VOIDP),						#   sqlite3_mutex *mutex;         /* Connection mutex */
-	("aDb", lltype.Ptr(lltype.Array(DBP,		# All backends
+	("aDb", lltype.Ptr(lltype.Array(DB,			# All backends
 		hints={'nolength': True}))),
 	("nDb", rffi.INT),							# Number of backends currently in use
 	("flags", rffi.INT),						# Miscellaneous flags. See below
@@ -348,7 +348,7 @@ VDBEOP = lltype.Struct("VdbeOp",				# src/vdbe.h: 41
 		("pMem", MEMP),							# Used when p4type is P4_MEM
 		("pVtab", rffi.VOIDP),					#     VTable *pVtab;         /* Used when p4type is P4_VTAB */
 		("pKeyInfo", KEYINFOP),					# Used when p4type is P4_KEYINFO
-		("ai", rffi.VOIDP),						#     int *ai;               /* Used when p4type is P4_INTARRAY */
+		("ai", rffi.INTP),						# Used when p4type is P4_INTARRAY
 		("pProgram", rffi.VOIDP),				#     SubProgram *pProgram;  /* Used when p4type is P4_SUBPROGRAM */
 		("xAdvance", rffi.VOIDP),				#     int (*xAdvance)(BtCursor *, int *);
 		hints={"union": True}))
