@@ -19,7 +19,7 @@ class CConfig:
     u64 = platform.SimpleType('uint64_t', rffi.ULONGLONG)
     i64 = platform.SimpleType('int64_t', rffi.LONGLONG)
 
-opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite']
+opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite', 'OP_Rewind', 'OP_SorterSort']
 p4names = ['P4_INT32', 'P4_KEYINFO']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT']
@@ -433,8 +433,8 @@ VDBE.become(lltype.Struct("Vdbe",               # src/vdbeInt.h: 308
 
 
 VDBECURSOR.become(lltype.Struct("VdbeCursor",   # src/vdbeInt.h: 63
-    ("pCursor", rffi.VOIDP),                    #   BtCursor *pCursor;    /* The cursor structure of the backend */
-    ("pBt", rffi.VOIDP),                        #   Btree *pBt;           /* Separate file holding temporary table */
+    ("pCursor", BTCURSORP),                     # The cursor structure of the backend
+    ("pBt", BTREEP),                            # Separate file holding temporary table
     ("pKeyInfo", KEYINFOP),                     # Info about index keys needed by index cursors
     ("seekResult", rffi.INT),                   # Result of previous sqlite3BtreeMoveto()
     ("pseudoTableReg", rffi.INT),               # Register holding pseudotable content.
@@ -466,7 +466,7 @@ VDBECURSOR.become(lltype.Struct("VdbeCursor",   # src/vdbeInt.h: 63
     ("payloadSize", CConfig.u32),               # Total number of bytes in the record
     ("szRow", CConfig.u32),                     # Byte available in aRow
     ("iHdrOffset", CConfig.u32),                # Offset to next unparsed byte of the header
-    ("aRow", rffi.VOIDP),                       #   const u8 *aRow;       /* Data for the current row, if all on one page */
+    ("aRow", rffi.UCHARP),                      #   const u8 *aRow;       /* Data for the current row, if all on one page */
     ("aType", lltype.FixedSizeArray(CConfig.u32, 1)) # Type values for all entries in the record
     #   /* 2*nField extra array elements allocated for aType[], beyond the one
     #   ** static element declared in the structure.  nField total array slots for
@@ -484,4 +484,7 @@ sqlite3_sqlite3VdbeMemIntegerify = rffi.llexternal('sqlite3VdbeMemIntegerify', [
     rffi.INT, compilation_info=CConfig._compilation_info_)
 sqlite3_sqlite3BtreeCursor = rffi.llexternal('sqlite3BtreeCursor', [rffi.VOIDP, rffi.INT, rffi.INT, rffi.VOIDP, rffi.VOIDP],
     rffi.INT, compilation_info=CConfig._compilation_info_)
-
+sqlite3_sqlite3BtreeCursorHints = rffi.llexternal('sqlite3BtreeCursorHints', [BTCURSORP, rffi.UINT],
+    lltype.Void, compilation_info=CConfig._compilation_info_)
+sqlite3_sqlite3VdbeSorterRewind = rffi.llexternal('sqlite3VdbeSorterRewind', [SQLITE3P, VDBECURSORP, rffi.INTP],
+    rffi.INT, compilation_info=CConfig._compilation_info_)

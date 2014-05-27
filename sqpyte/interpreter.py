@@ -29,6 +29,14 @@ def sqlite3VdbeMemIntegerify(pMem):
 def sqlite3BtreeCursor(p, iTable, wrFlag, pKeyInfo, pCur):
     return capi.sqlite3_sqlite3BtreeCursor(p, iTable, wrFlag, pKeyInfo, pCur)
 
+def sqlite3BtreeCursorHints(btCursor, mask):
+    return capi.sqlite3_sqlite3BtreeCursorHints(btCursor, mask)
+
+def sqlite3VdbeSorterRewind(db, pC, res):
+    with lltype.scoped_alloc(rffi.INTP.TO, 1) as res:
+        errorcode = capi.sqlite3_sqlite3VdbeSorterRewind(db, pC, res)
+        return rffi.cast(capi.INTP, res[0])
+
 def mainloop(vdbe_struct):
     pc = 0
     length = vdbe_struct.nOp
@@ -121,6 +129,48 @@ def mainloop(vdbe_struct):
                 #   ** since moved into the btree layer.  */
                 pCur.isTable = pOp.p4type != CConfig.P4_KEYINFO
                 break
+        elif pOp.opcode == CConfig.OP_Rewind:
+            assert(pOp.p1 >= 0 and pOp.p1 < p.nCursor)
+            pC = p.apCsr[pOp.p1]
+            assert(pC != 0)
+            #define isSorter(x) ((x)->pSorter!=0)
+            #   assert( isSorter(pC)==(pOp->opcode==OP_SorterSort) );
+            assert((pC.pSorter != 0) == (pOp.opcode == CConfig.OP_SorterSort))
+            # res = 1
+            if pC.pSorter != 0:
+                pass
+                # rc = sqlite3VdbeSorterRewind(db, pC, &res)
+            else:
+                pCrsr = pC.pCursor
+
+            # case OP_Rewind: {        /* jump */
+            #   VdbeCursor *pC;
+            #   BtCursor *pCrsr;
+            #   int res;
+
+            #   assert( pOp->p1>=0 && pOp->p1<p->nCursor );
+            #   pC = p->apCsr[pOp->p1];
+            #   assert( pC!=0 );
+            #   assert( isSorter(pC)==(pOp->opcode==OP_SorterSort) );
+            #   res = 1;
+            #   if( isSorter(pC) ){
+            #     rc = sqlite3VdbeSorterRewind(db, pC, &res);
+            #   }else{
+            #     pCrsr = pC->pCursor;
+            #     assert( pCrsr );
+            #     rc = sqlite3BtreeFirst(pCrsr, &res);
+            #     pC->deferredMoveto = 0;
+            #     pC->cacheStatus = CACHE_STALE;
+            #     pC->rowidIsValid = 0;
+            #   }
+            #   pC->nullRow = (u8)res;
+            #   assert( pOp->p2>0 && pOp->p2<p->nOp );
+            #   VdbeBranchTaken(res!=0,2);
+            #   if( res ){
+            #     pc = pOp->p2 - 1;
+            #   }
+            #   break;
+            # }
         else:
             # raise Exception("unimplemented bytecode %s " % pOp.opcode)
             pass

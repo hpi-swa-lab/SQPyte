@@ -1,5 +1,6 @@
 from rpython.rtyper.lltypesystem import rffi
-from sqpyte.interpreter import opendb, prepare, mainloop, allocateCursor, sqlite3VdbeMemIntegerify, sqlite3BtreeCursor
+from sqpyte.interpreter import opendb, prepare, mainloop, allocateCursor
+from sqpyte.interpreter import sqlite3VdbeMemIntegerify, sqlite3BtreeCursor, sqlite3BtreeCursorHints, sqlite3VdbeSorterRewind
 from sqpyte.capi import CConfig
 import os, sys
 
@@ -67,5 +68,23 @@ def test_sqlite3BtreeCursor():
     pCur.nullRow = rffi.r_uchar(1)
     pCur.isOrdered = bool(1)
     rc = sqlite3BtreeCursor(pX, p2, wrFlag, pKeyInfo, pCur.pCursor)
+    assert(rc == CConfig.SQLITE_OK)
+
+def test_sqlite3BtreeCursorHints():
+    db = opendb(testdb)
+    ops = prepare(db, 'select name from contacts;') # a.k.a.  p
+    op = ops.aOp[0] # a.k.a.  pOp
+    iDb = op.p3
+    nField = ops.aOp[0].p4.i
+    pCur = allocateCursor(ops, op.p1, nField, iDb, 1)
+    sqlite3BtreeCursorHints(pCur.pCursor, (op.p5 & CConfig.OPFLAG_BULKCSR))
+
+def test_sqlite3VdbeSorterRewind():
+    db = opendb(testdb)
+    ops = prepare(db, 'select name from contacts;') # a.k.a.  p
+    op = ops.aOp[0] # a.k.a.  pOp
+    pC = ops.apCsr[op.p1]
+    res = 1
+    rc = sqlite3VdbeSorterRewind(db, pC, res)
     assert(rc == CConfig.SQLITE_OK)
 
