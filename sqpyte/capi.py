@@ -1,13 +1,17 @@
+import os
 from rpython.rtyper.tool import rffi_platform as platform
 from rpython.rtyper.lltypesystem import rffi, lltype
 from rpython.translator.tool.cbuild import ExternalCompilationInfo
+
+sqlitedir = os.path.join(os.path.abspath(os.path.dirname(os.path.dirname(__file__))), "sqlite")
+srcdir = os.path.join(sqlitedir, "src")
 
 class CConfig:
     _compilation_info_ = ExternalCompilationInfo(
         includes = ['sqlite3.h', 'stdint.h', 'sqliteInt.h', 'btreeInt.h'],
         libraries = ['sqlite3'],
-        library_dirs = ['/Users/dkurilov/workspace/sqlite/'],
-        include_dirs = ['/Users/dkurilov/workspace/sqlite/src/', '/Users/dkurilov/workspace/sqlite/'],
+        library_dirs = [sqlitedir],
+        include_dirs = [srcdir, sqlitedir],
     )
 
     u8  = platform.SimpleType('uint8_t', rffi.UCHAR)
