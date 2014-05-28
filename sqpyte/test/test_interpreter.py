@@ -2,6 +2,7 @@ from rpython.rtyper.lltypesystem import rffi
 from sqpyte.interpreter import opendb, prepare, mainloop, allocateCursor
 from sqpyte.interpreter import sqlite3VdbeMemIntegerify, sqlite3BtreeCursor, sqlite3BtreeCursorHints, sqlite3VdbeSorterRewind
 from sqpyte.capi import CConfig
+from sqpyte import capi
 import os, sys
 
 testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test.db")
@@ -88,3 +89,5 @@ def test_sqlite3VdbeSorterRewind():
     rc = sqlite3VdbeSorterRewind(db, pC, res)
     assert(rc == CConfig.SQLITE_OK)
 
+def test_sqpyte_test_function():
+    assert capi.sqpyte_test_function(1) == 2

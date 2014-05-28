@@ -492,3 +492,6 @@ sqlite3_sqlite3BtreeCursorHints = rffi.llexternal('sqlite3BtreeCursorHints', [BT
     lltype.Void, compilation_info=CConfig._compilation_info_)
 sqlite3_sqlite3VdbeSorterRewind = rffi.llexternal('sqlite3VdbeSorterRewind', [SQLITE3P, VDBECURSORP, rffi.INTP],
     rffi.INT, compilation_info=CConfig._compilation_info_)
+
+sqpyte_test_function = rffi.llexternal('sqpyte_test_function', [rffi.INT],
+    rffi.INT, compilation_info=CConfig._compilation_info_)
