@@ -124,8 +124,13 @@ def python_OP_OpenRead_translated(p, db, pc, pOp):
 def python_OP_Rewind(p, db, pc, pOp):
     return capi.impl_OP_Rewind(p, db, pc, pOp)
 
+# def python_OP_Transaction(p, db, pc, pOp):
+#     return capi.impl_OP_Transaction(p, db, pc, pOp)
+
 def python_OP_Transaction(p, db, pc, pOp):
-    return capi.impl_OP_Transaction(p, db, pc, pOp)
+    with lltype.scoped_alloc(rffi.INTP.TO, 1) as internalPc:
+        rc = capi.impl_OP_Transaction(p, db, internalPc, pOp)
+    return internalPc[0], rc
 
 def python_OP_TableLock(p, db, pc, pOp):
     capi.impl_OP_TableLock(p, db, pc, pOp)
@@ -149,7 +154,9 @@ def python_OP_Close(p, db, pc, pOp):
     capi.impl_OP_Close(p, db, pc, pOp)
 
 def python_OP_Halt(p, db, pc, pOp):
-    return capi.impl_OP_Halt(p, db, pc, pOp)
+    with lltype.scoped_alloc(rffi.INTP.TO, 1) as internalPc:
+        rc = capi.impl_OP_Halt(p, db, internalPc, pOp)
+    return internalPc[0], rc
 
 def mainloop(vdbe_struct):
     # pc = 0
@@ -162,8 +169,8 @@ def mainloop(vdbe_struct):
     pc = p.pc
     rc = 0
     # while pc < length:
-    # while pc >= 0:
-    while rc == CConfig.SQLITE_OK:
+    while pc >= 0:
+    # while rc == CConfig.SQLITE_OK:
         pOp = ops[pc]
 
         if pOp.opcode == CConfig.OP_Init:
@@ -177,7 +184,8 @@ def mainloop(vdbe_struct):
             pc = python_OP_Rewind(p, db, pc, pOp)
         elif pOp.opcode == CConfig.OP_Transaction:
             print 'OP_Transaction'
-            pc = python_OP_Transaction(p, db, pc, pOp)
+            pc, rc = python_OP_Transaction(p, db, pc, pOp)
+            print pc + ' ' + rc
         elif pOp.opcode == CConfig.OP_TableLock:
             print 'OP_TableLock'
             python_OP_TableLock(p, db, pc, pOp)
@@ -198,7 +206,8 @@ def mainloop(vdbe_struct):
             python_OP_Close(p, db, pc, pOp)
         elif pOp.opcode == CConfig.OP_Halt:
             print 'OP_Halt'
-            pc = python_OP_Halt(p, db, pc, pOp)
+            pc, rc = python_OP_Halt(p, db, pc, pOp)
+            print pc + ' ' + rc
         else:
             print 'Opcode %s is not there yet!' % pOp.opcode
             # raise Exception("Unimplemented bytecode %s." % pOp.opcode)

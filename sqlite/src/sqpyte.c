@@ -40,7 +40,7 @@ int sqpyte_test_function(int x) {
 ** halts.  The sqlite3_step() wrapper function might then reprepare the
 ** statement and rerun it from the beginning.
 */
-int impl_OP_Transaction(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+int impl_OP_Transaction(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
   int rc;
   Btree *pBt;
   int iMeta;
@@ -59,7 +59,7 @@ int impl_OP_Transaction(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   if( pBt ){
     rc = sqlite3BtreeBeginTrans(pBt, pOp->p2);
     if( rc==SQLITE_BUSY ){
-      p->pc = pc;
+      p->pc = *pc;
       p->rc = rc = SQLITE_BUSY;
       // Translated: goto vdbe_return;
       db->lastRowid = lastRowid;
@@ -123,7 +123,7 @@ int impl_OP_Transaction(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
     p->expired = 1;
     rc = SQLITE_SCHEMA;
   }
-  return pc;
+  return rc;
 }
 
 /* Opcode: TableLock P1 P2 P3 P4 *
@@ -839,7 +839,7 @@ void impl_OP_Close(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 ** every program.  So a jump past the last instruction of the program
 ** is the same as executing Halt.
 */
-int impl_OP_Halt(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+int impl_OP_Halt(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
   const char *zType;
   const char *zLogFmt;
   int rc;
@@ -852,7 +852,7 @@ int impl_OP_Halt(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
     p->pFrame = pFrame->pParent;
     p->nFrame--;
     sqlite3VdbeSetChanges(db, p->nChange);
-    pc = sqlite3VdbeFrameRestore(pFrame);
+    *pc = sqlite3VdbeFrameRestore(pFrame);
     lastRowid = db->lastRowid;
     if( pOp->p2==OE_Ignore ){
       /* Instruction pc is the OP_Program that invoked the sub-program 
@@ -860,16 +860,16 @@ int impl_OP_Halt(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
       ** instruction is set to OE_Ignore, then the sub-program is throwing
       ** an IGNORE exception. In this case jump to the address specified
       ** as the p2 of the calling OP_Program.  */
-      pc = p->aOp[pc].p2-1;
+      *pc = p->aOp[*pc].p2-1;
     }
     aOp = p->aOp;
     aMem = p->aMem;
     // Translated: break;
-    return pc;
+    return rc;
   }
   p->rc = pOp->p1;
   p->errorAction = (u8)pOp->p2;
-  p->pc = pc;
+  p->pc = *pc;
   if( p->rc ){
     if( pOp->p5 ){
       static const char * const azType[] = { "NOT NULL", "UNIQUE", "CHECK",
@@ -893,7 +893,7 @@ int impl_OP_Halt(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
     }else{
       sqlite3SetString(&p->zErrMsg, db, "%s constraint failed", zType);
     }
-    sqlite3_log(pOp->p1, zLogFmt, pc, p->zSql, p->zErrMsg);
+    sqlite3_log(pOp->p1, zLogFmt, *pc, p->zSql, p->zErrMsg);
   }
   rc = sqlite3VdbeHalt(p);
   assert( rc==SQLITE_BUSY || rc==SQLITE_OK || rc==SQLITE_ERROR );

@@ -500,7 +500,7 @@ sqlite3_sqlite3VdbeSorterRewind = rffi.llexternal('sqlite3VdbeSorterRewind', [SQ
 sqpyte_test_function = rffi.llexternal('sqpyte_test_function', [rffi.INT],
     rffi.INT, compilation_info=CConfig._compilation_info_)
 
-impl_OP_Transaction = rffi.llexternal('impl_OP_Transaction', [VDBEP, SQLITE3P, rffi.INT, VDBEOPP],
+impl_OP_Transaction = rffi.llexternal('impl_OP_Transaction', [VDBEP, SQLITE3P, rffi.INTP, VDBEOPP],
     rffi.INT, compilation_info=CConfig._compilation_info_)
 impl_OP_TableLock = rffi.llexternal('impl_OP_TableLock', [VDBEP, SQLITE3P, rffi.INT, VDBEOPP],
     lltype.Void, compilation_info=CConfig._compilation_info_)
@@ -518,6 +518,6 @@ impl_OP_Next = rffi.llexternal('impl_OP_Next', [VDBEP, SQLITE3P, rffi.INT, VDBEO
     lltype.Void, compilation_info=CConfig._compilation_info_)
 impl_OP_Close = rffi.llexternal('impl_OP_Close', [VDBEP, SQLITE3P, rffi.INT, VDBEOPP],
     lltype.Void, compilation_info=CConfig._compilation_info_)
-impl_OP_Halt = rffi.llexternal('impl_OP_Halt', [VDBEP, SQLITE3P, rffi.INT, VDBEOPP],
+impl_OP_Halt = rffi.llexternal('impl_OP_Halt', [VDBEP, SQLITE3P, rffi.INTP, VDBEOPP],
     rffi.INT, compilation_info=CConfig._compilation_info_)
 
