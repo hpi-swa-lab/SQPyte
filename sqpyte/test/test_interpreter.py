@@ -84,6 +84,18 @@ def test_sqlite3VdbeSorterRewind():
     db = opendb(testdb)
     ops = prepare(db, 'select name from contacts;') # a.k.a.  p
     op = ops.aOp[0] # a.k.a.  pOp
+    p2 = op.p2
+    iDb = op.p3
+    pDb = db.aDb[iDb]
+    pX = pDb.pBt
+    wrFlag = 1
+    pKeyInfo = op.p4.pKeyInfo
+    nField = ops.aOp[0].p4.i
+    pCur = allocateCursor(ops, op.p1, nField, iDb, 1)
+    pCur.nullRow = rffi.r_uchar(1)
+    pCur.isOrdered = bool(1)
+    rc = sqlite3BtreeCursor(pX, p2, wrFlag, pKeyInfo, pCur.pCursor)
+    sqlite3BtreeCursorHints(pCur.pCursor, (op.p5 & CConfig.OPFLAG_BULKCSR))
     pC = ops.apCsr[op.p1]
     res = 1
     rc = sqlite3VdbeSorterRewind(db, pC, res)
