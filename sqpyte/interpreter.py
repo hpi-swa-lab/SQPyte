@@ -125,7 +125,7 @@ def python_OP_Rewind(p, db, pc, pOp):
     return capi.impl_OP_Rewind(p, db, pc, pOp)
 
 def python_OP_Transaction(p, db, pc, pOp):
-    capi.impl_OP_Transaction(p, db, pc, pOp)
+    return capi.impl_OP_Transaction(p, db, pc, pOp)
 
 def python_OP_TableLock(p, db, pc, pOp):
     capi.impl_OP_TableLock(p, db, pc, pOp)
@@ -140,7 +140,7 @@ def python_OP_Column(p, db, pc, pOp):
     capi.impl_OP_Column(p, db, pc, pOp)
 
 def python_OP_ResultRow(p, db, pc, pOp):
-    capi.impl_OP_ResultRow(p, db, pc, pOp)
+    return capi.impl_OP_ResultRow(p, db, pc, pOp)
 
 def python_OP_Next(p, db, pc, pOp):
     capi.impl_OP_Next(p, db, pc, pOp)
@@ -149,19 +149,21 @@ def python_OP_Close(p, db, pc, pOp):
     capi.impl_OP_Close(p, db, pc, pOp)
 
 def python_OP_Halt(p, db, pc, pOp):
-    capi.impl_OP_Halt(p, db, pc, pOp)
+    return capi.impl_OP_Halt(p, db, pc, pOp)
 
 def mainloop(vdbe_struct):
-    pc = 0
+    # pc = 0
     length = vdbe_struct.nOp
     ops = vdbe_struct.aOp
     rc = CConfig.SQLITE_OK
     db = vdbe_struct.db
     p = vdbe_struct
     aMem = p.aMem
-
-    count = 0
-    while pc < length:
+    pc = p.pc
+    rc = 0
+    # while pc < length:
+    # while pc >= 0:
+    while rc == CConfig.SQLITE_OK:
         pOp = ops[pc]
 
         if pOp.opcode == CConfig.OP_Init:
@@ -175,7 +177,7 @@ def mainloop(vdbe_struct):
             pc = python_OP_Rewind(p, db, pc, pOp)
         elif pOp.opcode == CConfig.OP_Transaction:
             print 'OP_Transaction'
-            python_OP_Transaction(p, db, pc, pOp)
+            pc = python_OP_Transaction(p, db, pc, pOp)
         elif pOp.opcode == CConfig.OP_TableLock:
             print 'OP_TableLock'
             python_OP_TableLock(p, db, pc, pOp)
@@ -187,7 +189,7 @@ def mainloop(vdbe_struct):
             python_OP_Column(p, db, pc, pOp)
         elif pOp.opcode == CConfig.OP_ResultRow:
             print 'OP_ResultRow'
-            python_OP_ResultRow(p, db, pc, pOp)
+            pc = python_OP_ResultRow(p, db, pc, pOp)
         elif pOp.opcode == CConfig.OP_Next:
             print 'OP_Next'
             python_OP_Next(p, db, pc, pOp)
@@ -196,8 +198,7 @@ def mainloop(vdbe_struct):
             python_OP_Close(p, db, pc, pOp)
         elif pOp.opcode == CConfig.OP_Halt:
             print 'OP_Halt'
-            python_OP_Halt(p, db, pc, pOp)
-        
+            pc = python_OP_Halt(p, db, pc, pOp)
         else:
             print 'Opcode %s is not there yet!' % pOp.opcode
             # raise Exception("Unimplemented bytecode %s." % pOp.opcode)
@@ -205,16 +206,11 @@ def mainloop(vdbe_struct):
         print pc
         pc += 1
 
-        print count
-        count += 1
-
-    return pc
-
 
 def run():
     db = opendb(testdb)
     ops = prepare(db, 'select name from contacts;')
-    pc = mainloop(ops)
+    mainloop(ops)
 
 def entry_point(argv):
     run()

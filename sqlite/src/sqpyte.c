@@ -1,3 +1,6 @@
+i64 lastRowid;
+unsigned nVmStep = 0;      /* Number of virtual machine steps */
+
 int sqpyte_test_function(int x) {
     return x + 1;
 
@@ -37,7 +40,7 @@ int sqpyte_test_function(int x) {
 ** halts.  The sqlite3_step() wrapper function might then reprepare the
 ** statement and rerun it from the beginning.
 */
-void impl_OP_Transaction(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+int impl_OP_Transaction(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   int rc;
   Btree *pBt;
   int iMeta;
@@ -55,11 +58,16 @@ void impl_OP_Transaction(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 
   if( pBt ){
     rc = sqlite3BtreeBeginTrans(pBt, pOp->p2);
-    // if( rc==SQLITE_BUSY ){
-    //   p->pc = pc;
-    //   p->rc = rc = SQLITE_BUSY;
-    //   goto vdbe_return;
-    // }
+    if( rc==SQLITE_BUSY ){
+      p->pc = pc;
+      p->rc = rc = SQLITE_BUSY;
+      // Translated: goto vdbe_return;
+      db->lastRowid = lastRowid;
+      testcase( nVmStep>0 );
+      p->aCounter[SQLITE_STMTSTATUS_VM_STEP] += (int)nVmStep;
+      sqlite3VdbeLeave(p);
+      return -2;
+    }
     // if( rc!=SQLITE_OK ){
     //   goto abort_due_to_error;
     // }
@@ -115,6 +123,7 @@ void impl_OP_Transaction(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
     p->expired = 1;
     rc = SQLITE_SCHEMA;
   }
+  return pc;
 }
 
 /* Opcode: TableLock P1 P2 P3 P4 *
@@ -267,10 +276,11 @@ void impl_OP_OpenWrite(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   assert( p->bIsReader );
   assert( pOp->opcode==OP_OpenRead || p->readOnly==0 );
 
-  // if( p->expired ){
-  //   rc = SQLITE_ABORT;
-  //   break;
-  // }
+  if( p->expired ){
+    rc = SQLITE_ABORT;
+    // Translated: break;
+    return;
+  }
 
   nField = 0;
   pKeyInfo = 0;
@@ -426,6 +436,7 @@ void impl_OP_Column(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   Mem *pReg;         /* PseudoTable input register */
   int rc;
   Mem *aMem = p->aMem;
+  u8 encoding = ENC(db);     /* The database encoding */
 
   p2 = pOp->p2;
   assert( pOp->p3>0 && pOp->p3<=(p->nMem-p->nCursor) );
@@ -648,7 +659,7 @@ void impl_OP_Column(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
       pDest->zMalloc = sMem.zMalloc;
     }
   }
-  // pDest->enc = encoding;
+  pDest->enc = encoding;
 
 op_column_out:
   // Deephemeralize(pDest);
@@ -666,7 +677,7 @@ op_column_error:
 ** structure to provide access to the r(P1)..r(P1+P2-1) values as
 ** the result row.
 */
-void impl_OP_ResultRow(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+int impl_OP_ResultRow(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   Mem *pMem;
   int i;
   int rc;
@@ -692,11 +703,12 @@ void impl_OP_ResultRow(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   /* If this statement has violated immediate foreign key constraints, do
   ** not return the number of rows modified. And do not RELEASE the statement
   ** transaction. It needs to be rolled back.  */
-  // if( SQLITE_OK!=(rc = sqlite3VdbeCheckFk(p, 0)) ){
-  //   assert( db->flags&SQLITE_CountRows );
-  //   assert( p->usesStmtJournal );
-  //   break;
-  // }
+  if( SQLITE_OK!=(rc = sqlite3VdbeCheckFk(p, 0)) ){
+    assert( db->flags&SQLITE_CountRows );
+    assert( p->usesStmtJournal );
+    // Translated: break;
+    return pc;
+  }
 
   /* If the SQLITE_CountRows flag is set in sqlite3.flags mask, then 
   ** DML statements invoke this opcode to return the number of rows 
@@ -715,9 +727,10 @@ void impl_OP_ResultRow(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   */
   assert( p->iStatement==0 || db->flags&SQLITE_CountRows );
   rc = sqlite3VdbeCloseStatement(p, SAVEPOINT_RELEASE);
-  // if( NEVER(rc!=SQLITE_OK) ){
-  //   break;
-  // }
+  if( NEVER(rc!=SQLITE_OK) ){
+    // Translated: break;
+    return pc;
+  }
 
   /* Invalidate all ephemeral cursor row caches */
   p->cacheCtr = (p->cacheCtr + 2)|1;
@@ -742,10 +755,11 @@ void impl_OP_ResultRow(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   p->pc = pc + 1;
   rc = SQLITE_ROW;
   // Translated: goto vdbe_return;
-  // db->lastRowid = lastRowid; IMPORTANT!!!
+  db->lastRowid = lastRowid;
   testcase( nVmStep>0 );
-  // p->aCounter[SQLITE_STMTSTATUS_VM_STEP] += (int)nVmStep;
+  p->aCounter[SQLITE_STMTSTATUS_VM_STEP] += (int)nVmStep;
   sqlite3VdbeLeave(p);
+  return -2;
 }
 
 void impl_OP_Next(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
@@ -825,7 +839,7 @@ void impl_OP_Close(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 ** every program.  So a jump past the last instruction of the program
 ** is the same as executing Halt.
 */
-void impl_OP_Halt(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+int impl_OP_Halt(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   const char *zType;
   const char *zLogFmt;
   int rc;
@@ -839,7 +853,7 @@ void impl_OP_Halt(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
     p->nFrame--;
     sqlite3VdbeSetChanges(db, p->nChange);
     pc = sqlite3VdbeFrameRestore(pFrame);
-    // lastRowid = db->lastRowid;
+    lastRowid = db->lastRowid;
     if( pOp->p2==OE_Ignore ){
       /* Instruction pc is the OP_Program that invoked the sub-program 
       ** currently being halted. If the p2 instruction of this OP_Halt
@@ -850,7 +864,8 @@ void impl_OP_Halt(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
     }
     aOp = p->aOp;
     aMem = p->aMem;
-    // break;
+    // Translated: break;
+    return pc;
   }
   p->rc = pOp->p1;
   p->errorAction = (u8)pOp->p2;
@@ -890,8 +905,9 @@ void impl_OP_Halt(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
     rc = p->rc ? SQLITE_ERROR : SQLITE_DONE;
   }
   // Translated: goto vdbe_return;
-  // db->lastRowid = lastRowid; IMPORTANT!!!
+  db->lastRowid = lastRowid;
   testcase( nVmStep>0 );
-  // p->aCounter[SQLITE_STMTSTATUS_VM_STEP] += (int)nVmStep;
+  p->aCounter[SQLITE_STMTSTATUS_VM_STEP] += (int)nVmStep;
   sqlite3VdbeLeave(p);
+  return -2;
 }
