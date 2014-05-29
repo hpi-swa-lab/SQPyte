@@ -262,6 +262,7 @@ SRC = \
   $(TOP)/src/sqlite3ext.h \
   $(TOP)/src/sqliteInt.h \
   $(TOP)/src/sqliteLimit.h \
+  $(TOP)/src/sqpyte.c \
   $(TOP)/src/table.c \
   $(TOP)/src/tclsqlite.c \
   $(TOP)/src/tokenize.c \
