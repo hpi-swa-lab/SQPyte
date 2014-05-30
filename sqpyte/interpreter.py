@@ -121,19 +121,20 @@ def python_OP_OpenRead_translated(p, db, pc, pOp):
         #   ** since moved into the btree layer.  */
         pCur.isTable = pOp.p4type != CConfig.P4_KEYINFO
 
-def python_OP_Rewind(p, db, pc, pOp):
-    return capi.impl_OP_Rewind(p, db, pc, pOp)
+# def python_OP_Rewind(p, db, pc, pOp):
+#     return capi.impl_OP_Rewind(p, db, pc, pOp)
 
-# def python_OP_Transaction(p, db, pc, pOp):
-#     return capi.impl_OP_Transaction(p, db, pc, pOp)
+def python_OP_Rewind(p, db, pc, pOp):
+    with lltype.scoped_alloc(rffi.INTP.TO, 1) as internalPc:
+        rc = capi.impl_OP_Rewind(p, db, internalPc, pOp)
+        retPc = internalPc[0]
+    return retPc, rc
 
 def python_OP_Transaction(p, db, pc, pOp):
-    with lltype.scoped_alloc(rffi.INTP.TO, 1) as internalPc:
-        rc = capi.impl_OP_Transaction(p, db, internalPc, pOp)
-    return internalPc[0], rc
+    return capi.impl_OP_Transaction(p, db, pc, pOp)
 
 def python_OP_TableLock(p, db, pc, pOp):
-    capi.impl_OP_TableLock(p, db, pc, pOp)
+    return capi.impl_OP_TableLock(p, db, pc, pOp)
 
 def python_OP_Goto(p, db, pc, pOp):
     return capi.impl_OP_Goto(p, db, pc, pOp)
@@ -142,13 +143,19 @@ def python_OP_OpenRead(p, db, pc, pOp):
     capi.impl_OP_OpenRead(p, db, pc, pOp)
 
 def python_OP_Column(p, db, pc, pOp):
-    capi.impl_OP_Column(p, db, pc, pOp)
+    return capi.impl_OP_Column(p, db, pc, pOp)
 
 def python_OP_ResultRow(p, db, pc, pOp):
     return capi.impl_OP_ResultRow(p, db, pc, pOp)
 
+# def python_OP_Next(p, db, pc, pOp):
+#     capi.impl_OP_Next(p, db, pc, pOp)
+
 def python_OP_Next(p, db, pc, pOp):
-    capi.impl_OP_Next(p, db, pc, pOp)
+    with lltype.scoped_alloc(rffi.INTP.TO, 1) as internalPc:
+        rc = capi.impl_OP_Rewind(p, db, internalPc, pOp)
+        retPc = internalPc[0]
+    return retPc, rc
 
 def python_OP_Close(p, db, pc, pOp):
     capi.impl_OP_Close(p, db, pc, pOp)
@@ -156,10 +163,10 @@ def python_OP_Close(p, db, pc, pOp):
 def python_OP_Halt(p, db, pc, pOp):
     with lltype.scoped_alloc(rffi.INTP.TO, 1) as internalPc:
         rc = capi.impl_OP_Halt(p, db, internalPc, pOp)
-    return internalPc[0], rc
+        retPc = internalPc[0]
+    return retPc, rc
 
 def mainloop(vdbe_struct):
-    # pc = 0
     length = vdbe_struct.nOp
     ops = vdbe_struct.aOp
     rc = CConfig.SQLITE_OK
@@ -168,9 +175,8 @@ def mainloop(vdbe_struct):
     aMem = p.aMem
     pc = p.pc
     rc = 0
-    # while pc < length:
-    while pc >= 0:
-    # while rc == CConfig.SQLITE_OK:
+
+    while (rc == CConfig.SQLITE_OK or pc >= 0):
         pOp = ops[pc]
 
         if pOp.opcode == CConfig.OP_Init:
@@ -181,39 +187,52 @@ def mainloop(vdbe_struct):
             python_OP_OpenRead(p, db, pc, pOp)
         elif pOp.opcode == CConfig.OP_Rewind:
             print 'OP_Rewind'
-            pc = python_OP_Rewind(p, db, pc, pOp)
+            tmp = pc
+            pc, rc = python_OP_Rewind(p, db, pc, pOp)
+            if pc < 0:
+                pc = tmp
+            print 'pc = %s and rc = %s' % (pc, rc)
         elif pOp.opcode == CConfig.OP_Transaction:
             print 'OP_Transaction'
-            pc, rc = python_OP_Transaction(p, db, pc, pOp)
-            print pc + ' ' + rc
+            rc = python_OP_Transaction(p, db, pc, pOp)
         elif pOp.opcode == CConfig.OP_TableLock:
             print 'OP_TableLock'
-            python_OP_TableLock(p, db, pc, pOp)
+            rc = python_OP_TableLock(p, db, pc, pOp)
         elif pOp.opcode == CConfig.OP_Goto:
             print 'OP_Goto'
             pc = python_OP_Goto(p, db, pc, pOp)
         elif pOp.opcode == CConfig.OP_Column:
             print 'OP_Column'
-            python_OP_Column(p, db, pc, pOp)
+            rc = python_OP_Column(p, db, pc, pOp)
         elif pOp.opcode == CConfig.OP_ResultRow:
             print 'OP_ResultRow'
-            pc = python_OP_ResultRow(p, db, pc, pOp)
+            rc = python_OP_ResultRow(p, db, pc, pOp)
         elif pOp.opcode == CConfig.OP_Next:
             print 'OP_Next'
-            python_OP_Next(p, db, pc, pOp)
+            tmp = pc
+            pc, rc = python_OP_Next(p, db, pc, pOp)
+            if pc < 0:
+                pc = tmp
+            print 'pc = %s and rc = %s' % (pc, rc)
         elif pOp.opcode == CConfig.OP_Close:
             print 'OP_Close'
             python_OP_Close(p, db, pc, pOp)
         elif pOp.opcode == CConfig.OP_Halt:
             print 'OP_Halt'
+            tmp = pc
             pc, rc = python_OP_Halt(p, db, pc, pOp)
-            print pc + ' ' + rc
+            if pc < 0:
+                pc = tmp
+            print 'pc = %s and rc = %s' % (pc, rc)
         else:
             print 'Opcode %s is not there yet!' % pOp.opcode
             # raise Exception("Unimplemented bytecode %s." % pOp.opcode)
             pass
+        print rc
         print pc
         pc += 1
+        if rc == CConfig.SQLITE_DONE:
+            break
 
 
 def run():

@@ -40,7 +40,7 @@ int sqpyte_test_function(int x) {
 ** halts.  The sqlite3_step() wrapper function might then reprepare the
 ** statement and rerun it from the beginning.
 */
-int impl_OP_Transaction(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
+int impl_OP_Transaction(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   int rc;
   Btree *pBt;
   int iMeta;
@@ -59,14 +59,14 @@ int impl_OP_Transaction(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
   if( pBt ){
     rc = sqlite3BtreeBeginTrans(pBt, pOp->p2);
     if( rc==SQLITE_BUSY ){
-      p->pc = *pc;
+      p->pc = pc;
       p->rc = rc = SQLITE_BUSY;
       // Translated: goto vdbe_return;
       db->lastRowid = lastRowid;
       testcase( nVmStep>0 );
       p->aCounter[SQLITE_STMTSTATUS_VM_STEP] += (int)nVmStep;
       sqlite3VdbeLeave(p);
-      return -2;
+      return rc;
     }
     // if( rc!=SQLITE_OK ){
     //   goto abort_due_to_error;
@@ -141,7 +141,7 @@ int impl_OP_Transaction(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
 ** P4 contains a pointer to the name of the table being locked. This is only
 ** used to generate an error message if the lock cannot be obtained.
 */
-void impl_OP_TableLock(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+int impl_OP_TableLock(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   int rc;
 
   u8 isWriteLock = (u8)pOp->p3;
@@ -156,6 +156,7 @@ void impl_OP_TableLock(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
       sqlite3SetString(&p->zErrMsg, db, "database table is locked: %s", z);
     }
   }
+  return rc;
 }
 
 /* Opcode:  Goto * P2 * * *
@@ -360,7 +361,7 @@ void impl_OP_OpenRead(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 ** If P2 is 0 or if the table or index is not empty, fall through
 ** to the following instruction.
 */
-int impl_OP_Rewind(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+int impl_OP_Rewind(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
   int rc;
   VdbeCursor *pC;
   BtCursor *pCrsr;
@@ -385,9 +386,9 @@ int impl_OP_Rewind(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   assert( pOp->p2>0 && pOp->p2<p->nOp );
   VdbeBranchTaken(res!=0,2);
   if( res ){
-    pc = pOp->p2 - 1;
+    *pc = pOp->p2 - 1;
   }
-  return pc;
+  return rc;
 }
 
 /* Opcode: Column P1 P2 P3 P4 P5
@@ -415,7 +416,7 @@ int impl_OP_Rewind(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 ** or typeof() function, respectively.  The loading of large blobs can be
 ** skipped for length() and all content loading can be skipped for typeof().
 */
-void impl_OP_Column(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+int impl_OP_Column(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   i64 payloadSize64; /* Number of bytes in the record */
   int p2;            /* column number to retrieve */
   VdbeCursor *pC;    /* The VDBE cursor */
@@ -666,6 +667,8 @@ op_column_out:
 op_column_error:
   UPDATE_MAX_BLOBSIZE(pDest);
   REGISTER_TRACE(pOp->p3, pDest);
+
+  return rc;
 }
 
 /* Opcode: ResultRow P1 P2 * * *
@@ -707,7 +710,7 @@ int impl_OP_ResultRow(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
     assert( db->flags&SQLITE_CountRows );
     assert( p->usesStmtJournal );
     // Translated: break;
-    return pc;
+    return rc;
   }
 
   /* If the SQLITE_CountRows flag is set in sqlite3.flags mask, then 
@@ -729,7 +732,7 @@ int impl_OP_ResultRow(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   rc = sqlite3VdbeCloseStatement(p, SAVEPOINT_RELEASE);
   if( NEVER(rc!=SQLITE_OK) ){
     // Translated: break;
-    return pc;
+    return rc;
   }
 
   /* Invalidate all ephemeral cursor row caches */
@@ -759,10 +762,10 @@ int impl_OP_ResultRow(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   testcase( nVmStep>0 );
   p->aCounter[SQLITE_STMTSTATUS_VM_STEP] += (int)nVmStep;
   sqlite3VdbeLeave(p);
-  return -2;
+  return rc;
 }
 
-void impl_OP_Next(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+int impl_OP_Next(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
   VdbeCursor *pC;
   int res;
   int rc;
@@ -786,7 +789,7 @@ next_tail:
   VdbeBranchTaken(res==0,2);
   if( res==0 ){
     pC->nullRow = 0;
-    pc = pOp->p2 - 1;
+    *pc = pOp->p2 - 1;
     p->aCounter[pOp->p5]++;
 #ifdef SQLITE_TEST
     sqlite3_search_count++;
@@ -796,6 +799,7 @@ next_tail:
   }
   pC->rowidIsValid = 0;
   // goto check_for_interrupt;
+  return rc;
 }
 
 /* Opcode: Close P1 * * * *
@@ -909,5 +913,5 @@ int impl_OP_Halt(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
   testcase( nVmStep>0 );
   p->aCounter[SQLITE_STMTSTATUS_VM_STEP] += (int)nVmStep;
   sqlite3VdbeLeave(p);
-  return -2;
+  return rc;
 }
