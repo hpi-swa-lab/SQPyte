@@ -31,6 +31,7 @@ class Sqlite3(object):
 
     def python_OP_Rewind(self, pc, pOp):
         with lltype.scoped_alloc(rffi.INTP.TO, 1) as internalPc:
+            internalPc[0] = pc
             rc = capi.impl_OP_Rewind(self.p, self.db, internalPc, pOp)
             retPc = internalPc[0]
         return retPc, rc
@@ -56,7 +57,8 @@ class Sqlite3(object):
 
     def python_OP_Next(self, pc, pOp):
         with lltype.scoped_alloc(rffi.INTP.TO, 1) as internalPc:
-            rc = capi.impl_OP_Rewind(self.p, self.db, internalPc, pOp)
+            internalPc[0] = pc
+            rc = capi.impl_OP_Next(self.p, self.db, internalPc, pOp)
             retPc = internalPc[0]
         return retPc, rc
 
@@ -65,6 +67,7 @@ class Sqlite3(object):
 
     def python_OP_Halt(self, pc, pOp):
         with lltype.scoped_alloc(rffi.INTP.TO, 1) as internalPc:
+            internalPc[0] = pc
             rc = capi.impl_OP_Halt(self.p, self.db, internalPc, pOp)
             retPc = internalPc[0]
         return retPc, rc
@@ -95,8 +98,6 @@ class Sqlite3(object):
                 print 'OP_Rewind'
                 tmp = pc
                 pc, rc = self.python_OP_Rewind(pc, pOp)
-                if pc < 0:
-                    pc = tmp
                 print 'pc = %s and rc = %s' % (pc, rc)
             elif pOp.opcode == CConfig.OP_Transaction:
                 print 'OP_Transaction'
@@ -113,12 +114,14 @@ class Sqlite3(object):
             elif pOp.opcode == CConfig.OP_ResultRow:
                 print 'OP_ResultRow'
                 rc = self.python_OP_ResultRow(pc, pOp)
+                print '--> pc = %s and rc = %s' % (pc, rc)
+                if rc == CConfig.SQLITE_ROW:
+                    print 'yes'
+                    return rc
             elif pOp.opcode == CConfig.OP_Next:
                 print 'OP_Next'
                 tmp = pc
                 pc, rc = self.python_OP_Next(pc, pOp)
-                if pc < 0:
-                    pc = tmp
                 print 'pc = %s and rc = %s' % (pc, rc)
             elif pOp.opcode == CConfig.OP_Close:
                 print 'OP_Close'
@@ -127,8 +130,6 @@ class Sqlite3(object):
                 print 'OP_Halt'
                 tmp = pc
                 pc, rc = self.python_OP_Halt(pc, pOp)
-                if pc < 0:
-                    pc = tmp
                 print 'pc = %s and rc = %s' % (pc, rc)
             else:
                 print 'Opcode %s is not there yet!' % pOp.opcode

@@ -45,10 +45,12 @@ int impl_OP_Transaction(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   assert( p->readOnly==0 || pOp->p2==0 );
   assert( pOp->p1>=0 && pOp->p1<db->nDb );
   assert( (p->btreeMask & (((yDbMask)1)<<pOp->p1))!=0 );
-  // if( pOp->p2 && (db->flags & SQLITE_QueryOnly)!=0 ){
-  //   rc = SQLITE_READONLY;
-  //   goto abort_due_to_error;
-  // }
+  if( pOp->p2 && (db->flags & SQLITE_QueryOnly)!=0 ){
+    rc = SQLITE_READONLY;
+    // goto abort_due_to_error;
+    printf("In impl_OP_Transaction\n");
+    assert(0)
+  }
   pBt = db->aDb[pOp->p1].pBt;
 
   if( pBt ){
@@ -266,6 +268,8 @@ void impl_OP_OpenWrite(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   Mem *pIn2;
 
   Mem *aMem = p->aMem;
+
+  printf("IN OP_OPENWRITE\n");
 
   assert( (pOp->p5&(OPFLAG_P2ISREG|OPFLAG_BULKCSR))==pOp->p5 );
   assert( pOp->opcode==OP_OpenWrite || pOp->p5==0 );
@@ -784,12 +788,14 @@ next_tail:
   VdbeBranchTaken(res==0,2);
   if( res==0 ){
     pC->nullRow = 0;
+    printf("pc = %d\n", *pc);
     *pc = pOp->p2 - 1;
     p->aCounter[pOp->p5]++;
 #ifdef SQLITE_TEST
     sqlite3_search_count++;
 #endif
   }else{
+    printf("res = %d\n", res);
     pC->nullRow = 1;
   }
   pC->rowidIsValid = 0;
