@@ -1,11 +1,6 @@
 i64 lastRowid;
 unsigned nVmStep = 0;      /* Number of virtual machine steps */
 
-int sqpyte_test_function(int x) {
-    return x + 1;
-
-}
-
 /* Opcode: Transaction P1 P2 P3 P4 P5
 **
 ** Begin a transaction on database P1 if a transaction is not already

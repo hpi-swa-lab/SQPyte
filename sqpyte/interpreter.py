@@ -121,8 +121,6 @@ def python_OP_OpenRead_translated(p, db, pc, pOp):
         #   ** since moved into the btree layer.  */
         pCur.isTable = pOp.p4type != CConfig.P4_KEYINFO
 
-# def python_OP_Rewind(p, db, pc, pOp):
-#     return capi.impl_OP_Rewind(p, db, pc, pOp)
 
 def python_OP_Rewind(p, db, pc, pOp):
     with lltype.scoped_alloc(rffi.INTP.TO, 1) as internalPc:
@@ -137,7 +135,8 @@ def python_OP_TableLock(p, db, pc, pOp):
     return capi.impl_OP_TableLock(p, db, pc, pOp)
 
 def python_OP_Goto(p, db, pc, pOp):
-    return capi.impl_OP_Goto(p, db, pc, pOp)
+    pc = pOp.p2 - 1
+    return pc
 
 def python_OP_OpenRead(p, db, pc, pOp):
     capi.impl_OP_OpenRead(p, db, pc, pOp)
@@ -147,9 +146,6 @@ def python_OP_Column(p, db, pc, pOp):
 
 def python_OP_ResultRow(p, db, pc, pOp):
     return capi.impl_OP_ResultRow(p, db, pc, pOp)
-
-# def python_OP_Next(p, db, pc, pOp):
-#     capi.impl_OP_Next(p, db, pc, pOp)
 
 def python_OP_Next(p, db, pc, pOp):
     with lltype.scoped_alloc(rffi.INTP.TO, 1) as internalPc:
@@ -166,6 +162,13 @@ def python_OP_Halt(p, db, pc, pOp):
         retPc = internalPc[0]
     return retPc, rc
 
+
+def python_sqlite3_column_text(p, iCol):
+    return capi.sqlite3_column_text(p, iCol)
+def python_sqlite3_column_bytes(p, iCol):
+    return capi.sqlite3_column_bytes(p, iCol)
+
+
 def mainloop(vdbe_struct):
     length = vdbe_struct.nOp
     ops = vdbe_struct.aOp
@@ -175,8 +178,9 @@ def mainloop(vdbe_struct):
     aMem = p.aMem
     pc = p.pc
     rc = 0
+    lastRowid = db.lastRowid
 
-    while (rc == CConfig.SQLITE_OK or pc >= 0):
+    while rc == CConfig.SQLITE_OK:
         pOp = ops[pc]
 
         if pOp.opcode == CConfig.OP_Init:
@@ -233,6 +237,7 @@ def mainloop(vdbe_struct):
         pc += 1
         if rc == CConfig.SQLITE_DONE:
             break
+    return rc
 
 
 def run():
