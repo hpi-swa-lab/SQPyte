@@ -49,7 +49,7 @@ int impl_OP_Transaction(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
     rc = SQLITE_READONLY;
     // goto abort_due_to_error;
     printf("In impl_OP_Transaction\n");
-    assert(0)
+    assert(0);
   }
   pBt = db->aDb[pOp->p1].pBt;
 

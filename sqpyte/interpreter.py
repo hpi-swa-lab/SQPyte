@@ -83,6 +83,8 @@ class Sqlite3(object):
         ops = self.p.aOp
         rc = CConfig.SQLITE_OK
         pc = self.p.pc
+        if pc < 0:
+            pc = 0 # XXX maybe more to too, see vdbeapi.c:418
         lastRowid = self.db.lastRowid
 
         while rc == CConfig.SQLITE_OK:

@@ -22,6 +22,7 @@ class CConfig:
     i32 = platform.SimpleType('int32_t', rffi.INT)
     u64 = platform.SimpleType('uint64_t', rffi.ULONGLONG)
     i64 = platform.SimpleType('int64_t', rffi.LONGLONG)
+    ynVar = platform.SimpleType('ynVar', rffi.SHORT)
 
 opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite', 'OP_Rewind', 
            'OP_Transaction', 'OP_TableLock', 'OP_Goto', 'OP_Column',
@@ -30,14 +31,17 @@ p4names = ['P4_INT32', 'P4_KEYINFO']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW']
 btree_values = ['BTCURSOR_MAX_DEPTH', 'BTREE_BULKLOAD']
+other_constants = ['SQLITE_MAX_VARIABLE_NUMBER']
 
-for name in p4names + opnames + p5flags + result_codes + btree_values:
+for name in p4names + opnames + p5flags + result_codes + btree_values + other_constants:
     setattr(CConfig, name, platform.DefinedConstantInteger(name))
 
 CConfig.__dict__.update(platform.configure(CConfig))
 
 for name in p4names:
     setattr(CConfig, name, chr(256 + getattr(CConfig, name)))
+
+assert CConfig.SQLITE_MAX_VARIABLE_NUMBER < 32767
 
 SQLITE3 = lltype.ForwardReference()
 SQLITE3P = lltype.Ptr(SQLITE3)
