@@ -56,6 +56,7 @@ def test_mainloop_namelist():
         rc = sqlite3.mainloop()
         assert(name == names[i])
         i += 1
+    assert(len(names) == i)
 
 
 # def test_allocateCursor():
