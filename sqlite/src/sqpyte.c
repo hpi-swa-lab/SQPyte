@@ -923,3 +923,209 @@ int impl_OP_Halt(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
   sqlite3VdbeLeave(p);
   return rc;
 }
+
+/* Opcode: Lt P1 P2 P3 P4 P5
+** Synopsis: if r[P1]<r[P3] goto P2
+**
+** Compare the values in register P1 and P3.  If reg(P3)<reg(P1) then
+** jump to address P2.  
+**
+** If the SQLITE_JUMPIFNULL bit of P5 is set and either reg(P1) or
+** reg(P3) is NULL then take the jump.  If the SQLITE_JUMPIFNULL 
+** bit is clear then fall through if either operand is NULL.
+**
+** The SQLITE_AFF_MASK portion of P5 must be an affinity character -
+** SQLITE_AFF_TEXT, SQLITE_AFF_INTEGER, and so forth. An attempt is made 
+** to coerce both inputs according to this affinity before the
+** comparison is made. If the SQLITE_AFF_MASK is 0x00, then numeric
+** affinity is used. Note that the affinity conversions are stored
+** back into the input registers P1 and P3.  So this opcode can cause
+** persistent changes to registers P1 and P3.
+**
+** Once any conversions have taken place, and neither value is NULL, 
+** the values are compared. If both values are blobs then memcmp() is
+** used to determine the results of the comparison.  If both values
+** are text, then the appropriate collating function specified in
+** P4 is  used to do the comparison.  If P4 is not specified then
+** memcmp() is used to compare text string.  If both values are
+** numeric, then a numeric comparison is used. If the two values
+** are of different types, then numbers are considered less than
+** strings and strings are considered less than blobs.
+**
+** If the SQLITE_STOREP2 bit of P5 is set, then do not jump.  Instead,
+** store a boolean result (either 0, or 1, or NULL) in register P2.
+**
+** If the SQLITE_NULLEQ bit is set in P5, then NULL values are considered
+** equal to one another, provided that they do not have their MEM_Cleared
+** bit set.
+*/
+/* Opcode: Ne P1 P2 P3 P4 P5
+** Synopsis: if r[P1]!=r[P3] goto P2
+**
+** This works just like the Lt opcode except that the jump is taken if
+** the operands in registers P1 and P3 are not equal.  See the Lt opcode for
+** additional information.
+**
+** If SQLITE_NULLEQ is set in P5 then the result of comparison is always either
+** true or false and is never NULL.  If both operands are NULL then the result
+** of comparison is false.  If either operand is NULL then the result is true.
+** If neither operand is NULL the result is the same as it would be if
+** the SQLITE_NULLEQ flag were omitted from P5.
+*/
+/* Opcode: Eq P1 P2 P3 P4 P5
+** Synopsis: if r[P1]==r[P3] goto P2
+**
+** This works just like the Lt opcode except that the jump is taken if
+** the operands in registers P1 and P3 are equal.
+** See the Lt opcode for additional information.
+**
+** If SQLITE_NULLEQ is set in P5 then the result of comparison is always either
+** true or false and is never NULL.  If both operands are NULL then the result
+** of comparison is true.  If either operand is NULL then the result is false.
+** If neither operand is NULL the result is the same as it would be if
+** the SQLITE_NULLEQ flag were omitted from P5.
+*/
+/* Opcode: Le P1 P2 P3 P4 P5
+** Synopsis: if r[P1]<=r[P3] goto P2
+**
+** This works just like the Lt opcode except that the jump is taken if
+** the content of register P3 is less than or equal to the content of
+** register P1.  See the Lt opcode for additional information.
+*/
+/* Opcode: Gt P1 P2 P3 P4 P5
+** Synopsis: if r[P1]>r[P3] goto P2
+**
+** This works just like the Lt opcode except that the jump is taken if
+** the content of register P3 is greater than the content of
+** register P1.  See the Lt opcode for additional information.
+*/
+/* Opcode: Ge P1 P2 P3 P4 P5
+** Synopsis: if r[P1]>=r[P3] goto P2
+**
+** This works just like the Lt opcode except that the jump is taken if
+** the content of register P3 is greater than or equal to the content of
+** register P1.  See the Lt opcode for additional information.
+*/
+int impl_OP_Compare(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+// case OP_Eq:               /* same as TK_EQ, jump, in1, in3 */
+// case OP_Ne:               /* same as TK_NE, jump, in1, in3 */
+// case OP_Lt:               /* same as TK_LT, jump, in1, in3 */
+// case OP_Le:               /* same as TK_LE, jump, in1, in3 */
+// case OP_Gt:               /* same as TK_GT, jump, in1, in3 */
+// case OP_Ge: {             /* same as TK_GE, jump, in1, in3 */
+  int res;            /* Result of the comparison of pIn1 against pIn3 */
+  char affinity;      /* Affinity to use for comparison */
+  u16 flags1;         /* Copy of initial value of pIn1->flags */
+  u16 flags3;         /* Copy of initial value of pIn3->flags */
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn1 = 0;             /* 1st input operand */
+  Mem *pIn3 = 0;             /* 3rd input operand */
+  Mem *pOut = 0;             /* Output operand */
+
+  pIn1 = &aMem[pOp->p1];
+  pIn3 = &aMem[pOp->p3];
+  flags1 = pIn1->flags;
+  flags3 = pIn3->flags;
+
+  printf("pIn1 = %lld\n", pIn1->u.i);
+  printf("pIn3 = %lld\n", pIn3->u.i);
+  if( (flags1 | flags3)&MEM_Null ){
+    /* One or both operands are NULL */
+    if( pOp->p5 & SQLITE_NULLEQ ){
+      /* If SQLITE_NULLEQ is set (which will only happen if the operator is
+      ** OP_Eq or OP_Ne) then take the jump or not depending on whether
+      ** or not both operands are null.
+      */
+      assert( pOp->opcode==OP_Eq || pOp->opcode==OP_Ne );
+      assert( (flags1 & MEM_Cleared)==0 );
+      assert( (pOp->p5 & SQLITE_JUMPIFNULL)==0 );
+      if( (flags1&MEM_Null)!=0
+       && (flags3&MEM_Null)!=0
+       && (flags3&MEM_Cleared)==0
+      ){
+        res = 0;  /* Results are equal */
+      }else{
+        res = 1;  /* Results are not equal */
+      }
+    }else{
+      /* SQLITE_NULLEQ is clear and at least one operand is NULL,
+      ** then the result is always NULL.
+      ** The jump is taken if the SQLITE_JUMPIFNULL bit is set.
+      */
+      if( pOp->p5 & SQLITE_STOREP2 ){
+        pOut = &aMem[pOp->p2];
+        MemSetTypeFlag(pOut, MEM_Null);
+        REGISTER_TRACE(pOp->p2, pOut);
+      }else{
+        VdbeBranchTaken(2,3);
+        if( pOp->p5 & SQLITE_JUMPIFNULL ){
+          pc = pOp->p2-1;
+        }
+      }
+      // Translated: break;
+      return pc;
+    }
+  }else{
+    /* Neither operand is NULL.  Do a comparison. */
+    affinity = pOp->p5 & SQLITE_AFF_MASK;
+    if( affinity ){
+      u8 encoding = ENC(db);  // Added by DK
+      applyAffinity(pIn1, affinity, encoding);
+      applyAffinity(pIn3, affinity, encoding);
+      if( db->mallocFailed ) {
+        // goto no_mem;
+        printf("In impl_OP_ResultRow(): no_mem.\n");
+      }
+    }
+
+    assert( pOp->p4type==P4_COLLSEQ || pOp->p4.pColl==0 );
+    ExpandBlob(pIn1);
+    ExpandBlob(pIn3);
+    res = sqlite3MemCompare(pIn3, pIn1, pOp->p4.pColl);
+    printf("res = %d\n", res);
+  }
+  switch( pOp->opcode ){
+    case OP_Eq:    res = res==0;     break;
+    case OP_Ne:    res = res!=0;     break;
+    case OP_Lt:    res = res<0;      break;
+    case OP_Le:    res = res<=0;     break;
+    case OP_Gt:    res = res>0;      break;
+    default:       res = res>=0;     break;
+  }
+
+  if( pOp->p5 & SQLITE_STOREP2 ){
+    pOut = &aMem[pOp->p2];
+    memAboutToChange(p, pOut);
+    MemSetTypeFlag(pOut, MEM_Int);
+    pOut->u.i = res;
+    REGISTER_TRACE(pOp->p2, pOut);
+  }else{
+    VdbeBranchTaken(res!=0, (pOp->p5 & SQLITE_NULLEQ)?2:3);
+    if( res ){
+      printf("Result is positive.\n");
+      pc = pOp->p2-1;
+      printf("pc = %d\n", pc);
+    }
+  }
+  /* Undo any changes made by applyAffinity() to the input registers. */
+  pIn1->flags = (pIn1->flags&~MEM_TypeMask) | (flags1&MEM_TypeMask);
+  pIn3->flags = (pIn3->flags&~MEM_TypeMask) | (flags3&MEM_TypeMask);
+  // Translated: break;
+  return pc;
+}
+
+/* Opcode: Integer P1 P2 * * *
+** Synopsis: r[P2]=P1
+**
+** The 32-bit integer value P1 is written into register P2.
+*/
+void impl_OP_Integer(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+// case OP_Integer: {         /* out2-prerelease */
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pOut = 0;             /* Output operand */
+  pOut = &aMem[pOp->p2];
+  pOut->u.i = pOp->p1;
+  printf("pOp->p1 = %d\n", pOp->p1);
+  // break;
+}

@@ -26,7 +26,9 @@ class CConfig:
 
 opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite', 'OP_Rewind', 
            'OP_Transaction', 'OP_TableLock', 'OP_Goto', 'OP_Column',
-           'OP_ResultRow', 'OP_Next', 'OP_Close', 'OP_Halt']
+           'OP_ResultRow', 'OP_Next', 'OP_Close', 'OP_Halt',
+           'OP_Eq', 'OP_Ne', 'OP_Lt', 'OP_Le', 'OP_Gt', 'OP_Ge',
+           'OP_Integer']
 p4names = ['P4_INT32', 'P4_KEYINFO']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW', 'SQLITE_BUSY']
@@ -55,6 +57,8 @@ BTREE = lltype.ForwardReference()
 BTREEP = lltype.Ptr(BTREE)
 BTCURSOR = lltype.ForwardReference()
 BTCURSORP = lltype.Ptr(BTCURSOR)
+FUNCDEF = lltype.ForwardReference()
+FUNCDEFP = lltype.Ptr(FUNCDEF)
 
 HASH = lltype.Struct("Hash",                # src/hash.h: 43
     ("htsize", rffi.UINT),                  # Number of buckets in the hash table
@@ -339,6 +343,30 @@ MEMP = lltype.Ptr(MEM)
 MEMPP = rffi.CArrayPtr(MEMP)
 
 
+COLLSEQ = lltype.Struct("CollSeq",  # src/sqliteInt.h: 1326
+    ("zName", rffi.CCHARP),         # Name of the collating sequence, UTF-8 encoded
+    ("enc", CConfig.u8),            # Text encoding handled by xCmp()
+    ("pUser", rffi.VOIDP),          # First argument to xCmp()
+    ("xCmp", rffi.INTP),            #   int (*xCmp)(void*,int, const void*, int, const void*);
+    ("xDel", rffi.VOIDP)            #   void (*xDel)(void*);  /* Destructor for pUser */
+    )
+COLLSEQP = lltype.Ptr(COLLSEQ)
+
+
+FUNCDEF.become(lltype.Struct("FuncDef",     # src/sqliteInt.h: 1165
+    ("nArg", CConfig.i16),                  # Number of arguments.  -1 means unlimited
+    ("funcFlags", CConfig.u16),             #   Some combination of SQLITE_FUNC_*
+    ("pUserData", rffi.VOIDP),              # User data parameter
+    ("pNext", FUNCDEFP),                    # Next function with same name
+    ("xFunc", rffi.VOIDP),                  #   void (*xFunc)(sqlite3_context*,int,sqlite3_value**); /* Regular function */
+    ("xStep", rffi.VOIDP),                  #   void (*xStep)(sqlite3_context*,int,sqlite3_value**); /* Aggregate step */
+    ("xFinalize", rffi.VOIDP),              #   void (*xFinalize)(sqlite3_context*);                /* Aggregate finalizer */
+    ("zName", rffi.CCHARP),                 # SQL name of the function.
+    ("pHash", FUNCDEFP),                    # Next with a different name but the same hash
+    ("pDestructor", rffi.VOIDP)             #   FuncDestructor *pDestructor;   /* Reference counted destructor function */
+    ))
+
+
 VDBEOP = lltype.Struct("VdbeOp",                # src/vdbe.h: 41
     ("opcode", CConfig.u8),                     # What operation to perform
     ("p4type", rffi.CHAR),                      # One of the P4_xxx constants for p4
@@ -354,7 +382,7 @@ VDBEOP = lltype.Struct("VdbeOp",                # src/vdbe.h: 41
         ("pI64", CConfig.i64),                  # Used when p4type is P4_INT64
         ("pReal", rffi.DOUBLE),                 # Used when p4type is P4_REAL
         ("pFunc", rffi.VOIDP),                  #     FuncDef *pFunc;        /* Used when p4type is P4_FUNCDEF */
-        ("pColl", rffi.VOIDP),                  #     CollSeq *pColl;        /* Used when p4type is P4_COLLSEQ */
+        ("pColl", COLLSEQP),                    # Used when p4type is P4_COLLSEQ
         ("pMem", MEMP),                         # Used when p4type is P4_MEM
         ("pVtab", rffi.VOIDP),                  #     VTable *pVtab;         /* Used when p4type is P4_VTAB */
         ("pKeyInfo", KEYINFOP),                 # Used when p4type is P4_KEYINFO
@@ -520,6 +548,10 @@ impl_OP_Close = rffi.llexternal('impl_OP_Close', [VDBEP, SQLITE3P, rffi.INT, VDB
     lltype.Void, compilation_info=CConfig._compilation_info_)
 impl_OP_Halt = rffi.llexternal('impl_OP_Halt', [VDBEP, SQLITE3P, rffi.INTP, VDBEOPP],
     rffi.INT, compilation_info=CConfig._compilation_info_)
+impl_OP_Compare = rffi.llexternal('impl_OP_Compare', [VDBEP, SQLITE3P, rffi.INT, VDBEOPP],
+    rffi.INT, compilation_info=CConfig._compilation_info_)
+impl_OP_Integer = rffi.llexternal('impl_OP_Integer', [VDBEP, SQLITE3P, rffi.INT, VDBEOPP],
+    lltype.Void, compilation_info=CConfig._compilation_info_)
 
 sqlite3_column_text = rffi.llexternal('sqlite3_column_text', [VDBEP, rffi.INT],
     rffi.UCHARP, compilation_info=CConfig._compilation_info_)

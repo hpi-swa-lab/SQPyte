@@ -35,7 +35,7 @@ class Sqlite3(object):
 
     def python_OP_Rewind(self, pc, pOp):
         with lltype.scoped_alloc(rffi.INTP.TO, 1) as internalPc:
-            internalPc[0] = pc
+            internalPc[0] = rffi.cast(rffi.INT, pc)
             rc = capi.impl_OP_Rewind(self.p, self.db, internalPc, pOp)
             retPc = internalPc[0]
         return retPc, rc
@@ -61,7 +61,7 @@ class Sqlite3(object):
 
     def python_OP_Next(self, pc, pOp):
         with lltype.scoped_alloc(rffi.INTP.TO, 1) as internalPc:
-            internalPc[0] = pc
+            internalPc[0] = rffi.cast(rffi.INT, pc)
             rc = capi.impl_OP_Next(self.p, self.db, internalPc, pOp)
             retPc = internalPc[0]
         return retPc, rc
@@ -71,10 +71,22 @@ class Sqlite3(object):
 
     def python_OP_Halt(self, pc, pOp):
         with lltype.scoped_alloc(rffi.INTP.TO, 1) as internalPc:
-            internalPc[0] = pc
+            internalPc[0] = rffi.cast(rffi.INT, pc)
             rc = capi.impl_OP_Halt(self.p, self.db, internalPc, pOp)
             retPc = internalPc[0]
         return retPc, rc
+
+    def python_OP_Compare(self, pc, pOp):
+        return capi.impl_OP_Compare(self.p, self.db, pc, pOp)
+
+    def python_OP_Integer(self, pc, pOp):
+        capi.impl_OP_Integer(self.p, self.db, pc, pOp)
+        # pOut.u.i = pOp.p1
+        # self.p.aMem[pOp.p2] = pOp.p1
+#     case OP_Integer: {         /* out2-prerelease */
+#   pOut->u.i = pOp->p1;
+#   break;
+# }
 
 
     def python_sqlite3_column_text(self, iCol):
@@ -134,11 +146,24 @@ class Sqlite3(object):
                 print '>>> OP_Halt <<<'
                 pc, rc = self.python_OP_Halt(pc, pOp)
                 return rc
+            elif (pOp.opcode == CConfig.OP_Eq or 
+                  pOp.opcode == CConfig.OP_Ne or 
+                  pOp.opcode == CConfig.OP_Lt or 
+                  pOp.opcode == CConfig.OP_Le or 
+                  pOp.opcode == CConfig.OP_Gt or 
+                  pOp.opcode == CConfig.OP_Ge):
+                print '>>> OP_Compare: %s <<<' % pOp.opcode
+                pc = self.python_OP_Compare(pc, pOp) - 1
+                print pc
+            elif pOp.opcode == CConfig.OP_Integer:
+                print '>>> OP_Integer <<<'
+                self.python_OP_Integer(pc, pOp)
+                # print self.p.aMem[pOp.p2]
             else:
                 print 'Opcode %s is not there yet!' % pOp.opcode
                 # raise Exception("Unimplemented bytecode %s." % pOp.opcode)
                 pass
-            print 'rc = %s\npc = %s' % (rc, pc)
+            # print 'rc = %s\npc = %s' % (rc, pc)
             pc += 1
         return rc
 
