@@ -395,8 +395,8 @@ VDBE.become(lltype.Struct("Vdbe",               # src/vdbeInt.h: 308
     ("apCsr", VDBECURSORPP),                    # One element of this array for each open cursor
     ("aVar", rffi.CArrayPtr(MEM)),              # Values for the OP_Variable opcode.
     ("azVar", rffi.CCHARPP),                    # Name of variables
-    ("nVar", rffi.INT),                         #   ynVar nVar;             /* Number of entries in aVar[] */
-    ("nzVar", rffi.INT),                        #   ynVar nzVar;            /* Number of entries in azVar[] */
+    ("nVar", CConfig.ynVar),                    #   ynVar nVar;             /* Number of entries in aVar[] */
+    ("nzVar", CConfig.ynVar),                   #   ynVar nzVar;            /* Number of entries in azVar[] */
     ("cacheCtr", CConfig.u32),                  # VdbeCursor row cache generation counter
     ("pc", rffi.INT),                           # The program counter
     ("rc", rffi.INT),                           # Value to return
