@@ -94,66 +94,58 @@ class Sqlite3(object):
             pOp = ops[pc]
 
             if pOp.opcode == CConfig.OP_Init:
-                print 'OP_Init'
+                print '>>> OP_Init <<<'
                 pc = self.python_OP_Init(pc, pOp)
             elif pOp.opcode == CConfig.OP_OpenRead or pOp.opcode == CConfig.OP_OpenWrite:
-                print 'OP_OpenRead'
+                print '>>> OP_OpenRead <<<'
                 self.python_OP_OpenRead(pc, pOp)
             elif pOp.opcode == CConfig.OP_Rewind:
-                print 'OP_Rewind'
+                print '>>> OP_Rewind <<<'
                 pc, rc = self.python_OP_Rewind(pc, pOp)
-                print 'pc = %s and rc = %s' % (pc, rc)
             elif pOp.opcode == CConfig.OP_Transaction:
-                print 'OP_Transaction'
+                print '>>> OP_Transaction <<<'
                 rc = self.python_OP_Transaction(pc, pOp)
                 if rc == CConfig.SQLITE_BUSY:
-                    print 'yes: OP_Transaction'
+                    print 'ERROR: in OP_Transaction SQLITE_BUSY'
+                    print 'rc = %s\npc = %s' % (rc, pc)
                     return rc
             elif pOp.opcode == CConfig.OP_TableLock:
-                print 'OP_TableLock'
+                print '>>> OP_TableLock <<<'
                 rc = self.python_OP_TableLock(pc, pOp)
             elif pOp.opcode == CConfig.OP_Goto:
-                print 'OP_Goto'
+                print '>>> OP_Goto <<<'
                 pc = self.python_OP_Goto(pc, pOp)
             elif pOp.opcode == CConfig.OP_Column:
-                print 'OP_Column'
+                print '>>> OP_Column <<<'
                 rc = self.python_OP_Column(pc, pOp)
             elif pOp.opcode == CConfig.OP_ResultRow:
-                print 'OP_ResultRow'
+                print '>>> OP_ResultRow <<<'
                 rc = self.python_OP_ResultRow(pc, pOp)
-                print '--> pc = %s and rc = %s' % (pc, rc)
                 if rc == CConfig.SQLITE_ROW:
-                    print 'yes: OP_ResultRow' 
+                    print 'rc = %s\npc = %s' % (rc, pc)
                     return rc
             elif pOp.opcode == CConfig.OP_Next:
-                print 'OP_Next'
+                print '>>> OP_Next <<<'
                 pc, rc = self.python_OP_Next(pc, pOp)
-                print 'pc = %s and rc = %s' % (pc, rc)
             elif pOp.opcode == CConfig.OP_Close:
-                print 'OP_Close'
+                print '>>> OP_Close <<<'
                 self.python_OP_Close(pc, pOp)
             elif pOp.opcode == CConfig.OP_Halt:
-                print 'OP_Halt'
+                print '>>> OP_Halt <<<'
                 pc, rc = self.python_OP_Halt(pc, pOp)
-                print 'pc = %s and rc = %s' % (pc, rc)
                 return rc
             else:
                 print 'Opcode %s is not there yet!' % pOp.opcode
                 # raise Exception("Unimplemented bytecode %s." % pOp.opcode)
                 pass
-            print rc
-            print pc
+            print 'rc = %s\npc = %s' % (rc, pc)
             pc += 1
-            if rc == CConfig.SQLITE_DONE:
-                break
         return rc
 
 
 def run():
-    sqlite3 = Sqlite3()
-    sqlite3.opendb(testdb)
-    sqlite3.prepare('select name from contacts;')
-    sqlite3.mainloop()
+    sqlite3 = Sqlite3(testdb, 'select name from contacts;')
+    rc = sqlite3.mainloop()
 
 def entry_point(argv):
     run()

@@ -797,14 +797,12 @@ next_tail:
   VdbeBranchTaken(res==0,2);
   if( res==0 ){
     pC->nullRow = 0;
-    printf("pc = %d\n", *pc);
     *pc = pOp->p2 - 1;
     p->aCounter[pOp->p5]++;
 #ifdef SQLITE_TEST
     sqlite3_search_count++;
 #endif
   }else{
-    printf("res = %d\n", res);
     pC->nullRow = 1;
   }
   pC->rowidIsValid = 0;

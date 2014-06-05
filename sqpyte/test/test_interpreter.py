@@ -34,19 +34,10 @@ def test_prepare():
 def test_mainloop():
     sqlite3 = Sqlite3(testdb, 'select name from contacts;')
     rc = sqlite3.mainloop()
-    # textlen = sqlite3.python_sqlite3_column_bytes(0)
-    # print sqlite3.python_sqlite3_column_bytes(0)
-    # print rffi.charpsize2str(rffi.cast(rffi.CCHARP, sqlite3.python_sqlite3_column_text(0)), textlen)
-    # rc = sqlite3.mainloop()
-    # textlen = sqlite3.python_sqlite3_column_bytes(2)
-    # print sqlite3.python_sqlite3_column_bytes(2)
-    # print rffi.charpsize2str(rffi.cast(rffi.CCHARP, sqlite3.python_sqlite3_column_text(2)), textlen)
     while rc == CConfig.SQLITE_ROW:
         textlen = sqlite3.python_sqlite3_column_bytes(0)
-        print sqlite3.python_sqlite3_column_bytes(0)
         print rffi.charpsize2str(rffi.cast(rffi.CCHARP, sqlite3.python_sqlite3_column_text(0)), textlen)
         rc = sqlite3.mainloop()
-        print rc
 
 
 
