@@ -159,10 +159,20 @@ DB = lltype.Struct("Db",            # src/sqliteInt.h: 845
 DBP = lltype.Ptr(DB)
 
 
+COLLSEQ = lltype.Struct("CollSeq",  # src/sqliteInt.h: 1326
+    ("zName", rffi.CCHARP),         # Name of the collating sequence, UTF-8 encoded
+    ("enc", CConfig.u8),            # Text encoding handled by xCmp()
+    ("pUser", rffi.VOIDP),          # First argument to xCmp()
+    ("xCmp", rffi.INTP),            #   int (*xCmp)(void*,int, const void*, int, const void*);
+    ("xDel", rffi.VOIDP)            #   void (*xDel)(void*);  /* Destructor for pUser */
+    )
+COLLSEQP = lltype.Ptr(COLLSEQ)
+
+
 SQLITE3.become(lltype.Struct("sqlite3",         # src/sqliteInt.h: 960
     ("pVfs", rffi.VOIDP),                       #   sqlite3_vfs *pVfs;            /* OS Interface */
     ("pVdbe", VDBEP),                           # List of active virtual machines
-    ("pDfltColl", rffi.VOIDP),                  #   CollSeq *pDfltColl;           /* The default collating sequence (BINARY) */
+    ("pDfltColl", COLLSEQP),                    # The default collating sequence (BINARY)
     ("mutex", rffi.VOIDP),                      #   sqlite3_mutex *mutex;         /* Connection mutex */
     ("aDb", lltype.Ptr(lltype.Array(DB,         # All backends
         hints={'nolength': True}))),
@@ -325,7 +335,7 @@ MEM = lltype.Struct("Mem",          # src/vdbeInt.h: 159
     ("u", lltype.Struct("u",
         ("i", CConfig.i64),         # Integer value used when MEM_Int is set in flags
         ("nZero", rffi.INT),        # Used when bit MEM_Zero is set in flags
-        ("pDef", rffi.VOIDP),       #     FuncDef *pDef;      /* Used only when flags==MEM_Agg */
+        ("pDef", FUNCDEFP),         # Used only when flags==MEM_Agg
         ("pRowSet", rffi.VOIDP),    #     RowSet *pRowSet;    /* Used only when flags==MEM_RowSet */
         ("pFrame", rffi.VOIDP),     #     VdbeFrame *pFrame;  /* Used when flags==MEM_Frame */
         hints={"union": True})),
@@ -341,16 +351,6 @@ MEM = lltype.Struct("Mem",          # src/vdbeInt.h: 159
     )
 MEMP = lltype.Ptr(MEM)
 MEMPP = rffi.CArrayPtr(MEMP)
-
-
-COLLSEQ = lltype.Struct("CollSeq",  # src/sqliteInt.h: 1326
-    ("zName", rffi.CCHARP),         # Name of the collating sequence, UTF-8 encoded
-    ("enc", CConfig.u8),            # Text encoding handled by xCmp()
-    ("pUser", rffi.VOIDP),          # First argument to xCmp()
-    ("xCmp", rffi.INTP),            #   int (*xCmp)(void*,int, const void*, int, const void*);
-    ("xDel", rffi.VOIDP)            #   void (*xDel)(void*);  /* Destructor for pUser */
-    )
-COLLSEQP = lltype.Ptr(COLLSEQ)
 
 
 FUNCDEF.become(lltype.Struct("FuncDef",     # src/sqliteInt.h: 1165
@@ -381,7 +381,7 @@ VDBEOP = lltype.Struct("VdbeOp",                # src/vdbe.h: 41
         ("z", rffi.CCHARP),                     # Pointer to data for string (char array) types
         ("pI64", CConfig.i64),                  # Used when p4type is P4_INT64
         ("pReal", rffi.DOUBLE),                 # Used when p4type is P4_REAL
-        ("pFunc", rffi.VOIDP),                  #     FuncDef *pFunc;        /* Used when p4type is P4_FUNCDEF */
+        ("pFunc", FUNCDEFP),                    # Used when p4type is P4_FUNCDEF
         ("pColl", COLLSEQP),                    # Used when p4type is P4_COLLSEQ
         ("pMem", MEMP),                         # Used when p4type is P4_MEM
         ("pVtab", rffi.VOIDP),                  #     VTable *pVtab;         /* Used when p4type is P4_VTAB */
@@ -423,8 +423,8 @@ VDBE.become(lltype.Struct("Vdbe",               # src/vdbeInt.h: 308
     ("apCsr", VDBECURSORPP),                    # One element of this array for each open cursor
     ("aVar", rffi.CArrayPtr(MEM)),              # Values for the OP_Variable opcode.
     ("azVar", rffi.CCHARPP),                    # Name of variables
-    ("nVar", CConfig.ynVar),                    #   ynVar nVar;             /* Number of entries in aVar[] */
-    ("nzVar", CConfig.ynVar),                   #   ynVar nzVar;            /* Number of entries in azVar[] */
+    ("nVar", CConfig.ynVar),                    # Number of entries in aVar[]
+    ("nzVar", CConfig.ynVar),                   # Number of entries in azVar[]
     ("cacheCtr", CConfig.u32),                  # VdbeCursor row cache generation counter
     ("pc", rffi.INT),                           # The program counter
     ("rc", rffi.INT),                           # Value to return
