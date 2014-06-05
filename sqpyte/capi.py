@@ -3,7 +3,7 @@ from rpython.rtyper.tool import rffi_platform as platform
 from rpython.rtyper.lltypesystem import rffi, lltype
 from rpython.translator.tool.cbuild import ExternalCompilationInfo
 
-sqlitedir = os.path.join(os.path.abspath(os.path.dirname(os.path.dirname(__file__))), "sqlite")
+sqlitedir = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "sqlite"))
 srcdir = os.path.join(sqlitedir, "src")
 
 class CConfig:
