@@ -40,6 +40,19 @@ def test_mainloop():
         rc = sqlite3.mainloop()
 
 
+def test_mainloop_namelist():
+    fname = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'names.txt')
+    names = [name.strip() for name in open(fname)]
+    sqlite3 = Sqlite3(testdb, 'select name from contacts;')
+    rc = sqlite3.mainloop()
+    i = 0
+    while rc == CConfig.SQLITE_ROW:
+        textlen = sqlite3.python_sqlite3_column_bytes(0)
+        name = rffi.charpsize2str(rffi.cast(rffi.CCHARP, sqlite3.python_sqlite3_column_text(0)), textlen)
+        rc = sqlite3.mainloop()
+        assert(name == names[i])
+        i += 1
+
 
 # def test_allocateCursor():
 #     db = opendb(testdb)
