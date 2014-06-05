@@ -48,8 +48,7 @@ int impl_OP_Transaction(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   if( pOp->p2 && (db->flags & SQLITE_QueryOnly)!=0 ){
     rc = SQLITE_READONLY;
     // goto abort_due_to_error;
-    printf("In impl_OP_Transaction\n");
-    assert(0);
+    printf("In impl_OP_Transaction(): abort_due_to_error 1.\n");
   }
   pBt = db->aDb[pOp->p1].pBt;
 
@@ -65,9 +64,10 @@ int impl_OP_Transaction(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
       sqlite3VdbeLeave(p);
       return rc;
     }
-    // if( rc!=SQLITE_OK ){
-    //   goto abort_due_to_error;
-    // }
+    if( rc!=SQLITE_OK ){
+      // goto abort_due_to_error;
+      printf("In impl_OP_Transaction(): abort_due_to_error 2.\n");
+    }
 
     if( pOp->p2 && p->usesStmtJournal 
      && (db->autoCommit==0 || db->nVdbeRead>1) 
@@ -269,8 +269,6 @@ void impl_OP_OpenWrite(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 
   Mem *aMem = p->aMem;
 
-  printf("IN OP_OPENWRITE\n");
-
   assert( (pOp->p5&(OPFLAG_P2ISREG|OPFLAG_BULKCSR))==pOp->p5 );
   assert( pOp->opcode==OP_OpenWrite || pOp->p5==0 );
   assert( p->bIsReader );
@@ -312,10 +310,11 @@ void impl_OP_OpenWrite(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
     ** that opcode will always set the p2 value to 2 or more or else fail.
     ** If there were a failure, the prepared statement would have halted
     ** before reaching this instruction. */
-    // if( NEVER(p2<2) ) {
-    //   rc = SQLITE_CORRUPT_BKPT;
-    //   goto abort_due_to_error;
-    // }
+    if( NEVER(p2<2) ) {
+      rc = SQLITE_CORRUPT_BKPT;
+      // goto abort_due_to_error;
+      printf("In impl_OP_OpenWrite(): abort_due_to_error.\n");
+    }
   }
   if( pOp->p4type==P4_KEYINFO ){
     pKeyInfo = pOp->p4.pKeyInfo;
@@ -329,7 +328,10 @@ void impl_OP_OpenWrite(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   assert( nField>=0 );
   testcase( nField==0 );  /* Table with INTEGER PRIMARY KEY and nothing else */
   pCur = allocateCursor(p, pOp->p1, nField, iDb, 1);
-  // if( pCur==0 ) goto no_mem;
+  if( pCur==0 ) {
+    // goto no_mem;
+      printf("In impl_OP_OpenWrite(): no_mem.\n");
+  }
   pCur->nullRow = 1;
   pCur->isOrdered = 1;
   rc = sqlite3BtreeCursor(pX, p2, wrFlag, pKeyInfo, pCur->pCursor);
@@ -457,7 +459,10 @@ int impl_OP_Column(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 
   /* If the cursor cache is stale, bring it up-to-date */
   rc = sqlite3VdbeCursorMoveto(pC);
-  // if( rc ) goto abort_due_to_error;
+  if( rc ) {
+    // goto abort_due_to_error;
+      printf("In impl_OP_Column(): abort_due_to_error.\n");
+  }
   if( pC->cacheStatus!=p->cacheCtr || (pOp->p5&OPFLAG_CLEARCACHE)!=0 ){
     if( pC->nullRow ){
       if( pCrsr==0 ){
@@ -495,9 +500,10 @@ int impl_OP_Column(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
       }else{
         pC->szRow = avail;
       }
-      // if( pC->payloadSize > (u32)db->aLimit[SQLITE_LIMIT_LENGTH] ){
-      //   goto too_big;
-      // }
+      if( pC->payloadSize > (u32)db->aLimit[SQLITE_LIMIT_LENGTH] ){
+        // goto too_big;
+        printf("In impl_OP_Column(): too_big.\n");
+      }
     }
     pC->cacheStatus = p->cacheCtr;
     pC->iHdrOffset = getVarint32(pC->aRow, offset);
@@ -750,7 +756,10 @@ int impl_OP_ResultRow(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
     sqlite3VdbeMemNulTerminate(&pMem[i]);
     REGISTER_TRACE(pOp->p1+i, &pMem[i]);
   }
-  // if( db->mallocFailed ) goto no_mem;
+  if( db->mallocFailed ) {
+    // goto no_mem;
+    printf("In impl_OP_ResultRow(): no_mem.\n");
+  }
 
   /* Return SQLITE_ROW
   */

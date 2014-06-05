@@ -11,8 +11,8 @@ class Sqlite3(object):
     db = None
     p = None
 
-    def __init__(self, db_name, query): 
-        self.opendb(db_name) 
+    def __init__(self, db_name, query):
+        self.opendb(db_name)
         self.prepare(query)
 
     def opendb(self, db_name):
@@ -89,7 +89,6 @@ class Sqlite3(object):
         pc = self.p.pc
         if pc < 0:
             pc = 0 # XXX maybe more to too, see vdbeapi.c:418
-        lastRowid = self.db.lastRowid
 
         while rc == CConfig.SQLITE_OK:
             pOp = ops[pc]
@@ -102,12 +101,14 @@ class Sqlite3(object):
                 self.python_OP_OpenRead(pc, pOp)
             elif pOp.opcode == CConfig.OP_Rewind:
                 print 'OP_Rewind'
-                tmp = pc
                 pc, rc = self.python_OP_Rewind(pc, pOp)
                 print 'pc = %s and rc = %s' % (pc, rc)
             elif pOp.opcode == CConfig.OP_Transaction:
                 print 'OP_Transaction'
                 rc = self.python_OP_Transaction(pc, pOp)
+                if rc == CConfig.SQLITE_BUSY:
+                    print 'yes: OP_Transaction'
+                    return rc
             elif pOp.opcode == CConfig.OP_TableLock:
                 print 'OP_TableLock'
                 rc = self.python_OP_TableLock(pc, pOp)
@@ -122,11 +123,10 @@ class Sqlite3(object):
                 rc = self.python_OP_ResultRow(pc, pOp)
                 print '--> pc = %s and rc = %s' % (pc, rc)
                 if rc == CConfig.SQLITE_ROW:
-                    print 'yes'
+                    print 'yes: OP_ResultRow' 
                     return rc
             elif pOp.opcode == CConfig.OP_Next:
                 print 'OP_Next'
-                tmp = pc
                 pc, rc = self.python_OP_Next(pc, pOp)
                 print 'pc = %s and rc = %s' % (pc, rc)
             elif pOp.opcode == CConfig.OP_Close:
@@ -134,9 +134,9 @@ class Sqlite3(object):
                 self.python_OP_Close(pc, pOp)
             elif pOp.opcode == CConfig.OP_Halt:
                 print 'OP_Halt'
-                tmp = pc
                 pc, rc = self.python_OP_Halt(pc, pOp)
                 print 'pc = %s and rc = %s' % (pc, rc)
+                return rc
             else:
                 print 'Opcode %s is not there yet!' % pOp.opcode
                 # raise Exception("Unimplemented bytecode %s." % pOp.opcode)
