@@ -7,14 +7,11 @@ import os, sys
 testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test.db")
 
 def test_opendb():
-    sqlite3 = Sqlite3()
-    sqlite3.opendb(testdb)
+    sqlite3 = Sqlite3(testdb, 'select name from contacts;')
     assert sqlite3.db
 
 def test_prepare():
-    sqlite3 = Sqlite3()
-    sqlite3.opendb(testdb)
-    sqlite3.prepare('select * from contacts;')
+    sqlite3 = Sqlite3(testdb, 'select * from contacts;')
     assert sqlite3.p and sqlite3.db
     assert sqlite3.p.db == sqlite3.db
     assert sqlite3.p.nOp == 17
@@ -35,9 +32,7 @@ def test_prepare():
     assert sqlite3.p.aOp[2].p3 == 0
 
 def test_mainloop():
-    sqlite3 = Sqlite3()
-    sqlite3.opendb(testdb)
-    sqlite3.prepare('select name from contacts;')
+    sqlite3 = Sqlite3(testdb, 'select name from contacts;')
     rc = sqlite3.mainloop()
     # textlen = sqlite3.python_sqlite3_column_bytes(0)
     # print sqlite3.python_sqlite3_column_bytes(0)

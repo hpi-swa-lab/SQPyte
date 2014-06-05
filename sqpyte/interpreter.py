@@ -11,6 +11,10 @@ class Sqlite3(object):
     db = None
     p = None
 
+    def __init__(self, db_name, query): 
+        self.opendb(db_name) 
+        self.prepare(query)
+
     def opendb(self, db_name):
         with rffi.scoped_str2charp(db_name) as db_name, lltype.scoped_alloc(capi.SQLITE3PP.TO, 1) as result:
             errorcode = capi.sqlite3_open(db_name, result)
