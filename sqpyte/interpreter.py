@@ -8,8 +8,6 @@ import capi
 testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test.db")
 
 class Sqlite3(object):
-    db = None
-    p = None
 
     def __init__(self, db_name, query):
         self.opendb(db_name)
@@ -18,11 +16,13 @@ class Sqlite3(object):
     def opendb(self, db_name):
         with rffi.scoped_str2charp(db_name) as db_name, lltype.scoped_alloc(capi.SQLITE3PP.TO, 1) as result:
             errorcode = capi.sqlite3_open(db_name, result)
-            assert errorcode == 0
+            assert(errorcode == 0)
             self.db = rffi.cast(capi.SQLITE3P, result[0])
 
     def prepare(self, query):
         length = len(query)
+        print 'length = %s' % length
+        print 'query = %s' % query
         with rffi.scoped_str2charp(query) as query, lltype.scoped_alloc(rffi.VOIDPP.TO, 1) as result, lltype.scoped_alloc(rffi.CCHARPP.TO, 1) as unused_buffer:
             errorcode = capi.sqlite3_prepare(self.db, query, length, result, unused_buffer)
             assert errorcode == 0
@@ -172,4 +172,4 @@ def target(*args):
     return entry_point, None
     
 if __name__ == "__main__":
-    entry_point()
+    entry_point(sys.argv)
