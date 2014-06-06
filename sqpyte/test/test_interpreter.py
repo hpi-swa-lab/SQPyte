@@ -31,18 +31,15 @@ def test_prepare():
     assert sqlite3.p.aOp[2].p2 == 12
     assert sqlite3.p.aOp[2].p3 == 0
 
-def test_mainloop_general():
-    sqlite3 = Sqlite3(testdb, 'select name from contacts where age >= 50;')
+def test_mainloop_over50():
+    sqlite3 = Sqlite3(testdb, 'select name from contacts where age > 50;')
     rc = sqlite3.mainloop()
-    print '============================ %s' % rc
     count = 0
     while rc == CConfig.SQLITE_ROW:
         textlen = sqlite3.python_sqlite3_column_bytes(0)
-        print rffi.charpsize2str(rffi.cast(rffi.CCHARP, sqlite3.python_sqlite3_column_text(0)), textlen)
         rc = sqlite3.mainloop()
-        print 'rc = %s count = %s' % (rc, count)
         count += 1
-    print 'count = %s' % count
+    assert(count == 48)
 
 def test_mainloop_namelist():
     fname = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'names.txt')

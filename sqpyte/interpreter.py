@@ -81,12 +81,6 @@ class Sqlite3(object):
 
     def python_OP_Integer(self, pc, pOp):
         capi.impl_OP_Integer(self.p, self.db, pc, pOp)
-        # pOut.u.i = pOp.p1
-        # self.p.aMem[pOp.p2] = pOp.p1
-#     case OP_Integer: {         /* out2-prerelease */
-#   pOut->u.i = pOp->p1;
-#   break;
-# }
 
 
     def python_sqlite3_column_text(self, iCol):
@@ -119,7 +113,7 @@ class Sqlite3(object):
                 rc = self.python_OP_Transaction(pc, pOp)
                 if rc == CConfig.SQLITE_BUSY:
                     print 'ERROR: in OP_Transaction SQLITE_BUSY'
-                    print 'rc = %s\npc = %s' % (rc, pc)
+                    # print 'rc = %s\npc = %s' % (rc, pc)
                     return rc
             elif pOp.opcode == CConfig.OP_TableLock:
                 print '>>> OP_TableLock <<<'
@@ -134,7 +128,7 @@ class Sqlite3(object):
                 print '>>> OP_ResultRow <<<'
                 rc = self.python_OP_ResultRow(pc, pOp)
                 if rc == CConfig.SQLITE_ROW:
-                    print 'rc = %s\npc = %s' % (rc, pc)
+                    # print 'rc = %s\npc = %s' % (rc, pc)
                     return rc
             elif pOp.opcode == CConfig.OP_Next:
                 print '>>> OP_Next <<<'
@@ -153,12 +147,10 @@ class Sqlite3(object):
                   pOp.opcode == CConfig.OP_Gt or 
                   pOp.opcode == CConfig.OP_Ge):
                 print '>>> OP_Compare: %s <<<' % pOp.opcode
-                pc = self.python_OP_Compare(pc, pOp) - 1
-                print pc
+                pc = self.python_OP_Compare(pc, pOp)
             elif pOp.opcode == CConfig.OP_Integer:
                 print '>>> OP_Integer <<<'
                 self.python_OP_Integer(pc, pOp)
-                # print self.p.aMem[pOp.p2]
             else:
                 print 'Opcode %s is not there yet!' % pOp.opcode
                 # raise Exception("Unimplemented bytecode %s." % pOp.opcode)

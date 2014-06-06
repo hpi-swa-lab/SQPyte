@@ -1028,8 +1028,6 @@ int impl_OP_Compare(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   flags1 = pIn1->flags;
   flags3 = pIn3->flags;
 
-  printf("pIn1 = %lld\n", pIn1->u.i);
-  printf("pIn3 = %lld\n", pIn3->u.i);
   if( (flags1 | flags3)&MEM_Null ){
     /* One or both operands are NULL */
     if( pOp->p5 & SQLITE_NULLEQ ){
@@ -1083,7 +1081,6 @@ int impl_OP_Compare(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
     ExpandBlob(pIn1);
     ExpandBlob(pIn3);
     res = sqlite3MemCompare(pIn3, pIn1, pOp->p4.pColl);
-    printf("res = %d\n", res);
   }
   switch( pOp->opcode ){
     case OP_Eq:    res = res==0;     break;
@@ -1103,9 +1100,7 @@ int impl_OP_Compare(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   }else{
     VdbeBranchTaken(res!=0, (pOp->p5 & SQLITE_NULLEQ)?2:3);
     if( res ){
-      printf("Result is positive.\n");
       pc = pOp->p2-1;
-      printf("pc = %d\n", pc);
     }
   }
   /* Undo any changes made by applyAffinity() to the input registers. */
@@ -1126,6 +1121,6 @@ void impl_OP_Integer(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   Mem *pOut = 0;             /* Output operand */
   pOut = &aMem[pOp->p2];
   pOut->u.i = pOp->p1;
-  printf("pOp->p1 = %d\n", pOp->p1);
+  pOut->flags = MEM_Int;
   // break;
 }
