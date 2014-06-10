@@ -8,7 +8,7 @@ srcdir = os.path.join(sqlitedir, "src")
 
 class CConfig:
     _compilation_info_ = ExternalCompilationInfo(
-        includes = ['sqlite3.h', 'stdint.h', 'sqliteInt.h', 'btreeInt.h'],
+        includes = ['sqlite3.h', 'stdint.h', 'sqliteInt.h', 'btreeInt.h', 'sqpyte.h'],
         libraries = ['sqlite3'],
         library_dirs = [sqlitedir],
         include_dirs = [srcdir, sqlitedir],
