@@ -29,8 +29,10 @@ class Sqlite3(object):
             self.p = rffi.cast(capi.VDBEP, result[0])
 
     def python_OP_Init(self, pc, pOp):
-        if pOp.p2:
-            pc = pOp.p2 - 1
+        cond = rffi.cast(lltype.Bool, pOp.p2)
+        p2 = rffi.cast(lltype.Signed, pOp.p2)
+        if cond:
+            pc = p2 - 1
         return pc
 
     def python_OP_Rewind(self, pc, pOp):
@@ -47,7 +49,8 @@ class Sqlite3(object):
         return capi.impl_OP_TableLock(self.p, self.db, pc, pOp)
 
     def python_OP_Goto(self, pc, pOp):
-        pc = pOp.p2 - 1
+        p2 = rffi.cast(lltype.Signed, pOp.p2)
+        pc = p2 - 1
         return pc
 
     def python_OP_OpenRead(self, pc, pOp):
@@ -92,70 +95,73 @@ class Sqlite3(object):
     def mainloop(self):
         ops = self.p.aOp
         rc = CConfig.SQLITE_OK
-        pc = self.p.pc
+        # pc = self.p.pc
+        pc = rffi.cast(lltype.Signed, self.p.pc)
         if pc < 0:
             pc = 0 # XXX maybe more to too, see vdbeapi.c:418
 
         while rc == CConfig.SQLITE_OK:
             pOp = ops[pc]
+            opcode = rffi.cast(lltype.Unsigned, pOp.opcode)
 
-            if pOp.opcode == CConfig.OP_Init:
+            if opcode == CConfig.OP_Init:
                 print '>>> OP_Init <<<'
                 pc = self.python_OP_Init(pc, pOp)
-            elif pOp.opcode == CConfig.OP_OpenRead or pOp.opcode == CConfig.OP_OpenWrite:
+            elif opcode == CConfig.OP_OpenRead or opcode == CConfig.OP_OpenWrite:
                 print '>>> OP_OpenRead <<<'
                 self.python_OP_OpenRead(pc, pOp)
-            elif pOp.opcode == CConfig.OP_Rewind:
+            elif opcode == CConfig.OP_Rewind:
                 print '>>> OP_Rewind <<<'
                 pc, rc = self.python_OP_Rewind(pc, pOp)
-            elif pOp.opcode == CConfig.OP_Transaction:
+            elif opcode == CConfig.OP_Transaction:
                 print '>>> OP_Transaction <<<'
                 rc = self.python_OP_Transaction(pc, pOp)
                 if rc == CConfig.SQLITE_BUSY:
                     print 'ERROR: in OP_Transaction SQLITE_BUSY'
                     # print 'rc = %s\npc = %s' % (rc, pc)
                     return rc
-            elif pOp.opcode == CConfig.OP_TableLock:
+            elif opcode == CConfig.OP_TableLock:
                 print '>>> OP_TableLock <<<'
                 rc = self.python_OP_TableLock(pc, pOp)
-            elif pOp.opcode == CConfig.OP_Goto:
+            elif opcode == CConfig.OP_Goto:
                 print '>>> OP_Goto <<<'
                 pc = self.python_OP_Goto(pc, pOp)
-            elif pOp.opcode == CConfig.OP_Column:
+            elif opcode == CConfig.OP_Column:
                 print '>>> OP_Column <<<'
                 rc = self.python_OP_Column(pc, pOp)
-            elif pOp.opcode == CConfig.OP_ResultRow:
+            elif opcode == CConfig.OP_ResultRow:
                 print '>>> OP_ResultRow <<<'
                 rc = self.python_OP_ResultRow(pc, pOp)
                 if rc == CConfig.SQLITE_ROW:
                     # print 'rc = %s\npc = %s' % (rc, pc)
                     return rc
-            elif pOp.opcode == CConfig.OP_Next:
+            elif opcode == CConfig.OP_Next:
                 print '>>> OP_Next <<<'
                 pc, rc = self.python_OP_Next(pc, pOp)
-            elif pOp.opcode == CConfig.OP_Close:
+            elif opcode == CConfig.OP_Close:
                 print '>>> OP_Close <<<'
                 self.python_OP_Close(pc, pOp)
-            elif pOp.opcode == CConfig.OP_Halt:
+            elif opcode == CConfig.OP_Halt:
                 print '>>> OP_Halt <<<'
                 pc, rc = self.python_OP_Halt(pc, pOp)
                 return rc
-            elif (pOp.opcode == CConfig.OP_Eq or 
-                  pOp.opcode == CConfig.OP_Ne or 
-                  pOp.opcode == CConfig.OP_Lt or 
-                  pOp.opcode == CConfig.OP_Le or 
-                  pOp.opcode == CConfig.OP_Gt or 
-                  pOp.opcode == CConfig.OP_Ge):
-                print '>>> OP_Compare: %s <<<' % pOp.opcode
+            elif (opcode == CConfig.OP_Eq or 
+                  opcode == CConfig.OP_Ne or 
+                  opcode == CConfig.OP_Lt or 
+                  opcode == CConfig.OP_Le or 
+                  opcode == CConfig.OP_Gt or 
+                  opcode == CConfig.OP_Ge):
+                print '>>> OP_Compare: %s <<<' % opcode
                 pc = self.python_OP_Compare(pc, pOp)
-            elif pOp.opcode == CConfig.OP_Integer:
+            elif opcode == CConfig.OP_Integer:
                 print '>>> OP_Integer <<<'
                 self.python_OP_Integer(pc, pOp)
             else:
-                print 'Opcode %s is not there yet!' % pOp.opcode
-                # raise Exception("Unimplemented bytecode %s." % pOp.opcode)
+                print 'Opcode %s is not there yet!' % opcode
+                # raise Exception("Unimplemented bytecode %s." % opcode)
                 pass
             # print 'rc = %s\npc = %s' % (rc, pc)
+            pc = rffi.cast(lltype.Signed, pc)
             pc += 1
         return rc
 
