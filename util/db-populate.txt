@@ -1,0 +1,6 @@
+/* SQLite Command Line */
+
+create table people (first_name text, last_name text, age integer, email text, city text, country text, zip text, frequency text);
+.separator ","
+.import data-june-11-2014.csv people
+
