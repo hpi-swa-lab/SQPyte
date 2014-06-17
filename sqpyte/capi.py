@@ -554,6 +554,9 @@ impl_OP_Compare = rffi.llexternal('impl_OP_Compare', [VDBEP, SQLITE3P, rffi.INT,
 impl_OP_Integer = rffi.llexternal('impl_OP_Integer', [VDBEP, SQLITE3P, rffi.INT, VDBEOPP],
     lltype.Void, compilation_info=CConfig._compilation_info_)
 
+sqlite3_reset = rffi.llexternal('sqlite3_reset', [VDBEP],
+    rffi.INT, compilation_info=CConfig._compilation_info_)
+
 sqlite3_column_text = rffi.llexternal('sqlite3_column_text', [VDBEP, rffi.INT],
     rffi.UCHARP, compilation_info=CConfig._compilation_info_)
 sqlite3_column_bytes = rffi.llexternal('sqlite3_column_bytes', [VDBEP, rffi.INT],

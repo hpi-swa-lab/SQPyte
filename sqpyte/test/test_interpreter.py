@@ -31,6 +31,19 @@ def test_prepare():
     assert sqlite3.p.aOp[2].p2 == 12
     assert sqlite3.p.aOp[2].p3 == 0
 
+def test_reset():
+    sqlite3 = Sqlite3(testdb, 'select name from contacts;')
+    rc = sqlite3.mainloop()
+    assert rc == CConfig.SQLITE_ROW
+    textlen = sqlite3.python_sqlite3_column_bytes(0)
+    name = rffi.charpsize2str(rffi.cast(rffi.CCHARP, sqlite3.python_sqlite3_column_text(0)), textlen)
+    sqlite3.reset_query()
+    rc = sqlite3.mainloop()
+    assert rc == CConfig.SQLITE_ROW
+    textlen = sqlite3.python_sqlite3_column_bytes(0)
+    name2 = rffi.charpsize2str(rffi.cast(rffi.CCHARP, sqlite3.python_sqlite3_column_text(0)), textlen)
+    assert name == name2
+    
 def test_mainloop_over50():
     sqlite3 = Sqlite3(testdb, 'select name from contacts where age > 50;')
     rc = sqlite3.mainloop()

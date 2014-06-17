@@ -38,6 +38,9 @@ class Sqlite3(object):
             assert errorcode == 0
             self.p = rffi.cast(capi.VDBEP, result[0])
 
+    def reset_query(self):
+        capi.sqlite3_reset(self.p)
+
     def python_OP_Init(self, pc, pOp):
         cond = rffi.cast(lltype.Bool, pOp.p2)
         p2 = rffi.cast(lltype.Signed, pOp.p2)
@@ -99,6 +102,7 @@ class Sqlite3(object):
         return capi.sqlite3_column_bytes(self.p, iCol)
 
     def debug_print(self, s):
+        return
         if not jit.we_are_jitted():
             print s
 
