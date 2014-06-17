@@ -668,7 +668,12 @@ int impl_OP_Column(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   pDest->enc = encoding;
 
 op_column_out:
-  // Deephemeralize(pDest);
+  // Translated Deephemeralize(pDest);
+  if( ((pDest)->flags&MEM_Ephem)!=0 && sqlite3VdbeMemMakeWriteable(pDest) ) {
+    // goto no_mem;
+    printf("In impl_OP_Column(): no_mem.\n");
+  }
+
 op_column_error:
   UPDATE_MAX_BLOBSIZE(pDest);
   REGISTER_TRACE(pOp->p3, pDest);
@@ -750,7 +755,14 @@ int impl_OP_ResultRow(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   pMem = p->pResultSet = &aMem[pOp->p1];
   for(i=0; i<pOp->p2; i++){
     assert( memIsValid(&pMem[i]) );
-    // Deephemeralize(&pMem[i]);
+
+    // Translated Deephemeralize(&pMem[i]);
+    if( ((&pMem[i])->flags&MEM_Ephem)!=0 && sqlite3VdbeMemMakeWriteable(&pMem[i]) ) {
+      // goto no_mem;
+      printf("In impl_OP_ResultRow(): no_mem.\n");
+    }
+
+
     assert( (pMem[i].flags & MEM_Ephem)==0
             || (pMem[i].flags & (MEM_Str|MEM_Blob))==0 );
     sqlite3VdbeMemNulTerminate(&pMem[i]);
