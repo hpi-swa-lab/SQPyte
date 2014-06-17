@@ -1,3 +1,4 @@
+from rpython.rlib import jit
 from rpython.rtyper.lltypesystem import rffi, lltype
 from capi import CConfig
 from rpython.rlib.rarithmetic import intmask
@@ -6,12 +7,21 @@ import os
 import capi
 
 testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test.db")
+jitdriver = jit.JitDriver(
+    greens=['pc', 'rc', 'ops', 'self_'], 
+    reds=[],
+    should_unroll_one_iteration=lambda *args: True,
+    )
+    # get_printable_location=get_printable_location)
 
 class Sqlite3(object):
+
+    _immutable_fields_ = ['internalPc', 'db', 'p']
 
     def __init__(self, db_name, query):
         self.opendb(db_name)
         self.prepare(query)
+        self.internalPc = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
 
     def opendb(self, db_name):
         with rffi.scoped_str2charp(db_name) as db_name, lltype.scoped_alloc(capi.SQLITE3PP.TO, 1) as result:
@@ -36,10 +46,9 @@ class Sqlite3(object):
         return pc
 
     def python_OP_Rewind(self, pc, pOp):
-        with lltype.scoped_alloc(rffi.INTP.TO, 1) as internalPc:
-            internalPc[0] = rffi.cast(rffi.INT, pc)
-            rc = capi.impl_OP_Rewind(self.p, self.db, internalPc, pOp)
-            retPc = internalPc[0]
+        self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        rc = capi.impl_OP_Rewind(self.p, self.db, self.internalPc, pOp)
+        retPc = self.internalPc[0]
         return retPc, rc
 
     def python_OP_Transaction(self, pc, pOp):
@@ -63,20 +72,18 @@ class Sqlite3(object):
         return capi.impl_OP_ResultRow(self.p, self.db, pc, pOp)
 
     def python_OP_Next(self, pc, pOp):
-        with lltype.scoped_alloc(rffi.INTP.TO, 1) as internalPc:
-            internalPc[0] = rffi.cast(rffi.INT, pc)
-            rc = capi.impl_OP_Next(self.p, self.db, internalPc, pOp)
-            retPc = internalPc[0]
+        self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        rc = capi.impl_OP_Next(self.p, self.db, self.internalPc, pOp)
+        retPc = self.internalPc[0]
         return retPc, rc
 
     def python_OP_Close(self, pc, pOp):
         capi.impl_OP_Close(self.p, self.db, pc, pOp)
 
     def python_OP_Halt(self, pc, pOp):
-        with lltype.scoped_alloc(rffi.INTP.TO, 1) as internalPc:
-            internalPc[0] = rffi.cast(rffi.INT, pc)
-            rc = capi.impl_OP_Halt(self.p, self.db, internalPc, pOp)
-            retPc = internalPc[0]
+        self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        rc = capi.impl_OP_Halt(self.p, self.db, self.internalPc, pOp)
+        retPc = self.internalPc[0]
         return retPc, rc
 
     def python_OP_Compare(self, pc, pOp):
@@ -91,58 +98,73 @@ class Sqlite3(object):
     def python_sqlite3_column_bytes(self, iCol):
         return capi.sqlite3_column_bytes(self.p, iCol)
 
+    def debug_print(self, s):
+        if not jit.we_are_jitted():
+            print s
+
+    @jit.elidable
+    def get_opcode(self, pOp):
+        return rffi.cast(lltype.Unsigned, pOp.opcode)
+
+    @jit.elidable
+    def get_aOp(self):
+        return self.p.aOp
 
     def mainloop(self):
-        ops = self.p.aOp
+        ops = self.get_aOp()
         rc = CConfig.SQLITE_OK
         # pc = self.p.pc
-        pc = rffi.cast(lltype.Signed, self.p.pc)
+        pc = jit.promote(rffi.cast(lltype.Signed, self.p.pc))
         if pc < 0:
             pc = 0 # XXX maybe more to too, see vdbeapi.c:418
 
-        while rc == CConfig.SQLITE_OK:
+        while True:
+            jitdriver.jit_merge_point(pc=pc, self_=self, ops=ops, rc=rc)
+            if rc != CConfig.SQLITE_OK:
+                break
             pOp = ops[pc]
-            opcode = rffi.cast(lltype.Unsigned, pOp.opcode)
+            opcode = self.get_opcode(pOp)
+            oldpc = pc
 
             if opcode == CConfig.OP_Init:
-                print '>>> OP_Init <<<'
+                self.debug_print('>>> OP_Init <<<')
                 pc = self.python_OP_Init(pc, pOp)
             elif opcode == CConfig.OP_OpenRead or opcode == CConfig.OP_OpenWrite:
-                print '>>> OP_OpenRead <<<'
+                self.debug_print('>>> OP_OpenRead <<<')
                 self.python_OP_OpenRead(pc, pOp)
             elif opcode == CConfig.OP_Rewind:
-                print '>>> OP_Rewind <<<'
+                self.debug_print('>>> OP_Rewind <<<')
                 pc, rc = self.python_OP_Rewind(pc, pOp)
             elif opcode == CConfig.OP_Transaction:
-                print '>>> OP_Transaction <<<'
+                self.debug_print('>>> OP_Transaction <<<')
                 rc = self.python_OP_Transaction(pc, pOp)
                 if rc == CConfig.SQLITE_BUSY:
                     print 'ERROR: in OP_Transaction SQLITE_BUSY'
                     # print 'rc = %s\npc = %s' % (rc, pc)
                     return rc
             elif opcode == CConfig.OP_TableLock:
-                print '>>> OP_TableLock <<<'
+                self.debug_print('>>> OP_TableLock <<<')
                 rc = self.python_OP_TableLock(pc, pOp)
             elif opcode == CConfig.OP_Goto:
-                print '>>> OP_Goto <<<'
+                self.debug_print('>>> OP_Goto <<<')
                 pc = self.python_OP_Goto(pc, pOp)
             elif opcode == CConfig.OP_Column:
-                print '>>> OP_Column <<<'
+                self.debug_print('>>> OP_Column <<<')
                 rc = self.python_OP_Column(pc, pOp)
             elif opcode == CConfig.OP_ResultRow:
-                print '>>> OP_ResultRow <<<'
+                self.debug_print('>>> OP_ResultRow <<<')
                 rc = self.python_OP_ResultRow(pc, pOp)
                 if rc == CConfig.SQLITE_ROW:
                     # print 'rc = %s\npc = %s' % (rc, pc)
                     return rc
             elif opcode == CConfig.OP_Next:
-                print '>>> OP_Next <<<'
+                self.debug_print('>>> OP_Next <<<')
                 pc, rc = self.python_OP_Next(pc, pOp)
             elif opcode == CConfig.OP_Close:
-                print '>>> OP_Close <<<'
+                self.debug_print('>>> OP_Close <<<')
                 self.python_OP_Close(pc, pOp)
             elif opcode == CConfig.OP_Halt:
-                print '>>> OP_Halt <<<'
+                self.debug_print('>>> OP_Halt <<<')
                 pc, rc = self.python_OP_Halt(pc, pOp)
                 return rc
             elif (opcode == CConfig.OP_Eq or 
@@ -151,18 +173,20 @@ class Sqlite3(object):
                   opcode == CConfig.OP_Le or 
                   opcode == CConfig.OP_Gt or 
                   opcode == CConfig.OP_Ge):
-                print '>>> OP_Compare: %s <<<' % opcode
+                self.debug_print('>>> OP_Compare: %s <<<' % opcode)
                 pc = self.python_OP_Compare(pc, pOp)
             elif opcode == CConfig.OP_Integer:
-                print '>>> OP_Integer <<<'
+                self.debug_print('>>> OP_Integer <<<')
                 self.python_OP_Integer(pc, pOp)
             else:
                 print 'Opcode %s is not there yet!' % opcode
                 # raise Exception("Unimplemented bytecode %s." % opcode)
                 pass
             # print 'rc = %s\npc = %s' % (rc, pc)
-            pc = rffi.cast(lltype.Signed, pc)
+            pc = jit.promote(rffi.cast(lltype.Signed, pc))
             pc += 1
+            if pc <= oldpc:
+                jitdriver.can_enter_jit(pc=pc, self_=self, ops=ops, rc=rc)
         return rc
 
 
