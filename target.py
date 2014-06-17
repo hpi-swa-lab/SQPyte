@@ -1,4 +1,4 @@
-import sys, os
+import sys, os, time
 from sqpyte.interpreter import Sqlite3
 from rpython.rlib import jit
 from sqpyte.interpreter import Sqlite3
@@ -13,8 +13,8 @@ jitdriver = jit.JitDriver(
     )
     # get_printable_location=get_printable_location)
 
-def run():
-    sqlite3 = Sqlite3(testdb, 'select name from contacts;')
+def run(sqlite3):
+    sqlite3.reset_query()
     rc = sqlite3.mainloop()
     i = 0
     while rc == CConfig.SQLITE_ROW:
@@ -25,7 +25,14 @@ def run():
     return i
 
 def entry_point(argv):
-    print run()
+    sqlite3 = Sqlite3(testdb, 'select first_name from people where age > 1;')
+    
+    for i in range(2):
+        run(sqlite3)
+    t1 = time.time()
+    print run(sqlite3)
+    t2 = time.time()
+    print "%ss" % (t2 - t1)
     return 0
 
 def target(*args):

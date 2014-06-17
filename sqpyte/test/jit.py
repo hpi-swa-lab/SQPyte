@@ -26,7 +26,7 @@ class TestLLtype(LLJitMixin):
     def test_miniloop(self):
 
         def interp_w():
-            sqlite3 = Sqlite3(testdb, 'select name from contacts;')
+            sqlite3 = Sqlite3(testdb, 'select name from contacts where age > 1;')
             rc = sqlite3.mainloop()
             i = 0
             while rc == CConfig.SQLITE_ROW:
