@@ -12,6 +12,7 @@ class CConfig:
         libraries = ['sqlite3'],
         library_dirs = [sqlitedir],
         include_dirs = [srcdir, sqlitedir],
+        link_files = ["/Users/dkurilov/workspace/sqpyte/sqlite/sqlite3.o"]
     )
 
     u8  = platform.SimpleType('uint8_t', rffi.UCHAR)

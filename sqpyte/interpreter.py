@@ -189,17 +189,3 @@ class Sqlite3(object):
                 jitdriver.can_enter_jit(pc=pc, self_=self, ops=ops, rc=rc)
         return rc
 
-
-def run():
-    sqlite3 = Sqlite3(testdb, 'select name from contacts;')
-    rc = sqlite3.mainloop()
-
-def entry_point(argv):
-    run()
-    return 0
-
-def target(*args):
-    return entry_point, None
-    
-if __name__ == "__main__":
-    entry_point(sys.argv)
