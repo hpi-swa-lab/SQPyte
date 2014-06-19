@@ -785,6 +785,34 @@ int impl_OP_ResultRow(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   return rc;
 }
 
+/* Opcode: Next P1 P2 P3 P4 P5
+**
+** Advance cursor P1 so that it points to the next key/data pair in its
+** table or index.  If there are no more key/value pairs then fall through
+** to the following instruction.  But if the cursor advance was successful,
+** jump immediately to P2.
+**
+** The P1 cursor must be for a real table, not a pseudo-table.  P1 must have
+** been opened prior to this opcode or the program will segfault.
+**
+** The P3 value is a hint to the btree implementation. If P3==1, that
+** means P1 is an SQL index and that this instruction could have been
+** omitted if that index had been unique.  P3 is usually 0.  P3 is
+** always either 0 or 1.
+**
+** P4 is always of type P4_ADVANCE. The function pointer points to
+** sqlite3BtreeNext().
+**
+** If P5 is positive and the jump is taken, then event counter
+** number P5-1 in the prepared statement is incremented.
+**
+** See also: Prev, NextIfOpen
+*/
+/* Opcode: NextIfOpen P1 P2 P3 P4 P5
+**
+** This opcode works just like OP_Next except that if cursor P1 is not
+** open it behaves a no-op.
+*/
 int impl_OP_Next(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
   VdbeCursor *pC;
   int res;
