@@ -24,8 +24,14 @@ def run(query):
     return i
 
 def entry_point(argv):
+    try:
+        query = argv[1]
+    except IndexError:
+        print "You must supply a query to be run: e.g., 'select first_name from people where age > 1;'."
+        return 1
+
     db = Sqlite3DB(testdb).db
-    query = Sqlite3Query(db, 'select first_name from people where age > 1;')
+    query = Sqlite3Query(db, query)
     
     for i in range(2):
         run(query)
