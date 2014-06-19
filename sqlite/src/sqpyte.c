@@ -1,3 +1,5 @@
+#include <assert.h>
+
 i64 lastRowid;
 unsigned nVmStep = 0;      /* Number of virtual machine steps */
 
@@ -49,6 +51,7 @@ int impl_OP_Transaction(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
     rc = SQLITE_READONLY;
     // goto abort_due_to_error;
     printf("In impl_OP_Transaction(): abort_due_to_error 1.\n");
+    assert(0);
   }
   pBt = db->aDb[pOp->p1].pBt;
 
@@ -67,6 +70,7 @@ int impl_OP_Transaction(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
     if( rc!=SQLITE_OK ){
       // goto abort_due_to_error;
       printf("In impl_OP_Transaction(): abort_due_to_error 2.\n");
+      assert(0);
     }
 
     if( pOp->p2 && p->usesStmtJournal 
@@ -314,6 +318,7 @@ void impl_OP_OpenWrite(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
       rc = SQLITE_CORRUPT_BKPT;
       // goto abort_due_to_error;
       printf("In impl_OP_OpenWrite(): abort_due_to_error.\n");
+      assert(0);
     }
   }
   if( pOp->p4type==P4_KEYINFO ){
@@ -331,6 +336,7 @@ void impl_OP_OpenWrite(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   if( pCur==0 ) {
     // goto no_mem;
       printf("In impl_OP_OpenWrite(): no_mem.\n");
+      assert(0);
   }
   pCur->nullRow = 1;
   pCur->isOrdered = 1;
@@ -462,6 +468,7 @@ int impl_OP_Column(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   if( rc ) {
     // goto abort_due_to_error;
       printf("In impl_OP_Column(): abort_due_to_error.\n");
+      assert(0);
   }
   if( pC->cacheStatus!=p->cacheCtr || (pOp->p5&OPFLAG_CLEARCACHE)!=0 ){
     if( pC->nullRow ){
@@ -503,6 +510,7 @@ int impl_OP_Column(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
       if( pC->payloadSize > (u32)db->aLimit[SQLITE_LIMIT_LENGTH] ){
         // goto too_big;
         printf("In impl_OP_Column(): too_big.\n");
+        assert(0);
       }
     }
     pC->cacheStatus = p->cacheCtr;
@@ -672,6 +680,7 @@ op_column_out:
   if( ((pDest)->flags&MEM_Ephem)!=0 && sqlite3VdbeMemMakeWriteable(pDest) ) {
     // goto no_mem;
     printf("In impl_OP_Column(): no_mem.\n");
+    assert(0);
   }
 
 op_column_error:
@@ -760,6 +769,7 @@ int impl_OP_ResultRow(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
     if( ((&pMem[i])->flags&MEM_Ephem)!=0 && sqlite3VdbeMemMakeWriteable(&pMem[i]) ) {
       // goto no_mem;
       printf("In impl_OP_ResultRow(): no_mem.\n");
+      assert(0);
     }
 
 
@@ -771,6 +781,7 @@ int impl_OP_ResultRow(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   if( db->mallocFailed ) {
     // goto no_mem;
     printf("In impl_OP_ResultRow(): no_mem.\n");
+    assert(0);
   }
 
   /* Return SQLITE_ROW
@@ -1114,6 +1125,7 @@ int impl_OP_Compare(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
       if( db->mallocFailed ) {
         // goto no_mem;
         printf("In impl_OP_ResultRow(): no_mem.\n");
+        assert(0);
       }
     }
 
