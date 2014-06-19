@@ -2,8 +2,9 @@ from rpython.rtyper.lltypesystem import rffi
 from sqpyte.interpreter import Sqlite3DB, Sqlite3Query
 from sqpyte.capi import CConfig
 from sqpyte import capi
+from sqpyte.translated import allocateCursor, sqlite3VdbeMemIntegerify, sqlite3BtreeCursor
+from sqpyte.translated import sqlite3BtreeCursorHints, sqlite3VdbeSorterRewind
 import os, sys
-from sqpyte.translated import allocateCursor
 
 testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test.db")
 
@@ -90,51 +91,53 @@ def test_mainloop_namelist():
     assert(len(names) == i)
 
 
-def test_allocateCursor():
+def test_translated_allocateCursor():
     db = Sqlite3DB(testdb).db
-    query = Sqlite3Query(db, 'select name from contacts;')
-    p = query.p #prepare(db, 'select name from contacts;')
+    p = Sqlite3Query(db, 'select name from contacts;').p
     vdbe = allocateCursor(p, p.aOp[0].p1, p.aOp[0].p4.i, p.aOp[0].p3, 1)
 
-# def test_sqlite3VdbeMemIntegerify():
-#     db = opendb(testdb)
-#     p = prepare(db, 'select name from contacts;')
-#     pOp = p.aOp[0]
-#     p2 = pOp.p2
-#     aMem = p.aMem
-#     pMem = aMem[p2]
-#     rc = sqlite3VdbeMemIntegerify(pMem)
-#     assert(rc == CConfig.SQLITE_OK)
+def test_translated_sqlite3VdbeMemIntegerify():
+    db = Sqlite3DB(testdb).db
+    p = Sqlite3Query(db, 'select name from contacts;').p
+    pOp = p.aOp[0]
+    p2 = pOp.p2
+    aMem = p.aMem
+    pMem = aMem[p2]
+    rc = sqlite3VdbeMemIntegerify(pMem)
+    assert(rc == CConfig.SQLITE_OK)
 
-# def test_sqlite3BtreeCursor():
-#     db = opendb(testdb)
-#     p = prepare(db, 'select name from contacts;')
-#     pOp = p.aOp[0]
-#     p2 = pOp.p2
-#     iDb = pOp.p3
-#     pDb = db.aDb[iDb]
-#     pX = pDb.pBt
-#     wrFlag = 1
-#     pKeyInfo = pOp.p4.pKeyInfo
-#     nField = p.aOp[0].p4.i
-#     pCur = allocateCursor(p, pOp.p1, nField, iDb, 1)
-#     pCur.nullRow = rffi.r_uchar(1)
-#     pCur.isOrdered = bool(1)
-#     rc = sqlite3BtreeCursor(pX, p2, wrFlag, pKeyInfo, pCur.pCursor)
-#     assert(rc == CConfig.SQLITE_OK)
+def test_translated_sqlite3BtreeCursor():
+    db = Sqlite3DB(testdb).db
+    p = Sqlite3Query(db, 'select name from contacts;').p
+    pOp = p.aOp[0]
+    p2 = pOp.p2
+    iDb = pOp.p3
+    pDb = db.aDb[iDb]
+    pX = pDb.pBt
+    wrFlag = 1
+    pKeyInfo = pOp.p4.pKeyInfo
+    nField = p.aOp[0].p4.i
+    pCur = allocateCursor(p, pOp.p1, nField, iDb, 1)
+    pCur.nullRow = rffi.r_uchar(1)
+    pCur.isOrdered = bool(1)
+    rc = sqlite3BtreeCursor(pX, p2, wrFlag, pKeyInfo, pCur.pCursor)
+    assert(rc == CConfig.SQLITE_OK)
 
-# def test_sqlite3BtreeCursorHints():
-#     db = opendb(testdb)
-#     p = prepare(db, 'select name from contacts;')
-#     pOp = p.aOp[0]
-#     iDb = pOp.p3
-#     nField = p.aOp[0].p4.i
-#     pCur = allocateCursor(p, pOp.p1, nField, iDb, 1)
-#     sqlite3BtreeCursorHints(pCur.pCursor, (pOp.p5 & CConfig.OPFLAG_BULKCSR))
+def test_translated_sqlite3BtreeCursorHints():
+    db = Sqlite3DB(testdb).db
+    p = Sqlite3Query(db, 'select name from contacts;').p
+    pOp = p.aOp[0]
+    iDb = pOp.p3
+    nField = p.aOp[0].p4.i
+    pCur = allocateCursor(p, pOp.p1, nField, iDb, 1)
+    sqlite3BtreeCursorHints(pCur.pCursor, (pOp.p5 & CConfig.OPFLAG_BULKCSR))
 
-# def test_sqlite3VdbeSorterRewind():
-#     db = opendb(testdb)
-#     p = prepare(db, 'select name from contacts;')
+#
+# NOTE: Currently sqlite3VdbeSorterRewind() function is not used and segfaults.
+#
+# def test_translated_sqlite3VdbeSorterRewind():
+#     db = Sqlite3DB(testdb).db
+#     p = Sqlite3Query(db, 'select name from contacts;').p
 #     pOp = p.aOp[0]
 #     p2 = pOp.p2
 #     iDb = pOp.p3

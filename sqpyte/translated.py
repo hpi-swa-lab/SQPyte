@@ -1,3 +1,4 @@
+from rpython.rtyper.lltypesystem import rffi
 from capi import CConfig
 from rpython.rtyper.lltypesystem import lltype
 import capi
