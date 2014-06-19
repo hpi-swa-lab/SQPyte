@@ -3,6 +3,7 @@ from sqpyte.interpreter import Sqlite3DB, Sqlite3Query
 from sqpyte.capi import CConfig
 from sqpyte import capi
 import os, sys
+from sqpyte.translated import allocateCursor
 
 testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test.db")
 
@@ -89,10 +90,11 @@ def test_mainloop_namelist():
     assert(len(names) == i)
 
 
-# def test_allocateCursor():
-#     db = opendb(testdb)
-#     p = prepare(db, 'select name from contacts;')
-#     vdbe = allocateCursor(p, p.aOp[0].p1, p.aOp[0].p4.i, p.aOp[0].p3, 1)
+def test_allocateCursor():
+    db = Sqlite3DB(testdb).db
+    query = Sqlite3Query(db, 'select name from contacts;')
+    p = query.p #prepare(db, 'select name from contacts;')
+    vdbe = allocateCursor(p, p.aOp[0].p1, p.aOp[0].p4.i, p.aOp[0].p3, 1)
 
 # def test_sqlite3VdbeMemIntegerify():
 #     db = opendb(testdb)
