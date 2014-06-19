@@ -5,6 +5,7 @@ syntax: glob
 .*.swp
 __pycache__
 .DS_Store
+target-c*
 
 sqlite/.libs/libsqlite3.0.dylib
 sqlite/.libs/libsqlite3.0.dylib.dSYM/Contents/Info.plist
