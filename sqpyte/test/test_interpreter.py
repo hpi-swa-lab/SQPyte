@@ -92,14 +92,12 @@ def test_mainloop_namelist():
 
 def test_count():
     db = Sqlite3DB(testdb).db
-    query = Sqlite3Query(db, 'select count(name) from contacts;')
+    query = Sqlite3Query(db, 'select count(name) from contacts where age > 20;')
     rc = query.mainloop()
-    # count = 0
-    # while rc == CConfig.SQLITE_ROW:
-    #     rc = query.mainloop()
-    #     count += 1
-    # assert(count == 48)
-
+    assert rc == CConfig.SQLITE_ROW
+    textlen = query.python_sqlite3_column_bytes(0)
+    count = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
+    assert int(count) == 76
 
 def test_translated_allocateCursor():
     db = Sqlite3DB(testdb).db
