@@ -1176,3 +1176,36 @@ void impl_OP_Integer(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   pOut->flags = MEM_Int;
   // break;
 }
+
+
+/* Opcode: Null P1 P2 P3 * *
+** Synopsis:  r[P2..P3]=NULL
+**
+** Write a NULL into registers P2.  If P3 greater than P2, then also write
+** NULL into register P3 and every register in between P2 and P3.  If P3
+** is less than P2 (typically P3 is zero) then only register P2 is
+** set to NULL.
+**
+** If the P1 value is non-zero, then also set the MEM_Cleared flag so that
+** NULL values will not compare equal even if SQLITE_NULLEQ is set on
+** OP_Ne or OP_Eq.
+*/
+void impl_OP_Null(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {           /* out2-prerelease */
+  int cnt;
+  u16 nullFlag;
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pOut = 0;             /* Output operand */
+
+  cnt = pOp->p3-pOp->p2;
+  assert( pOp->p3<=(p->nMem-p->nCursor) );
+  pOut = &aMem[pOp->p2];
+  pOut->flags = nullFlag = pOp->p1 ? (MEM_Null|MEM_Cleared) : MEM_Null;
+  while( cnt>0 ){
+    pOut++;
+    memAboutToChange(p, pOut);
+    VdbeMemRelease(pOut);
+    pOut->flags = nullFlag;
+    cnt--;
+  }
+  // break;
+}

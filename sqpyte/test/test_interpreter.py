@@ -90,6 +90,16 @@ def test_mainloop_namelist():
         i += 1
     assert(len(names) == i)
 
+def test_count():
+    db = Sqlite3DB(testdb).db
+    query = Sqlite3Query(db, 'select count(name) from contacts;')
+    rc = query.mainloop()
+    # count = 0
+    # while rc == CConfig.SQLITE_ROW:
+    #     rc = query.mainloop()
+    #     count += 1
+    # assert(count == 48)
+
 
 def test_translated_allocateCursor():
     db = Sqlite3DB(testdb).db
