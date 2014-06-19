@@ -1276,3 +1276,40 @@ int impl_OP_AggStep(Vdbe *p, sqlite3 *db, int rcIn, Op *pOp) {
   // break;
   return rc;
 }
+
+/* Opcode: AggFinal P1 P2 * P4 *
+** Synopsis: accum=r[P1] N=P2
+**
+** Execute the finalizer function for an aggregate.  P1 is
+** the memory location that is the accumulator for the aggregate.
+**
+** P2 is the number of arguments that the step function takes and
+** P4 is a pointer to the FuncDef for this function.  The P2
+** argument is not used by this opcode.  It is only there to disambiguate
+** functions that can take varying numbers of arguments.  The
+** P4 argument is only needed for the degenerate case where
+** the step function was not previously called.
+*/
+void impl_OP_AggFinal(Vdbe *p, sqlite3 *db, int rc, Op *pOp) {
+// case OP_AggFinal: {
+  Mem *pMem;
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  u8 encoding = ENC(db);     /* The database encoding */
+
+  assert( pOp->p1>0 && pOp->p1<=(p->nMem-p->nCursor) );
+  pMem = &aMem[pOp->p1];
+  assert( (pMem->flags & ~(MEM_Null|MEM_Agg))==0 );
+  rc = sqlite3VdbeMemFinalize(pMem, pOp->p4.pFunc);
+  if( rc ){
+    sqlite3SetString(&p->zErrMsg, db, "%s", sqlite3_value_text(pMem));
+  }
+  sqlite3VdbeChangeEncoding(pMem, encoding);
+  UPDATE_MAX_BLOBSIZE(pMem);
+  if( sqlite3VdbeMemTooBig(pMem) ){
+    // goto too_big;
+    printf("In impl_OP_AggFinal(): too_big.\n");
+    assert(0);
+
+  }
+  // break;
+}
