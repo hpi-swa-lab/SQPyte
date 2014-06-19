@@ -5,6 +5,7 @@ from rpython.rlib.rarithmetic import intmask
 import sys
 import os
 import capi
+import translated
 
 testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test.db")
 jitdriver = jit.JitDriver(
@@ -31,8 +32,6 @@ class Sqlite3(object):
 
     def prepare(self, query):
         length = len(query)
-        print 'length = %s' % length
-        print 'query = %s' % query
         with rffi.scoped_str2charp(query) as query, lltype.scoped_alloc(rffi.VOIDPP.TO, 1) as result, lltype.scoped_alloc(rffi.CCHARPP.TO, 1) as unused_buffer:
             errorcode = capi.sqlite3_prepare(self.db, query, length, result, unused_buffer)
             assert errorcode == 0
@@ -67,6 +66,7 @@ class Sqlite3(object):
 
     def python_OP_OpenRead(self, pc, pOp):
         capi.impl_OP_OpenRead(self.p, self.db, pc, pOp)
+        # translated.python_OP_OpenRead_translated(self.p, self.db, pc, pOp)
 
     def python_OP_Column(self, pc, pOp):
         return capi.impl_OP_Column(self.p, self.db, pc, pOp)
@@ -144,7 +144,6 @@ class Sqlite3(object):
                 rc = self.python_OP_Transaction(pc, pOp)
                 if rc == CConfig.SQLITE_BUSY:
                     print 'ERROR: in OP_Transaction SQLITE_BUSY'
-                    # print 'rc = %s\npc = %s' % (rc, pc)
                     return rc
             elif opcode == CConfig.OP_TableLock:
                 self.debug_print('>>> OP_TableLock <<<')
@@ -159,7 +158,6 @@ class Sqlite3(object):
                 self.debug_print('>>> OP_ResultRow <<<')
                 rc = self.python_OP_ResultRow(pc, pOp)
                 if rc == CConfig.SQLITE_ROW:
-                    # print 'rc = %s\npc = %s' % (rc, pc)
                     return rc
             elif opcode == CConfig.OP_Next:
                 self.debug_print('>>> OP_Next <<<')
@@ -183,10 +181,7 @@ class Sqlite3(object):
                 self.debug_print('>>> OP_Integer <<<')
                 self.python_OP_Integer(pc, pOp)
             else:
-                print 'Opcode %s is not there yet!' % opcode
-                # raise Exception("Unimplemented bytecode %s." % opcode)
-                pass
-            # print 'rc = %s\npc = %s' % (rc, pc)
+                raise Exception("Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))
             pc += 1
             if pc <= oldpc:
