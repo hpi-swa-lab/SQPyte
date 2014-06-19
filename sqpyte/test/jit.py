@@ -8,14 +8,14 @@ conftest.option = o
 
 from rpython.jit.metainterp.test.test_ajit import LLJitMixin
 
-from sqpyte.interpreter import Sqlite3
+from sqpyte.interpreter import Sqlite3DB, Sqlite3Query
 from sqpyte.capi import CConfig
 from sqpyte.test.test_interpreter import testdb
 
 sys.setrecursionlimit(5000)
 
 jitdriver = jit.JitDriver(
-    greens=['sqlite3'], 
+    greens=['query'], 
     reds=['i', 'rc'],
     )
     # get_printable_location=get_printable_location)
@@ -26,13 +26,15 @@ class TestLLtype(LLJitMixin):
     def test_miniloop(self):
 
         def interp_w():
-            sqlite3 = Sqlite3(testdb, 'select name from contacts where age > 1;')
-            rc = sqlite3.mainloop()
+            db = Sqlite3DB(testdb).db
+            query = Sqlite3Query(db, 'select name from contacts where age > 1;')
+
+            rc = query.mainloop()
             i = 0
             while rc == CConfig.SQLITE_ROW:
-                jitdriver.jit_merge_point(i=i, sqlite3=sqlite3, rc=rc)
-                textlen = sqlite3.python_sqlite3_column_bytes(0)
-                rc = sqlite3.mainloop()
+                jitdriver.jit_merge_point(i=i, query=query, rc=rc)
+                textlen = query.python_sqlite3_column_bytes(0)
+                rc = query.mainloop()
                 i += textlen
             return i
             

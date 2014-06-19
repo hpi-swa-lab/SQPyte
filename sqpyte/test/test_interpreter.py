@@ -1,5 +1,5 @@
 from rpython.rtyper.lltypesystem import rffi
-from sqpyte.interpreter import Sqlite3
+from sqpyte.interpreter import Sqlite3DB, Sqlite3Query
 from sqpyte.capi import CConfig
 from sqpyte import capi
 import os, sys
@@ -7,63 +7,83 @@ import os, sys
 testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test.db")
 
 def test_opendb():
-    sqlite3 = Sqlite3(testdb, 'select name from contacts;')
-    assert sqlite3.db
+    db = Sqlite3DB(testdb).db
+    assert db
 
 def test_prepare():
-    sqlite3 = Sqlite3(testdb, 'select * from contacts;')
-    assert sqlite3.p and sqlite3.db
-    assert sqlite3.p.db == sqlite3.db
-    assert sqlite3.p.nOp == 17
+    db = Sqlite3DB(testdb).db
+    query = Sqlite3Query(db, 'select * from contacts;')
+    assert query.p and query.db
+    assert query.p.db == query.db
+    assert query.p.nOp == 17
 
-    assert sqlite3.p.aOp[0].opcode == 155
-    assert sqlite3.p.aOp[0].p1 == 0
-    assert sqlite3.p.aOp[0].p2 == 14
-    assert sqlite3.p.aOp[0].p3 == 0
+    assert query.p.aOp[0].opcode == 155
+    assert query.p.aOp[0].p1 == 0
+    assert query.p.aOp[0].p2 == 14
+    assert query.p.aOp[0].p3 == 0
 
-    assert sqlite3.p.aOp[1].opcode == 52
-    assert sqlite3.p.aOp[1].p1 == 0
-    assert sqlite3.p.aOp[1].p2 == 2
-    assert sqlite3.p.aOp[1].p3 == 0
+    assert query.p.aOp[1].opcode == 52
+    assert query.p.aOp[1].p1 == 0
+    assert query.p.aOp[1].p2 == 2
+    assert query.p.aOp[1].p3 == 0
 
-    assert sqlite3.p.aOp[2].opcode == 105
-    assert sqlite3.p.aOp[2].p1 == 0
-    assert sqlite3.p.aOp[2].p2 == 12
-    assert sqlite3.p.aOp[2].p3 == 0
+    assert query.p.aOp[2].opcode == 105
+    assert query.p.aOp[2].p1 == 0
+    assert query.p.aOp[2].p2 == 12
+    assert query.p.aOp[2].p3 == 0
+
+def test_multiple_queries():
+    db = Sqlite3DB(testdb).db
+    query = Sqlite3Query(db, 'select name from contacts;')
+    rc = query.mainloop()
+    count = 0
+    while rc == CConfig.SQLITE_ROW:
+        rc = query.mainloop()
+        count += 1
+    assert(count == 100)
+    query = Sqlite3Query(db, 'select name from contacts where age > 50;')
+    rc = query.mainloop()
+    count = 0
+    while rc == CConfig.SQLITE_ROW:
+        rc = query.mainloop()
+        count += 1
+    assert(count == 48)
 
 def test_reset():
-    sqlite3 = Sqlite3(testdb, 'select name from contacts;')
-    rc = sqlite3.mainloop()
+    db = Sqlite3DB(testdb).db
+    query = Sqlite3Query(db, 'select name from contacts;')
+    rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
-    textlen = sqlite3.python_sqlite3_column_bytes(0)
-    name = rffi.charpsize2str(rffi.cast(rffi.CCHARP, sqlite3.python_sqlite3_column_text(0)), textlen)
-    sqlite3.reset_query()
-    rc = sqlite3.mainloop()
+    textlen = query.python_sqlite3_column_bytes(0)
+    name = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
+    query.reset_query()
+    rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
-    textlen = sqlite3.python_sqlite3_column_bytes(0)
-    name2 = rffi.charpsize2str(rffi.cast(rffi.CCHARP, sqlite3.python_sqlite3_column_text(0)), textlen)
+    textlen = query.python_sqlite3_column_bytes(0)
+    name2 = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
     assert name == name2
     
 def test_mainloop_over50():
-    sqlite3 = Sqlite3(testdb, 'select name from contacts where age > 50;')
-    rc = sqlite3.mainloop()
+    db = Sqlite3DB(testdb).db
+    query = Sqlite3Query(db, 'select name from contacts where age > 50;')
+    rc = query.mainloop()
     count = 0
     while rc == CConfig.SQLITE_ROW:
-        textlen = sqlite3.python_sqlite3_column_bytes(0)
-        rc = sqlite3.mainloop()
+        rc = query.mainloop()
         count += 1
     assert(count == 48)
 
 def test_mainloop_namelist():
     fname = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'names.txt')
     names = [name.strip() for name in open(fname)]
-    sqlite3 = Sqlite3(testdb, 'select name from contacts;')
-    rc = sqlite3.mainloop()
+    db = Sqlite3DB(testdb).db
+    query = Sqlite3Query(db, 'select name from contacts;')
+    rc = query.mainloop()
     i = 0
     while rc == CConfig.SQLITE_ROW:
-        textlen = sqlite3.python_sqlite3_column_bytes(0)
-        name = rffi.charpsize2str(rffi.cast(rffi.CCHARP, sqlite3.python_sqlite3_column_text(0)), textlen)
-        rc = sqlite3.mainloop()
+        textlen = query.python_sqlite3_column_bytes(0)
+        name = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
+        rc = query.mainloop()
         assert(name == names[i])
         i += 1
     assert(len(names) == i)

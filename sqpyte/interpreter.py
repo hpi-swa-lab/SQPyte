@@ -15,20 +15,27 @@ jitdriver = jit.JitDriver(
     )
     # get_printable_location=get_printable_location)
 
-class Sqlite3(object):
+class Sqlite3DB(object):
+    _immutable_fields_ = ['db']
 
-    _immutable_fields_ = ['internalPc', 'db', 'p']
-
-    def __init__(self, db_name, query):
+    def __init__(self, db_name):
         self.opendb(db_name)
-        self.prepare(query)
-        self.internalPc = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
 
     def opendb(self, db_name):
         with rffi.scoped_str2charp(db_name) as db_name, lltype.scoped_alloc(capi.SQLITE3PP.TO, 1) as result:
             errorcode = capi.sqlite3_open(db_name, result)
             assert(errorcode == 0)
             self.db = rffi.cast(capi.SQLITE3P, result[0])
+
+
+class Sqlite3Query(object):
+
+    _immutable_fields_ = ['internalPc', 'db', 'p']
+
+    def __init__(self, db, query):
+        self.db = db
+        self.prepare(query)
+        self.internalPc = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
 
     def prepare(self, query):
         length = len(query)
