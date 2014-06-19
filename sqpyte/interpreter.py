@@ -111,6 +111,9 @@ class Sqlite3Query(object):
     def python_OP_AggFinal(self, rc, pOp):
         capi.impl_OP_AggFinal(self.p, self.db, rc, pOp)
 
+    def python_OP_Copy(self, pc, pOp):
+        capi.impl_OP_Copy(self.p, self.db, pc, pOp)
+
 
     def python_sqlite3_column_text(self, iCol):
         return capi.sqlite3_column_text(self.p, iCol)
@@ -206,6 +209,9 @@ class Sqlite3Query(object):
             elif opcode == CConfig.OP_AggFinal:
                 self.debug_print('>>> OP_AggFinal <<<')
                 self.python_OP_AggFinal(rc, pOp)
+            elif opcode == CConfig.OP_Copy:
+                self.debug_print('>>> OP_Copy <<<')
+                self.python_OP_Copy(pc, pOp)
             else:
                 raise Exception("Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))

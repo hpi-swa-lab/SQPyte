@@ -19,5 +19,6 @@ void impl_OP_Integer(Vdbe *p, sqlite3 *db, int pc, Op *pOp);
 void impl_OP_Null(Vdbe *p, sqlite3 *db, int pc, Op *pOp);
 int impl_OP_AggStep(Vdbe *p, sqlite3 *db, int rc, Op *pOp);
 void impl_OP_AggFinal(Vdbe *p, sqlite3 *db, int rc, Op *pOp);
+void impl_OP_Copy(Vdbe *p, sqlite3 *db, int pc, Op *pOp);
 
 #endif

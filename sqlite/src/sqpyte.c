@@ -1313,3 +1313,42 @@ void impl_OP_AggFinal(Vdbe *p, sqlite3 *db, int rc, Op *pOp) {
   }
   // break;
 }
+
+/* Opcode: Copy P1 P2 P3 * *
+** Synopsis: r[P2@P3+1]=r[P1@P3+1]
+**
+** Make a copy of registers P1..P1+P3 into registers P2..P2+P3.
+**
+** This instruction makes a deep copy of the value.  A duplicate
+** is made of any string or blob constant.  See also OP_SCopy.
+*/
+void impl_OP_Copy(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+// case OP_Copy: {
+  int n;
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn1 = 0;             /* 1st input operand */
+  Mem *pOut = 0;             /* Output operand */
+
+  n = pOp->p3;
+  pIn1 = &aMem[pOp->p1];
+  pOut = &aMem[pOp->p2];
+  assert( pOut!=pIn1 );
+  while( 1 ){
+    sqlite3VdbeMemShallowCopy(pOut, pIn1, MEM_Ephem);
+    // Translated Deephemeralize(pOut);
+    if( ((pOut)->flags&MEM_Ephem)!=0 && sqlite3VdbeMemMakeWriteable(pOut) ) {
+      // goto no_mem;
+      printf("In impl_OP_Copy(): no_mem.\n");
+      assert(0);
+    }
+
+#ifdef SQLITE_DEBUG
+    pOut->pScopyFrom = 0;
+#endif
+    REGISTER_TRACE(pOp->p2+pOp->p3-n, pOut);
+    if( (n--)==0 ) break;
+    pOut++;
+    pIn1++;
+  }
+  // break;
+}
