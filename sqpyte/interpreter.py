@@ -105,6 +105,8 @@ class Sqlite3Query(object):
     def python_OP_Null(self, pc, pOp):
         capi.impl_OP_Null(self.p, self.db, pc, pOp)
 
+    def python_OP_AggStep(self, rc, pOp):
+        return capi.impl_OP_AggStep(self.p, self.db, rc, pOp)
 
     def python_sqlite3_column_text(self, iCol):
         return capi.sqlite3_column_text(self.p, iCol)
@@ -193,6 +195,10 @@ class Sqlite3Query(object):
             elif opcode == CConfig.OP_Null:
                 self.debug_print('>>> OP_Null <<<')
                 self.python_OP_Null(pc, pOp)
+            elif opcode == CConfig.OP_AggStep:
+                self.debug_print('>>> OP_AggStep <<<')
+                rc = self.python_OP_AggStep(rc, pOp)
+                print rc
             else:
                 raise Exception("Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))

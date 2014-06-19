@@ -1177,7 +1177,6 @@ void impl_OP_Integer(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   // break;
 }
 
-
 /* Opcode: Null P1 P2 P3 * *
 ** Synopsis:  r[P2..P3]=NULL
 **
@@ -1190,7 +1189,8 @@ void impl_OP_Integer(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 ** NULL values will not compare equal even if SQLITE_NULLEQ is set on
 ** OP_Ne or OP_Eq.
 */
-void impl_OP_Null(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {           /* out2-prerelease */
+void impl_OP_Null(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+// case OP_Null: {           /* out2-prerelease */
   int cnt;
   u16 nullFlag;
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
@@ -1208,4 +1208,71 @@ void impl_OP_Null(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {           /* out2-pre
     cnt--;
   }
   // break;
+}
+
+/* Opcode: AggStep * P2 P3 P4 P5
+** Synopsis: accum=r[P3] step(r[P2@P5])
+**
+** Execute the step function for an aggregate.  The
+** function has P5 arguments.   P4 is a pointer to the FuncDef
+** structure that specifies the function.  Use register
+** P3 as the accumulator.
+**
+** The P5 arguments are taken from register P2 and its
+** successors.
+*/
+int impl_OP_AggStep(Vdbe *p, sqlite3 *db, int rcIn, Op *pOp) {
+// case OP_AggStep: {
+  int n;
+  int i;
+  Mem *pMem;
+  Mem *pRec;
+  sqlite3_context ctx;
+  sqlite3_value **apVal;
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  int rc = rcIn;
+
+  n = pOp->p5;
+  assert( n>=0 );
+  pRec = &aMem[pOp->p2];
+  apVal = p->apArg;
+  assert( apVal || n==0 );
+  for(i=0; i<n; i++, pRec++){
+    assert( memIsValid(pRec) );
+    apVal[i] = pRec;
+    memAboutToChange(p, pRec);
+  }
+  ctx.pFunc = pOp->p4.pFunc;
+  assert( pOp->p3>0 && pOp->p3<=(p->nMem-p->nCursor) );
+  ctx.pMem = pMem = &aMem[pOp->p3];
+  pMem->n++;
+  ctx.s.flags = MEM_Null;
+  ctx.s.z = 0;
+  ctx.s.zMalloc = 0;
+  ctx.s.xDel = 0;
+  ctx.s.db = db;
+  ctx.isError = 0;
+  ctx.pColl = 0;
+  ctx.skipFlag = 0;
+  if( ctx.pFunc->funcFlags & SQLITE_FUNC_NEEDCOLL ){
+    assert( pOp>p->aOp );
+    assert( pOp[-1].p4type==P4_COLLSEQ );
+    assert( pOp[-1].opcode==OP_CollSeq );
+    ctx.pColl = pOp[-1].p4.pColl;
+  }
+  (ctx.pFunc->xStep)(&ctx, n, apVal); /* IMP: R-24505-23230 */
+  if( ctx.isError ){
+    sqlite3SetString(&p->zErrMsg, db, "%s", sqlite3_value_text(&ctx.s));
+    rc = ctx.isError;
+  }
+  if( ctx.skipFlag ){
+    assert( pOp[-1].opcode==OP_CollSeq );
+    i = pOp[-1].p1;
+    if( i ) sqlite3VdbeMemSetInt64(&aMem[i], 1);
+  }
+
+  sqlite3VdbeMemRelease(&ctx.s);
+
+  // break;
+  return rc;
 }
