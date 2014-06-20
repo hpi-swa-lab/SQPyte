@@ -35,7 +35,7 @@ p4names = ['P4_INT32', 'P4_KEYINFO']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW', 'SQLITE_BUSY']
 btree_values = ['BTCURSOR_MAX_DEPTH', 'BTREE_BULKLOAD']
-other_constants = ['SQLITE_MAX_VARIABLE_NUMBER']
+other_constants = ['SQLITE_MAX_VARIABLE_NUMBER', 'CACHE_STALE']
 
 for name in p4names + opnames + p5flags + result_codes + btree_values + other_constants:
     setattr(CConfig, name, platform.DefinedConstantInteger(name))
@@ -569,5 +569,8 @@ sqlite3_reset = rffi.llexternal('sqlite3_reset', [VDBEP],
 sqlite3_column_text = rffi.llexternal('sqlite3_column_text', [VDBEP, rffi.INT],
     rffi.UCHARP, compilation_info=CConfig._compilation_info_)
 sqlite3_column_bytes = rffi.llexternal('sqlite3_column_bytes', [VDBEP, rffi.INT],
+    rffi.INT, compilation_info=CConfig._compilation_info_)
+
+sqlite3_sqlite3BtreeNext = rffi.llexternal('sqlite3BtreeNext', [BTCURSORP, rffi.INTP],
     rffi.INT, compilation_info=CConfig._compilation_info_)
 

@@ -43,6 +43,7 @@ class Sqlite3Query(object):
             errorcode = capi.sqlite3_prepare(self.db, query, length, result, unused_buffer)
             assert errorcode == 0
             self.p = rffi.cast(capi.VDBEP, result[0])
+            # self.p.bIsReader = rffi.cast(rffi.UINT, 1)
 
     def reset_query(self):
         capi.sqlite3_reset(self.p)
@@ -82,10 +83,21 @@ class Sqlite3Query(object):
         return capi.impl_OP_ResultRow(self.p, self.db, pc, pOp)
 
     def python_OP_Next(self, pc, pOp):
-        self.internalPc[0] = rffi.cast(rffi.INT, pc)
-        rc = capi.impl_OP_Next(self.p, self.db, self.internalPc, pOp)
-        retPc = self.internalPc[0]
+        # self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        # rc = capi.impl_OP_Next(self.p, self.db, self.internalPc, pOp)
+        # retPc = self.internalPc[0]
+        # return retPc, rc
+
+        # self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        # retPc = pc
+        retPc, rc = translated.python_OP_Next_translated(self.p, self.db, pc, pOp) #self.internalPc, pOp)
+        # pc1 = self.internalPc[0]
         return retPc, rc
+
+        # rc = capi.impl_OP_Next(self.p, self.db, self.internalPc, pOp)
+        # retPc = self.internalPc[0]
+        # return retPc, rc
+        # return translated.python_OP_Next_translated(self.p, self.db, self.internalPc, pOp)
 
     def python_OP_Close(self, pc, pOp):
         capi.impl_OP_Close(self.p, self.db, pc, pOp)
