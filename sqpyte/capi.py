@@ -433,16 +433,16 @@ VDBE.become(lltype.Struct("Vdbe",               # src/vdbeInt.h: 308
     ("nResColumn", CConfig.u16),                # Number of columns in one row of the result set
     ("errorAction", CConfig.u8),                # Recovery action to do in case of an error
     ("minWriteFileFormat", CConfig.u8),         # Minimum file format for writable database files
-    ("explain", rffi.UINT),                     #   bft explain:2;          /* True if EXPLAIN present on SQL command */
-    ("inVtabMethod", rffi.UINT),                #   bft inVtabMethod:2;     /* See comments above */        
-    ("changeCntOn", rffi.UINT),                 #   bft changeCntOn:1;      /* True to update the change-counter */
-    ("expired", rffi.UINT),                     #   bft expired:1;          /* True if the VM needs to be recompiled */
-    ("runOnlyOnce", rffi.UINT),                 #   bft runOnlyOnce:1;      /* Automatically expire on reset */
-    ("usesStmtJournal", rffi.UINT),             #   bft usesStmtJournal:1;  /* True if uses a statement journal */
-    ("readOnly", rffi.UINT),                    #   bft readOnly:1;         /* True for statements that do not write */
-    ("bIsReader", rffi.UINT),                   #   bft bIsReader:1;        /* True for statements that read */
-    ("isPrepareV2", rffi.UINT),                 #   bft isPrepareV2:1;      /* True if prepared with prepare_v2() */
-    ("doingRerun", rffi.UINT),                  #   bft doingRerun:1;       /* True if rerunning after an auto-reprepare */
+    ("explain", CConfig.u16),                   #   bft explain:2;          /* True if EXPLAIN present on SQL command */
+    ("inVtabMethod", CConfig.u16),              #   bft inVtabMethod:2;     /* See comments above */        
+    ("changeCntOn", CConfig.u16),               #   bft changeCntOn:1;      /* True to update the change-counter */
+    ("expired", CConfig.u16),                   #   bft expired:1;          /* True if the VM needs to be recompiled */
+    ("runOnlyOnce", CConfig.u16),               #   bft runOnlyOnce:1;      /* Automatically expire on reset */
+    ("usesStmtJournal", CConfig.u16),           #   bft usesStmtJournal:1;  /* True if uses a statement journal */
+    ("readOnly", CConfig.u16),                  #   bft readOnly:1;         /* True for statements that do not write */
+    ("bIsReader", CConfig.u16),                 #   bft bIsReader:1;        /* True for statements that read */
+    ("isPrepareV2", CConfig.u16),               #   bft isPrepareV2:1;      /* True if prepared with prepare_v2() */
+    ("doingRerun", CConfig.u16),                #   bft doingRerun:1;       /* True if rerunning after an auto-reprepare */
     ("nChange", rffi.INT),                      # Number of db changes made since last reset
     ("btreeMask", rffi.UINT),                   #   yDbMask btreeMask;      /* Bitmask of db->aDb[] entries referenced */
     ("lockMask", rffi.UINT),                    #   yDbMask lockMask;       /* Subset of btreeMask that requires a lock */

@@ -88,16 +88,8 @@ class Sqlite3Query(object):
         # retPc = self.internalPc[0]
         # return retPc, rc
 
-        # self.internalPc[0] = rffi.cast(rffi.INT, pc)
-        # retPc = pc
         retPc, rc = translated.python_OP_Next_translated(self.p, self.db, pc, pOp) #self.internalPc, pOp)
-        # pc1 = self.internalPc[0]
         return retPc, rc
-
-        # rc = capi.impl_OP_Next(self.p, self.db, self.internalPc, pOp)
-        # retPc = self.internalPc[0]
-        # return retPc, rc
-        # return translated.python_OP_Next_translated(self.p, self.db, self.internalPc, pOp)
 
     def python_OP_Close(self, pc, pOp):
         capi.impl_OP_Close(self.p, self.db, pc, pOp)
