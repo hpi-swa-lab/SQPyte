@@ -32,8 +32,8 @@ opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite', 'OP_Rewind',
            'OP_Integer', 'OP_Null', 'OP_AggStep', 'OP_AggFinal',
            'OP_Copy']
 p4names = ['P4_INT32', 'P4_KEYINFO']
-p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR']
-result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW', 'SQLITE_BUSY']
+p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR', 'OPFLAG_CLEARCACHE', 'OPFLAG_LENGTHARG', 'OPFLAG_TYPEOFARG']
+result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW', 'SQLITE_BUSY', 'SQLITE_CORRUPT_BKPT']
 btree_values = ['BTCURSOR_MAX_DEPTH', 'BTREE_BULKLOAD']
 other_constants = ['SQLITE_MAX_VARIABLE_NUMBER', 'CACHE_STALE']
 
