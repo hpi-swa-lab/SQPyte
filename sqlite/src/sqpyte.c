@@ -1124,7 +1124,7 @@ int impl_OP_Compare(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
       applyAffinity(pIn3, affinity, encoding);
       if( db->mallocFailed ) {
         // goto no_mem;
-        printf("In impl_OP_ResultRow(): no_mem.\n");
+        printf("In impl_OP_Compare(): no_mem.\n");
         assert(0);
       }
     }
