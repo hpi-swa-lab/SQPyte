@@ -8,6 +8,7 @@ syntax: glob
 __pycache__
 .DS_Store
 target-c*
+tpch/
 
 sqlite/.libs/libsqlite3.0.dylib
 sqlite/.libs/libsqlite3.0.dylib.dSYM/Contents/Info.plist
