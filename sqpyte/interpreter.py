@@ -7,7 +7,7 @@ import os
 import capi
 import translated
 
-testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test.db")
+testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test/test.db")
 jitdriver = jit.JitDriver(
     greens=['pc', 'rc', 'ops', 'self_'], 
     reds=[],
@@ -84,13 +84,13 @@ class Sqlite3Query(object):
         return capi.impl_OP_ResultRow(self.p, self.db, pc, pOp)
 
     def python_OP_Next(self, pc, pOp):
-        # self.internalPc[0] = rffi.cast(rffi.INT, pc)
-        # rc = capi.impl_OP_Next(self.p, self.db, self.internalPc, pOp)
-        # retPc = self.internalPc[0]
-        # return retPc, rc
-
-        retPc, rc = translated.python_OP_Next_translated(self.p, self.db, pc, pOp) #self.internalPc, pOp)
+        self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        rc = capi.impl_OP_Next(self.p, self.db, self.internalPc, pOp)
+        retPc = self.internalPc[0]
         return retPc, rc
+
+        # retPc, rc = translated.python_OP_Next_translated(self.p, self.db, pc, pOp) #self.internalPc, pOp)
+        # return retPc, rc
 
     def python_OP_Close(self, pc, pOp):
         capi.impl_OP_Close(self.p, self.db, pc, pOp)
@@ -225,3 +225,29 @@ class Sqlite3Query(object):
                 jitdriver.can_enter_jit(pc=pc, self_=self, ops=ops, rc=rc)
         return rc
 
+
+def main_work(query):
+    db = Sqlite3DB(testdb).db
+    query = Sqlite3Query(db, query)
+    rc = query.mainloop()
+    count = 0
+    while rc == CConfig.SQLITE_ROW:
+        rc = query.mainloop()
+        count += 1
+    print count
+
+def entry_point(argv):
+    try:
+        query = argv[1]
+    except IndexError:
+        print "You must supply a query to be run: e.g., 'select first_name from people where age > 1;'."
+        return 1
+    
+    main_work(query)
+    return 0
+
+def target(*args):
+    return entry_point
+    
+if __name__ == "__main__":
+    entry_point(sys.argv)

@@ -1,3 +1,4 @@
+from rpython.rlib import jit
 from rpython.rtyper.lltypesystem import rffi
 from capi import CConfig
 from rpython.rtyper.lltypesystem import lltype
@@ -105,14 +106,16 @@ def sqlite3BtreeNext(pCur, pRes):
 
 def python_OP_Next_translated(p, db, pc, pOp):
     pcRet = pc
-    assert pOp.p1 >= 0 and pOp.p1 < p.nCursor
-    assert pOp.p5 < len(p.aCounter)
-    pC = p.apCsr[pOp.p1]
-    res = pOp.p3
+    p1 = rffi.cast(lltype.Signed, pOp.p1)
+    p5 = rffi.cast(lltype.Unsigned, pOp.p5)
+    assert p1 >= 0 and rffi.cast(lltype.Signed, pOp.p1) < rffi.cast(lltype.Signed, p.nCursor)
+    assert p5 < len(p.aCounter)
+    pC = p.apCsr[p1]
+    res = rffi.cast(lltype.Signed, pOp.p3)
     assert pC
-    assert pC.deferredMoveto == 0
+    assert rffi.cast(lltype.Unsigned, pC.deferredMoveto) == 0
     assert pC.pCursor
-    assert res == 0 or (res == 1 and pC.isTable == 0)
+    assert res == 0 or (res == 1 and rffi.cast(lltype.Signed, pC.isTable) == 0)
     # testcase( res==1 );
     # assert( pOp->opcode!=OP_Next || pOp->p4.xAdvance==sqlite3BtreeNext );
     # assert( pOp->opcode!=OP_Prev || pOp->p4.xAdvance==sqlite3BtreePrevious );
@@ -125,10 +128,21 @@ def python_OP_Next_translated(p, db, pc, pOp):
     # next_tail:
     pC.cacheStatus = rffi.cast(rffi.UINT, CConfig.CACHE_STALE)
     # VdbeBranchTaken(res==0, 2)
-    if resRet == 0:
+
+    copy = []
+    for i in range(0, len(p.aCounter) - 1):
+        copy[i] = rffi.cast(lltype.Unsigned, p.aCounter[i])
+
+    if rffi.cast(lltype.Signed, resRet) == 0:
         pC.nullRow = rffi.cast(rffi.UCHAR, 0)
-        pcRet = pOp.p2 - 1
-        p.aCounter[pOp.p5] += 1
+        pcRet = rffi.cast(lltype.Signed, pOp.p2) - 1
+        copy[p5] += 1
+        p.aCounter[p5] = rffi.cast(rffi.UINT, copy[p5])
+
+        # aCounterValue = rffi.cast(lltype.Unsigned, p.aCounter[p5])
+        # # aCounterValue += 1
+        # p.aCounter[p5] = rffi.cast(rffi.UINT, p.aCounter[p5])
+
         #ifdef SQLITE_TEST
             # sqlite3_search_count++;
         #endif
@@ -141,7 +155,6 @@ def python_OP_Next_translated(p, db, pc, pOp):
 
 
 def python_OP_Column_translated(p, db, pc, pOp):
-    print 'entered'
     aMem = p.aMem
     encoding = db.aDb[0].pSchema.enc
     p2 = pOp.p2

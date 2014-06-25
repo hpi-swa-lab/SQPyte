@@ -8,7 +8,8 @@ testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sqpyte/test/t
 def run(cursor, query):
     i = 0
     for name, in cursor.execute(query):
-        i += len(name)
+        # i += len(name)
+        i += 1
     return i
 
 def main_work(query):
