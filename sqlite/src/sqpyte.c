@@ -1352,3 +1352,42 @@ void impl_OP_Copy(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   }
   // break;
 }
+
+/* Opcode: MustBeInt P1 P2 * * *
+** 
+** Force the value in register P1 to be an integer.  If the value
+** in P1 is not an integer and cannot be converted into an integer
+** without data loss, then jump immediately to P2, or if P2==0
+** raise an SQLITE_MISMATCH exception.
+*/
+int impl_OP_MustBeInt(Vdbe *p, sqlite3 *db, int pcIn, Op *pOp) {
+// case OP_MustBeInt: {            /* jump, in1 */
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn1 = 0;             /* 1st input operand */
+  u8 encoding = ENC(db);     /* The database encoding */
+  int rc;
+  int pc = pcIn;
+
+  pIn1 = &aMem[pOp->p1];
+  if( (pIn1->flags & MEM_Int)==0 ){
+    applyAffinity(pIn1, SQLITE_AFF_NUMERIC, encoding);
+    VdbeBranchTaken((pIn1->flags&MEM_Int)==0, 2);
+    if( (pIn1->flags & MEM_Int)==0 ){
+      if( pOp->p2==0 ){
+        rc = SQLITE_MISMATCH;
+        /* DK: Once the below goto is properly handled,
+               perhaps will need to return rc as well. */
+        // goto abort_due_to_error;
+        printf("In impl_OP_MustBeInt(): abort_due_to_error.\n");
+        assert(0);
+      }else{
+        pc = pOp->p2 - 1;
+        // break;
+        return pc;
+      }
+    }
+  }
+  MemSetTypeFlag(pIn1, MEM_Int);
+  // break;
+  return pc;
+}
