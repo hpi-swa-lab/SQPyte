@@ -7,6 +7,7 @@ from sqpyte.translated import sqlite3BtreeCursorHints, sqlite3VdbeSorterRewind
 import os, sys
 
 testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test.db")
+tpchdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tpch.db")
 
 def test_opendb():
     db = Sqlite3DB(testdb).db
@@ -98,6 +99,20 @@ def test_count():
     textlen = query.python_sqlite3_column_bytes(0)
     count = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
     assert int(count) == 76
+
+
+def test_join():
+    db = Sqlite3DB(tpchdb).db
+    query = Sqlite3Query(db, 'select S.name, N.name from Supplier S, Nation N where S.nationkey = N.nationkey;')
+    rc = query.mainloop()
+    assert rc == CConfig.SQLITE_ROW
+    i = 0
+    while rc == CConfig.SQLITE_ROW:
+        rc = query.mainloop()
+        i += 1
+    assert i == 100
+
+
 
 def test_translated_allocateCursor():
     db = Sqlite3DB(testdb).db
