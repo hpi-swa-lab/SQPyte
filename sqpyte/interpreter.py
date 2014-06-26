@@ -122,6 +122,12 @@ class Sqlite3Query(object):
     def python_OP_MustBeInt(self, pc, pOp):
         return capi.impl_OP_MustBeInt(self.p, self.db, pc, pOp)
 
+    def python_OP_NotExists(self, pc, pOp):
+        self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        rc = capi.impl_OP_NotExists(self.p, self.db, self.internalPc, pOp)
+        retPc = self.internalPc[0]
+        return retPc, rc
+
 
     def python_sqlite3_column_text(self, iCol):
         return capi.sqlite3_column_text(self.p, iCol)
@@ -130,7 +136,7 @@ class Sqlite3Query(object):
 
 
     def debug_print(self, s):
-        # return
+        return
         if not jit.we_are_jitted():
             print s
 
@@ -223,6 +229,9 @@ class Sqlite3Query(object):
             elif opcode == CConfig.OP_MustBeInt:
                 self.debug_print('>>> OP_MustBeInt <<<')
                 pc = self.python_OP_MustBeInt(pc, pOp)
+            elif opcode == CConfig.OP_NotExists:
+                self.debug_print('>>> OP_NotExists <<<')
+                pc, rc = self.python_OP_NotExists(pc, pOp)
             else:
                 raise Exception("Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))

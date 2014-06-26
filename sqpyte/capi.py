@@ -30,7 +30,7 @@ opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite', 'OP_Rewind',
            'OP_ResultRow', 'OP_Next', 'OP_Close', 'OP_Halt',
            'OP_Eq', 'OP_Ne', 'OP_Lt', 'OP_Le', 'OP_Gt', 'OP_Ge',
            'OP_Integer', 'OP_Null', 'OP_AggStep', 'OP_AggFinal',
-           'OP_Copy', 'OP_MustBeInt']
+           'OP_Copy', 'OP_MustBeInt', 'OP_NotExists']
 p4names = ['P4_INT32', 'P4_KEYINFO']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR', 'OPFLAG_CLEARCACHE', 'OPFLAG_LENGTHARG', 'OPFLAG_TYPEOFARG']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW', 'SQLITE_BUSY', 'SQLITE_CORRUPT_BKPT']
@@ -564,6 +564,9 @@ impl_OP_Copy = rffi.llexternal('impl_OP_Copy', [VDBEP, SQLITE3P, rffi.INT, VDBEO
     lltype.Void, compilation_info=CConfig._compilation_info_)
 impl_OP_MustBeInt = rffi.llexternal('impl_OP_MustBeInt', [VDBEP, SQLITE3P, rffi.INT, VDBEOPP],
     rffi.INT, compilation_info=CConfig._compilation_info_)
+impl_OP_NotExists = rffi.llexternal('impl_OP_NotExists', [VDBEP, SQLITE3P, rffi.INTP, VDBEOPP],
+    rffi.INT, compilation_info=CConfig._compilation_info_)
+
 
 sqlite3_reset = rffi.llexternal('sqlite3_reset', [VDBEP],
     rffi.INT, compilation_info=CConfig._compilation_info_)

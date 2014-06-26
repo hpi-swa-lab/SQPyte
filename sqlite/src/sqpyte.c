@@ -1391,3 +1391,55 @@ int impl_OP_MustBeInt(Vdbe *p, sqlite3 *db, int pcIn, Op *pOp) {
   // break;
   return pc;
 }
+
+/* Opcode: NotExists P1 P2 P3 * *
+** Synopsis: intkey=r[P3]
+**
+** P1 is the index of a cursor open on an SQL table btree (with integer
+** keys).  P3 is an integer rowid.  If P1 does not contain a record with
+** rowid P3 then jump immediately to P2.  If P1 does contain a record
+** with rowid P3 then leave the cursor pointing at that record and fall
+** through to the next instruction.
+**
+** The OP_NotFound opcode performs the same operation on index btrees
+** (with arbitrary multi-value keys).
+**
+** See also: Found, NotFound, NoConflict
+*/
+int impl_OP_NotExists(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
+// case OP_NotExists: {        /* jump, in3 */
+  VdbeCursor *pC;
+  BtCursor *pCrsr;
+  int res;
+  u64 iKey;
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn3 = 0;             /* 3rd input operand */
+  int rc;
+
+  pIn3 = &aMem[pOp->p3];
+  assert( pIn3->flags & MEM_Int );
+  assert( pOp->p1>=0 && pOp->p1<p->nCursor );
+  pC = p->apCsr[pOp->p1];
+  assert( pC!=0 );
+  assert( pC->isTable );
+  assert( pC->pseudoTableReg==0 );
+  pCrsr = pC->pCursor;
+  assert( pCrsr!=0 );
+  res = 0;
+  iKey = pIn3->u.i;
+  rc = sqlite3BtreeMovetoUnpacked(pCrsr, 0, iKey, 0, &res);
+  pC->lastRowid = pIn3->u.i;
+  pC->rowidIsValid = res==0 ?1:0;
+  pC->nullRow = 0;
+  pC->cacheStatus = CACHE_STALE;
+  pC->deferredMoveto = 0;
+  VdbeBranchTaken(res!=0,2);
+  if( res!=0 ){
+    *pc = pOp->p2 - 1;
+    assert( pC->rowidIsValid==0 );
+  }
+  pC->seekResult = res;
+  // break;
+  return rc;
+}
