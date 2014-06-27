@@ -1443,3 +1443,82 @@ int impl_OP_NotExists(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
   // break;
   return rc;
 }
+
+/* Opcode: String P1 P2 * P4 *
+** Synopsis: r[P2]='P4' (len=P1)
+**
+** The string value P4 of length P1 (bytes) is stored in register P2.
+*/
+void impl_OP_String(Vdbe *p, sqlite3 *db, int rc, Op *pOp) {
+// case OP_String: {          /* out2-prerelease */
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pOut = 0;             /* Output operand */
+  u8 encoding = ENC(db);     /* The database encoding */
+
+  pOut = &aMem[pOp->p2];
+
+  assert( pOp->p4.z!=0 );
+  pOut->flags = MEM_Str|MEM_Static|MEM_Term;
+  pOut->z = pOp->p4.z;
+  pOut->n = pOp->p1;
+  pOut->enc = encoding;
+  UPDATE_MAX_BLOBSIZE(pOut);
+  // break;
+}
+
+/* Opcode: String8 * P2 * P4 *
+** Synopsis: r[P2]='P4'
+**
+** P4 points to a nul terminated UTF-8 string. This opcode is transformed 
+** into an OP_String before it is executed for the first time.  During
+** this transformation, the length of string P4 is computed and stored
+** as the P1 parameter.
+*/
+int impl_OP_String8(Vdbe *p, sqlite3 *db, int rc, Op *pOp) {
+// case OP_String8: {         /* same as TK_STRING, out2-prerelease */
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pOut = 0;             /* Output operand */
+  u8 encoding = ENC(db);     /* The database encoding */
+  // int rc;
+
+  pOut = &aMem[pOp->p2];
+
+  assert( pOp->p4.z!=0 );
+  pOp->opcode = OP_String;
+  pOp->p1 = sqlite3Strlen30(pOp->p4.z);
+
+#ifndef SQLITE_OMIT_UTF16
+  if( encoding!=SQLITE_UTF8 ){
+    rc = sqlite3VdbeMemSetStr(pOut, pOp->p4.z, -1, SQLITE_UTF8, SQLITE_STATIC);
+    if( rc==SQLITE_TOOBIG ) {
+      // goto too_big;
+      printf("In impl_OP_String8():1: too_big.\n");
+      assert(0);
+    }
+    if( SQLITE_OK!=sqlite3VdbeChangeEncoding(pOut, encoding) ) {
+      // goto no_mem;
+      printf("In impl_OP_String8(): no_mem.\n");
+      assert(0);
+    }
+    assert( pOut->zMalloc==pOut->z );
+    assert( VdbeMemDynamic(pOut)==0 );
+    pOut->zMalloc = 0;
+    pOut->flags |= MEM_Static;
+    if( pOp->p4type==P4_DYNAMIC ){
+      sqlite3DbFree(db, pOp->p4.z);
+    }
+    pOp->p4type = P4_DYNAMIC;
+    pOp->p4.z = pOut->z;
+    pOp->p1 = pOut->n;
+  }
+#endif
+  if( pOp->p1>db->aLimit[SQLITE_LIMIT_LENGTH] ){
+    // goto too_big;
+    printf("In impl_OP_String8():2: too_big.\n");
+    assert(0);
+  }
+  /* Fall through to the next case, OP_String */
+  impl_OP_String(p, db, rc, pOp);
+
+  return rc;
+}
