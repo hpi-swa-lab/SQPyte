@@ -1479,7 +1479,6 @@ int impl_OP_String8(Vdbe *p, sqlite3 *db, int rc, Op *pOp) {
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
   Mem *pOut = 0;             /* Output operand */
   u8 encoding = ENC(db);     /* The database encoding */
-  // int rc;
 
   pOut = &aMem[pOp->p2];
 
@@ -1520,5 +1519,130 @@ int impl_OP_String8(Vdbe *p, sqlite3 *db, int rc, Op *pOp) {
   /* Fall through to the next case, OP_String */
   impl_OP_String(p, db, rc, pOp);
 
+  return rc;
+}
+
+/* Opcode: Function P1 P2 P3 P4 P5
+** Synopsis: r[P3]=func(r[P2@P5])
+**
+** Invoke a user function (P4 is a pointer to a Function structure that
+** defines the function) with P5 arguments taken from register P2 and
+** successors.  The result of the function is stored in register P3.
+** Register P3 must not be one of the function inputs.
+**
+** P1 is a 32-bit bitmask indicating whether or not each argument to the 
+** function was determined to be constant at compile time. If the first
+** argument was constant then bit 0 of P1 is set. This is used to determine
+** whether meta data associated with a user function argument using the
+** sqlite3_set_auxdata() API may be safely retained until the next
+** invocation of this opcode.
+**
+** See also: AggStep and AggFinal
+*/
+int impl_OP_Function(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+// case OP_Function: {
+  int i;
+  Mem *pArg;
+  sqlite3_context ctx;
+  sqlite3_value **apVal;
+  int n;
+  int rc;
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pOut = 0;             /* Output operand */
+  u8 encoding = ENC(db);     /* The database encoding */
+
+  n = pOp->p5;
+  apVal = p->apArg;
+  assert( apVal || n==0 );
+  assert( pOp->p3>0 && pOp->p3<=(p->nMem-p->nCursor) );
+  pOut = &aMem[pOp->p3];
+  memAboutToChange(p, pOut);
+
+  assert( n==0 || (pOp->p2>0 && pOp->p2+n<=(p->nMem-p->nCursor)+1) );
+  assert( pOp->p3<pOp->p2 || pOp->p3>=pOp->p2+n );
+  pArg = &aMem[pOp->p2];
+  for(i=0; i<n; i++, pArg++){
+    assert( memIsValid(pArg) );
+    apVal[i] = pArg;
+
+    // Translated Deephemeralize(pArg);
+    if( ((pArg)->flags&MEM_Ephem)!=0 && sqlite3VdbeMemMakeWriteable(pArg) ) {
+      // goto no_mem;
+      printf("In impl_OP_Function(): no_mem.\n");
+      assert(0);
+    }
+
+    REGISTER_TRACE(pOp->p2+i, pArg);
+  }
+
+  assert( pOp->p4type==P4_FUNCDEF );
+  ctx.pFunc = pOp->p4.pFunc;
+  ctx.iOp = pc;
+  ctx.pVdbe = p;
+
+  /* The output cell may already have a buffer allocated. Move
+  ** the pointer to ctx.s so in case the user-function can use
+  ** the already allocated buffer instead of allocating a new one.
+  */
+  memcpy(&ctx.s, pOut, sizeof(Mem));
+  pOut->flags = MEM_Null;
+  pOut->xDel = 0;
+  pOut->zMalloc = 0;
+  MemSetTypeFlag(&ctx.s, MEM_Null);
+
+  ctx.fErrorOrAux = 0;
+  if( ctx.pFunc->funcFlags & SQLITE_FUNC_NEEDCOLL ){
+    assert( pOp>aOp );
+    assert( pOp[-1].p4type==P4_COLLSEQ );
+    assert( pOp[-1].opcode==OP_CollSeq );
+    ctx.pColl = pOp[-1].p4.pColl;
+  }
+  db->lastRowid = lastRowid;
+  (*ctx.pFunc->xFunc)(&ctx, n, apVal); /* IMP: R-24505-23230 */
+  lastRowid = db->lastRowid;
+
+  if( db->mallocFailed ){
+    /* Even though a malloc() has failed, the implementation of the
+    ** user function may have called an sqlite3_result_XXX() function
+    ** to return a value. The following call releases any resources
+    ** associated with such a value.
+    */
+    sqlite3VdbeMemRelease(&ctx.s);
+    // goto no_mem;
+    printf("In impl_OP_Function(): no_mem.\n");
+    assert(0);
+  }
+
+  /* If the function returned an error, throw an exception */
+  if( ctx.fErrorOrAux ){
+    if( ctx.isError ){
+      sqlite3SetString(&p->zErrMsg, db, "%s", sqlite3_value_text(&ctx.s));
+      rc = ctx.isError;
+    }
+    sqlite3VdbeDeleteAuxData(p, pc, pOp->p1);
+  }
+
+  /* Copy the result of the function into register P3 */
+  sqlite3VdbeChangeEncoding(&ctx.s, encoding);
+  assert( pOut->flags==MEM_Null );
+  memcpy(pOut, &ctx.s, sizeof(Mem));
+  if( sqlite3VdbeMemTooBig(pOut) ){
+    // goto too_big;
+    printf("In impl_OP_Function(): too_big.\n");
+    assert(0);
+  }
+
+#if 0
+  /* The app-defined function has done something that as caused this
+  ** statement to expire.  (Perhaps the function called sqlite3_exec()
+  ** with a CREATE TABLE statement.)
+  */
+  if( p->expired ) rc = SQLITE_ABORT;
+#endif
+
+  REGISTER_TRACE(pOp->p3, pOut);
+  UPDATE_MAX_BLOBSIZE(pOut);
+  // break;
   return rc;
 }
