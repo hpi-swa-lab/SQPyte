@@ -147,6 +147,9 @@ class Sqlite3Query(object):
     def python_OP_RealAffinity(self, pc, pOp):
         capi.impl_OP_RealAffinity(self.p, self.db, pc, pOp)
 
+    def python_OP_Add_Subtract_Multiply_Divide_Remainder(self, pc, pOp):
+        capi.impl_OP_Add_Subtract_Multiply_Divide_Remainder(self.p, self.db, pc, pOp)
+
 
     def python_sqlite3_column_text(self, iCol):
         return capi.sqlite3_column_text(self.p, iCol)
@@ -159,7 +162,7 @@ class Sqlite3Query(object):
         if not jit.we_are_jitted():
             print s
 
-    def get_compare_opcode_str(self, opcode):
+    def get_opcode_str(self, opcode):
         if opcode == CConfig.OP_Eq:
             return 'OP_Eq'
         elif opcode == CConfig.OP_Ne:
@@ -172,6 +175,18 @@ class Sqlite3Query(object):
             return 'OP_Gt'
         elif opcode == CConfig.OP_Ge:
             return 'OP_Ge'
+        elif opcode == CConfig.OP_Add:
+            return 'OP_Add'
+        elif opcode == CConfig.OP_Subtract:
+            return 'OP_Subtract'
+        elif opcode == CConfig.OP_Multiply:
+            return 'OP_Multiply'
+        elif opcode == CConfig.OP_Divide:
+            return 'OP_Divide'
+        elif opcode == CConfig.OP_Remainder:
+            return 'OP_Remainder'
+        else:
+            return ''
 
     @jit.elidable
     def get_opcode(self, pOp):
@@ -243,7 +258,7 @@ class Sqlite3Query(object):
                   opcode == CConfig.OP_Le or 
                   opcode == CConfig.OP_Gt or 
                   opcode == CConfig.OP_Ge):
-                self.debug_print('>>> OP_Compare: %s <<<' % self.get_compare_opcode_str(opcode))
+                self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
                 pc = self.python_OP_Compare(pc, pOp)
             elif opcode == CConfig.OP_Integer:
                 self.debug_print('>>> OP_Integer <<<')
@@ -278,6 +293,13 @@ class Sqlite3Query(object):
             elif opcode == CConfig.OP_RealAffinity:
                 self.debug_print('>>> OP_RealAffinity <<<')
                 self.python_OP_RealAffinity(pc, pOp)
+            elif (opcode == CConfig.OP_Add or 
+                  opcode == CConfig.OP_Subtract or 
+                  opcode == CConfig.OP_Multiply or 
+                  opcode == CConfig.OP_Divide or 
+                  opcode == CConfig.OP_Remainder):
+                self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
+                self.python_OP_Add_Subtract_Multiply_Divide_Remainder(pc, pOp)
             else:
                 raise Exception("Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))

@@ -1685,3 +1685,138 @@ void impl_OP_RealAffinity(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   }
   // break;
 }
+
+/* Opcode: Add P1 P2 P3 * *
+** Synopsis:  r[P3]=r[P1]+r[P2]
+**
+** Add the value in register P1 to the value in register P2
+** and store the result in register P3.
+** If either input is NULL, the result is NULL.
+*/
+/* Opcode: Multiply P1 P2 P3 * *
+** Synopsis:  r[P3]=r[P1]*r[P2]
+**
+**
+** Multiply the value in register P1 by the value in register P2
+** and store the result in register P3.
+** If either input is NULL, the result is NULL.
+*/
+/* Opcode: Subtract P1 P2 P3 * *
+** Synopsis:  r[P3]=r[P2]-r[P1]
+**
+** Subtract the value in register P1 from the value in register P2
+** and store the result in register P3.
+** If either input is NULL, the result is NULL.
+*/
+/* Opcode: Divide P1 P2 P3 * *
+** Synopsis:  r[P3]=r[P2]/r[P1]
+**
+** Divide the value in register P1 by the value in register P2
+** and store the result in register P3 (P3=P2/P1). If the value in 
+** register P1 is zero, then the result is NULL. If either input is 
+** NULL, the result is NULL.
+*/
+/* Opcode: Remainder P1 P2 P3 * *
+** Synopsis:  r[P3]=r[P2]%r[P1]
+**
+** Compute the remainder after integer register P2 is divided by 
+** register P1 and store the result in register P3. 
+** If the value in register P1 is zero the result is NULL.
+** If either operand is NULL, the result is NULL.
+*/
+void impl_OP_Add_Subtract_Multiply_Divide_Remainder(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+// case OP_Add:                   /* same as TK_PLUS, in1, in2, out3 */
+// case OP_Subtract:              /* same as TK_MINUS, in1, in2, out3 */
+// case OP_Multiply:              /* same as TK_STAR, in1, in2, out3 */
+// case OP_Divide:                /* same as TK_SLASH, in1, in2, out3 */
+// case OP_Remainder: {           /* same as TK_REM, in1, in2, out3 */
+  char bIntint;   /* Started out as two integer operands */
+  u16 flags;      /* Combined MEM_* flags from both inputs */
+  u16 type1;      /* Numeric type of left operand */
+  u16 type2;      /* Numeric type of right operand */
+  i64 iA;         /* Integer value of left operand */
+  i64 iB;         /* Integer value of right operand */
+  double rA;      /* Real value of left operand */
+  double rB;      /* Real value of right operand */
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn1 = 0;             /* 1st input operand */
+  Mem *pIn2 = 0;
+  Mem *pOut = 0;             /* Output operand */
+
+  pIn1 = &aMem[pOp->p1];
+  type1 = numericType(pIn1);
+  pIn2 = &aMem[pOp->p2];
+  type2 = numericType(pIn2);
+  pOut = &aMem[pOp->p3];
+  flags = pIn1->flags | pIn2->flags;
+  if( (flags & MEM_Null)!=0 ) goto arithmetic_result_is_null;
+  if( (type1 & type2 & MEM_Int)!=0 ){
+    iA = pIn1->u.i;
+    iB = pIn2->u.i;
+    bIntint = 1;
+    switch( pOp->opcode ){
+      case OP_Add:       if( sqlite3AddInt64(&iB,iA) ) goto fp_math;  break;
+      case OP_Subtract:  if( sqlite3SubInt64(&iB,iA) ) goto fp_math;  break;
+      case OP_Multiply:  if( sqlite3MulInt64(&iB,iA) ) goto fp_math;  break;
+      case OP_Divide: {
+        if( iA==0 ) goto arithmetic_result_is_null;
+        if( iA==-1 && iB==SMALLEST_INT64 ) goto fp_math;
+        iB /= iA;
+        break;
+      }
+      default: {
+        if( iA==0 ) goto arithmetic_result_is_null;
+        if( iA==-1 ) iA = 1;
+        iB %= iA;
+        break;
+      }
+    }
+    pOut->u.i = iB;
+    MemSetTypeFlag(pOut, MEM_Int);
+  }else{
+    bIntint = 0;
+fp_math:
+    rA = sqlite3VdbeRealValue(pIn1);
+    rB = sqlite3VdbeRealValue(pIn2);
+    switch( pOp->opcode ){
+      case OP_Add:         rB += rA;       break;
+      case OP_Subtract:    rB -= rA;       break;
+      case OP_Multiply:    rB *= rA;       break;
+      case OP_Divide: {
+        /* (double)0 In case of SQLITE_OMIT_FLOATING_POINT... */
+        if( rA==(double)0 ) goto arithmetic_result_is_null;
+        rB /= rA;
+        break;
+      }
+      default: {
+        iA = (i64)rA;
+        iB = (i64)rB;
+        if( iA==0 ) goto arithmetic_result_is_null;
+        if( iA==-1 ) iA = 1;
+        rB = (double)(iB % iA);
+        break;
+      }
+    }
+#ifdef SQLITE_OMIT_FLOATING_POINT
+    pOut->u.i = rB;
+    MemSetTypeFlag(pOut, MEM_Int);
+#else
+    if( sqlite3IsNaN(rB) ){
+      goto arithmetic_result_is_null;
+    }
+    pOut->r = rB;
+    MemSetTypeFlag(pOut, MEM_Real);
+    if( ((type1|type2)&MEM_Real)==0 && !bIntint ){
+      sqlite3VdbeIntegerAffinity(pOut);
+    }
+#endif
+  }
+  return;
+  // break;
+
+arithmetic_result_is_null:
+  sqlite3VdbeMemSetNull(pOut);
+  // break;
+  return;
+}
