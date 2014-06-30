@@ -2,13 +2,12 @@ syntax: glob
 *.py[co]
 *.sw[po]
 *~
-*.db
 *.csv
 .*.swp
 __pycache__
 .DS_Store
 target-c*
-tpch/
+tpch/tpch-2.17.0/
 
 sqlite/.libs/libsqlite3.0.dylib
 sqlite/.libs/libsqlite3.0.dylib.dSYM/Contents/Info.plist
