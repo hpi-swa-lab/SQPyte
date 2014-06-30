@@ -102,8 +102,8 @@ class Sqlite3Query(object):
         retPc = self.internalPc[0]
         return retPc, rc
 
-    def python_OP_Compare(self, pc, pOp):
-        return capi.impl_OP_Compare(self.p, self.db, pc, pOp)
+    def python_OP_Ne_Eq_Gt_Le_Lt_Ge(self, pc, pOp):
+        return capi.impl_OP_Ne_Eq_Gt_Le_Lt_Ge(self.p, self.db, pc, pOp)
 
     def python_OP_Integer(self, pc, pOp):
         capi.impl_OP_Integer(self.p, self.db, pc, pOp)
@@ -158,7 +158,7 @@ class Sqlite3Query(object):
 
 
     def debug_print(self, s):
-        return
+        # return
         if not jit.we_are_jitted():
             print s
 
@@ -259,7 +259,7 @@ class Sqlite3Query(object):
                   opcode == CConfig.OP_Gt or 
                   opcode == CConfig.OP_Ge):
                 self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
-                pc = self.python_OP_Compare(pc, pOp)
+                pc = self.python_OP_Ne_Eq_Gt_Le_Lt_Ge(pc, pOp)
             elif opcode == CConfig.OP_Integer:
                 self.debug_print('>>> OP_Integer <<<')
                 self.python_OP_Integer(pc, pOp)

@@ -1057,7 +1057,7 @@ int impl_OP_Halt(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
 ** the content of register P3 is greater than or equal to the content of
 ** register P1.  See the Lt opcode for additional information.
 */
-int impl_OP_Compare(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+int impl_OP_Ne_Eq_Gt_Le_Lt_Ge(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 // case OP_Eq:               /* same as TK_EQ, jump, in1, in3 */
 // case OP_Ne:               /* same as TK_NE, jump, in1, in3 */
 // case OP_Lt:               /* same as TK_LT, jump, in1, in3 */
