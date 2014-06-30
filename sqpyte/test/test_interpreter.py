@@ -112,6 +112,24 @@ def test_join():
         i += 1
     assert i == 100
 
+def test_query_6():
+    db = Sqlite3DB(tpchdb).db
+    queryStr = ("select "
+                    "sum(l.extendedprice * l.discount) as revenue "
+                "from "
+                    "lineitem l "
+                "where "
+                    "l.shipdate >= date('1996-01-01') "
+                    "and l.shipdate < date('1996-01-01', '+1 year') "
+                    "and l.discount between 0.04 and 0.07 "
+                    "and l.quantity < 25;"
+        )
+    query = Sqlite3Query(db, queryStr)
+    rc = query.mainloop()
+    assert rc == CConfig.SQLITE_ROW
+    textlen = query.python_sqlite3_column_bytes(0)
+    result = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
+    assert float(result) == 1524721.6695
 
 
 def test_translated_allocateCursor():
