@@ -1,0 +1,224 @@
+/* TPC_H Query 3 - Shipping Priority */
+select
+	l.orderkey,
+	sum(l.extendedprice * (1 - l.discount)) as revenue,
+	o.orderdate,
+	o.shippriority
+from
+	customer c,
+	orders o,
+	lineitem l
+where
+	c.mktsegment = 'AUTOMOBILE'
+	and c.custkey = o.custkey
+	and l.orderkey = o.orderkey
+	and o.orderdate < date('1996-01-01')
+	and l.shipdate > date('1996-01-01')
+group by
+	l.orderkey,
+	o.orderdate,
+	o.shippriority
+order by
+	revenue desc,
+	o.orderdate;
+
+/*
+Not implemented: 25
+Compare
+Function
+Gosub
+IdxGE
+IdxRowid
+IfPos
+IsNull
+Jump
+MakeRecord
+Move
+Multiply
+OpenPseudo
+RealAffinity
+Return
+SCopy
+Seek
+SeekGe
+Sequence
+SorterData
+SorterInsert
+SorterNext
+SorterOpen
+SorterSort
+String8
+Subtract
+
+Unique opcodes: 46
+AggFinal
+AggStep
+Close
+Column
+Compare
+Copy
+Function
+Gosub
+Goto
+Halt
+IdxGE
+IdxRowid
+IfPos
+Integer
+IsNull
+Jump
+Le
+MakeRecord
+Move
+Multiply
+MustBeInt
+Ne
+Next
+NotExists
+Null
+OpenPseudo
+OpenRead
+RealAffinity
+ResultRow
+Return
+Rewind
+SCopy
+Seek
+SeekGe
+Sequence
+SorterData
+SorterInsert
+SorterNext
+SorterOpen
+SorterSort
+String8
+Subtract
+TableLock
+Trace
+Transaction
+VerifyCookie
+
+
+0|Trace|0|0|0||00|
+1|SorterOpen|3|4|0|keyinfo(2,-BINARY,BINARY)|00|
+2|SorterOpen|4|6|0|keyinfo(3,BINARY,BINARY)|00|
+3|Integer|0|8|0||00|
+4|Integer|0|7|0||00|
+5|Null|0|11|13||00|
+6|Gosub|10|96|0||00|
+7|String8|0|17|0|AUTOMOBILE|00|
+8|Goto|0|116|0||00|
+9|OpenRead|1|9|0|8|00|
+10|OpenRead|5|24|0|keyinfo(1,BINARY)|00|
+11|OpenRead|0|5|0|7|00|
+12|OpenRead|2|8|0|11|00|
+13|OpenRead|6|16|0|keyinfo(2,BINARY,BINARY)|00|
+14|Rewind|5|49|18|0|00|
+15|String8|0|19|0|1996-01-01|00|
+16|Function|1|19|18|date(-1)|01|
+17|IsNull|18|49|0||00|
+18|IdxGE|5|49|18|1|00|
+19|Column|5|0|20||00|
+20|IsNull|20|48|0||00|
+21|IdxRowid|5|20|0||00|
+22|Seek|1|20|0||00|
+23|Column|1|1|21||00|
+24|MustBeInt|21|48|0||00|
+25|NotExists|0|48|21||00|
+26|Column|0|6|22||00|
+27|Ne|17|48|22|collseq(BINARY)|6a|
+28|IsNull|20|48|0||00|
+29|SeekGe|6|48|20|1|00|
+30|IdxGE|6|48|20|1|01|
+31|IdxRowid|6|24|0||00|
+32|Seek|2|24|0||00|
+33|Column|2|10|23||00|
+34|String8|0|19|0|1996-01-01|00|
+35|Function|1|19|25|date(-1)|01|
+36|Le|25|47|23|collseq(BINARY)|6a|
+37|Column|6|0|26||00|
+38|Column|5|0|27||00|
+39|Column|1|7|28||00|
+40|Sequence|4|29|0||00|
+41|Column|2|5|30||00|
+42|RealAffinity|30|0|0||00|
+43|Column|2|6|31||00|
+44|RealAffinity|31|0|0||00|
+45|MakeRecord|26|6|23||00|
+46|SorterInsert|4|23|0||00|
+47|Next|6|30|0||00|
+48|Next|5|18|0||00|
+49|Close|1|0|0||00|
+50|Close|5|0|0||00|
+51|Close|0|0|0||00|
+52|Close|2|0|0||00|
+53|Close|6|0|0||00|
+54|OpenPseudo|7|23|6||00|
+55|SorterSort|4|103|0||00|
+56|SorterData|4|23|0||00|
+57|Column|7|0|14||20|
+58|Column|7|1|15||00|
+59|Column|7|2|16||00|
+60|Compare|11|14|3|keyinfo(3,BINARY,BINARY)|00|
+61|Jump|62|66|62||00|
+62|Move|14|11|3||00|
+63|Gosub|9|81|0||00|
+64|IfPos|8|103|0||00|
+65|Gosub|10|96|0||00|
+66|Column|7|4|24||00|
+67|Integer|1|21|0||00|
+68|Column|7|5|25||00|
+69|Subtract|25|21|22||00|
+70|Multiply|22|24|26||00|
+71|AggStep|0|26|2|sum(1)|01|
+72|Column|7|0|1||00|
+73|Column|7|1|3||00|
+74|Column|7|2|4||00|
+75|Integer|1|7|0||00|
+76|SorterNext|4|56|0||00|
+77|Gosub|9|81|0||00|
+78|Goto|0|103|0||00|
+79|Integer|1|8|0||00|
+80|Return|9|0|0||00|
+81|IfPos|7|83|0||00|
+82|Return|9|0|0||00|
+83|AggFinal|2|1|0|sum(1)|00|
+84|Copy|1|32|0||00|
+85|Copy|2|33|0||00|
+86|Copy|3|34|0||00|
+87|Copy|4|35|0||00|
+88|MakeRecord|32|4|22||00|
+89|SCopy|2|27|0||00|
+90|SCopy|3|28|0||00|
+91|Sequence|3|29|0||00|
+92|Move|22|30|1||00|
+93|MakeRecord|27|4|24||00|
+94|SorterInsert|3|24|0||00|
+95|Return|9|0|0||00|
+96|Null|0|1|0||00|
+97|Null|0|3|0||00|
+98|Null|0|4|0||00|
+99|Null|0|5|0||00|
+100|Null|0|6|0||00|
+101|Null|0|2|0||00|
+102|Return|10|0|0||00|
+103|OpenPseudo|8|22|4||00|
+104|OpenPseudo|9|36|4||00|
+105|SorterSort|3|114|0||00|
+106|SorterData|3|36|0||00|
+107|Column|9|3|22||20|
+108|Column|8|0|32||20|
+109|Column|8|1|33||00|
+110|Column|8|2|34||00|
+111|Column|8|3|35||00|
+112|ResultRow|32|4|0||00|
+113|SorterNext|3|106|0||00|
+114|Close|8|0|0||00|
+115|Halt|0|0|0||00|
+116|Transaction|0|0|0||00|
+117|VerifyCookie|0|27|0||00|
+118|TableLock|0|9|0|Orders|00|
+119|TableLock|0|5|0|Customer|00|
+120|TableLock|0|8|0|LineItem|00|
+121|Goto|0|9|0||00|
+*/

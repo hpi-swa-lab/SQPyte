@@ -1,0 +1,204 @@
+/* TPC_H Query 1 - Pricing Summary Report */
+select
+	returnflag,
+	linestatus,
+	sum(quantity) as sum_qty,
+	sum(extendedprice) as sum_base_price,
+	sum(extendedprice * (1 - discount)) as sum_disc_price,
+	sum(extendedprice * (1 - discount) * (1 + tax)) as sum_charge,
+	avg(quantity) as avg_qty,
+	avg(extendedprice) as avg_price,
+	avg(discount) as avg_disc,
+	count(*) as count_order
+from
+	lineitem
+where
+	shipdate <= date('1998-12-01', '-3 days')
+group by
+	returnflag,
+	linestatus
+order by
+	returnflag,
+	linestatus;
+
+/*
+Not implemented: 20
+Add
+Compare
+Function
+Gosub
+IfPos
+Jump
+MakeRecord
+Move
+Multiply
+OpenPseudo
+RealAffinity
+Return
+Sequence
+SorterData
+SorterInsert
+SorterNext
+SorterOpen
+SorterSort
+String8
+Subtract
+
+Unique opcodes: 38
+Add
+AggFinal
+AggStep
+Close
+Column
+Compare
+Copy
+Function
+Gosub
+Goto
+Gt
+Halt
+IfPos
+Integer
+Jump
+MakeRecord
+Move
+Multiply
+Next
+Null
+OpenPseudo
+OpenRead
+RealAffinity
+ResultRow
+Return
+Rewind
+Sequence
+SorterData
+SorterInsert
+SorterNext
+SorterOpen
+SorterSort
+String8
+Subtract
+TableLock
+Trace
+Transaction
+VerifyCookie
+
+
+0|Trace|0|0|0||00|
+1|SorterOpen|1|7|0|keyinfo(2,BINARY,BINARY)|00|
+2|Integer|0|16|0||00|
+3|Integer|0|15|0||00|
+4|Null|0|19|20||00|
+5|Gosub|18|96|0||00|
+6|Goto|0|112|0||00|
+7|OpenRead|0|8|0|11|00|
+8|Rewind|0|27|0||00|
+9|Column|0|10|23||00|
+10|String8|0|25|0|1998-12-01|00|
+11|String8|0|26|0|-3 days|00|
+12|Function|3|25|24|date(-1)|02|
+13|Gt|24|26|23|collseq(BINARY)|6a|
+14|Column|0|8|27||00|
+15|Column|0|9|28||00|
+16|Sequence|1|29|0||00|
+17|Column|0|4|30||00|
+18|Column|0|5|31||00|
+19|RealAffinity|31|0|0||00|
+20|Column|0|6|32||00|
+21|RealAffinity|32|0|0||00|
+22|Column|0|7|33||00|
+23|RealAffinity|33|0|0||00|
+24|MakeRecord|27|7|23||00|
+25|SorterInsert|1|23|0||00|
+26|Next|0|9|0||01|
+27|Close|0|0|0||00|
+28|OpenPseudo|2|23|7||00|
+29|SorterSort|1|111|0||00|
+30|SorterData|1|23|0||00|
+31|Column|2|0|21||20|
+32|Column|2|1|22||00|
+33|Compare|19|21|2|keyinfo(2,BINARY,BINARY)|00|
+34|Jump|35|39|35||00|
+35|Move|21|19|2||00|
+36|Gosub|17|74|0||00|
+37|IfPos|16|111|0||00|
+38|Gosub|18|96|0||00|
+39|Column|2|3|27||00|
+40|AggStep|0|27|3|sum(1)|01|
+41|Column|2|4|28||00|
+42|AggStep|0|28|4|sum(1)|01|
+43|Column|2|4|24||00|
+44|Integer|1|35|0||00|
+45|Column|2|5|36||00|
+46|Subtract|36|35|34||00|
+47|Multiply|34|24|29||00|
+48|AggStep|0|29|5|sum(1)|01|
+49|Column|2|4|24||00|
+50|Integer|1|35|0||00|
+51|Column|2|5|37||00|
+52|Subtract|37|35|36||00|
+53|Multiply|36|24|34||00|
+54|Integer|1|24|0||00|
+55|Column|2|6|37||00|
+56|Add|37|24|36||00|
+57|Multiply|36|34|30||00|
+58|AggStep|0|30|6|sum(1)|01|
+59|Column|2|3|31||00|
+60|AggStep|0|31|7|avg(1)|01|
+61|Column|2|4|32||00|
+62|AggStep|0|32|8|avg(1)|01|
+63|Column|2|5|33||00|
+64|AggStep|0|33|9|avg(1)|01|
+65|AggStep|0|0|10|count(0)|00|
+66|Column|2|0|1||00|
+67|Column|2|1|2||00|
+68|Integer|1|15|0||00|
+69|SorterNext|1|30|0||00|
+70|Gosub|17|74|0||00|
+71|Goto|0|111|0||00|
+72|Integer|1|16|0||00|
+73|Return|17|0|0||00|
+74|IfPos|15|76|0||00|
+75|Return|17|0|0||00|
+76|AggFinal|3|1|0|sum(1)|00|
+77|AggFinal|4|1|0|sum(1)|00|
+78|AggFinal|5|1|0|sum(1)|00|
+79|AggFinal|6|1|0|sum(1)|00|
+80|AggFinal|7|1|0|avg(1)|00|
+81|AggFinal|8|1|0|avg(1)|00|
+82|AggFinal|9|1|0|avg(1)|00|
+83|AggFinal|10|0|0|count(0)|00|
+84|Copy|1|38|0||00|
+85|Copy|2|39|0||00|
+86|Copy|3|40|0||00|
+87|Copy|4|41|0||00|
+88|Copy|5|42|0||00|
+89|Copy|6|43|0||00|
+90|Copy|7|44|0||00|
+91|Copy|8|45|0||00|
+92|Copy|9|46|0||00|
+93|Copy|10|47|0||00|
+94|ResultRow|38|10|0||00|
+95|Return|17|0|0||00|
+96|Null|0|1|0||00|
+97|Null|0|2|0||00|
+98|Null|0|11|0||00|
+99|Null|0|12|0||00|
+100|Null|0|13|0||00|
+101|Null|0|14|0||00|
+102|Null|0|3|0||00|
+103|Null|0|4|0||00|
+104|Null|0|5|0||00|
+105|Null|0|6|0||00|
+106|Null|0|7|0||00|
+107|Null|0|8|0||00|
+108|Null|0|9|0||00|
+109|Null|0|10|0||00|
+110|Return|18|0|0||00|
+111|Halt|0|0|0||00|
+112|Transaction|0|0|0||00|
+113|VerifyCookie|0|27|0||00|
+114|TableLock|0|8|0|LineItem|00|
+115|Goto|0|7|0||00|
+*/

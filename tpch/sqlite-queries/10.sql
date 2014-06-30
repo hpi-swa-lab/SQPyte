@@ -1,0 +1,263 @@
+/* TPC_H Query 10 - Returned Item Reporting */
+select
+	c.custkey,
+	c.name,
+	sum(l.extendedprice * (1 - l.discount)) as revenue,
+	c.acctbal,
+	n.name,
+	c.address,
+	c.phone,
+	c.comment
+from
+	customer c,
+	orders o,
+	lineitem l,
+	nation n
+where
+	c.custkey = o.custkey
+	and l.orderkey = o.orderkey
+	and o.orderdate >= date('1993-07-01')
+	and o.orderdate < date('1993-07-01', '+1 day')
+	and l.returnflag = 'R'
+	and c.nationkey = n.nationkey
+group by
+	c.custkey,
+	c.name,
+	c.acctbal,
+	c.phone,
+	n.name,
+	c.address,
+	c.comment
+order by
+	revenue desc;
+
+/*
+Not implemented: 36
+Compare
+Function
+Gosub
+IdxGe
+IdxRowid
+IfPos
+IsNull
+Jump
+MakeRecord
+Move
+Multiply
+OpenPseudo
+RealAffinity
+Return
+Rowid
+SCopy
+Seek
+SeekGe
+Sequence
+SorterData
+SorterInsert
+SorterNext
+SorterOpen
+SorterSort
+String8
+Subtract
+
+Unique opcodes: 45
+AggFinal
+AggStep
+Close
+Column
+Compare
+Copy
+Function
+Gosub
+Goto
+Halt
+IdxGE
+IdxRowid
+IfPos
+Integer
+IsNull
+Jump
+MakeRecord
+Move
+Multiply
+MustBeInt
+Ne
+Next
+NotExists
+Null
+OpenPseudo
+OpenRead
+RealAffinity
+ResultRow
+Return
+Rowid
+SCopy
+Seek
+SeekGe
+Sequence
+SorterData
+SorterInsert
+SorterNext
+SorterOpen
+SorterSort
+String8
+Subtract
+TableLock
+Trace
+Transaction
+VerifyCookie
+
+
+0|Trace|0|0|0||00|
+1|SorterOpen|4|3|0|keyinfo(1,-BINARY)|00|
+2|SorterOpen|5|10|0|keyinfo(7,BINARY,BINARY)|00|
+3|Integer|0|12|0||00|
+4|Integer|0|11|0||00|
+5|Null|0|15|21||00|
+6|Gosub|14|117|0||00|
+7|String8|0|29|0|R|00|
+8|Goto|0|145|0||00|
+9|OpenRead|1|9|0|5|00|
+10|OpenRead|6|24|0|keyinfo(1,BINARY)|00|
+11|OpenRead|0|5|0|8|00|
+12|OpenRead|3|6|0|2|00|
+13|OpenRead|2|8|0|9|00|
+14|OpenRead|7|16|0|keyinfo(2,BINARY,BINARY)|00|
+15|String8|0|31|0|1993-07-01|00|
+16|Function|1|31|30|date(-1)|01|
+17|IsNull|30|58|0||00|
+18|SeekGe|6|58|30|1|00|
+19|String8|0|32|0|1993-07-01|00|
+20|String8|0|33|0|+1 day|00|
+21|Function|3|32|30|date(-1)|02|
+22|IsNull|30|58|0||00|
+23|IdxGE|6|58|30|1|00|
+24|Column|6|0|34||00|
+25|IsNull|34|57|0||00|
+26|IdxRowid|6|34|0||00|
+27|Seek|1|34|0||00|
+28|Column|1|1|35||00|
+29|MustBeInt|35|57|0||00|
+30|NotExists|0|57|35||00|
+31|Column|0|3|36||00|
+32|MustBeInt|36|57|0||00|
+33|NotExists|3|57|36||00|
+34|IsNull|34|57|0||00|
+35|SeekGe|7|57|34|1|00|
+36|IdxGE|7|57|34|1|01|
+37|IdxRowid|7|37|0||00|
+38|Seek|2|37|0||00|
+39|Column|2|8|38||00|
+40|Ne|29|56|38|collseq(BINARY)|6a|
+41|Rowid|0|40|0||00|
+42|Column|0|1|41||00|
+43|Column|0|5|42||00|
+44|RealAffinity|42|0|0||00|
+45|Column|0|4|43||00|
+46|Column|3|1|44||00|
+47|Column|0|2|45||00|
+48|Column|0|7|46||00|
+49|Sequence|5|47|0||00|
+50|Column|2|5|48||00|
+51|RealAffinity|48|0|0||00|
+52|Column|2|6|49||00|
+53|RealAffinity|49|0|0||00|
+54|MakeRecord|40|10|38||00|
+55|SorterInsert|5|38|0||00|
+56|Next|7|36|0||00|
+57|Next|6|23|0||00|
+58|Close|1|0|0||00|
+59|Close|6|0|0||00|
+60|Close|0|0|0||00|
+61|Close|3|0|0||00|
+62|Close|2|0|0||00|
+63|Close|7|0|0||00|
+64|OpenPseudo|8|38|10||00|
+65|SorterSort|5|128|0||00|
+66|SorterData|5|38|0||00|
+67|Column|8|0|22||20|
+68|Column|8|1|23||00|
+69|Column|8|2|24||00|
+70|Column|8|3|25||00|
+71|Column|8|4|26||00|
+72|Column|8|5|27||00|
+73|Column|8|6|28||00|
+74|Compare|15|22|7|keyinfo(7,BINARY,BINARY)|00|
+75|Jump|76|80|76||00|
+76|Move|22|15|7||00|
+77|Gosub|13|99|0||00|
+78|IfPos|12|128|0||00|
+79|Gosub|14|117|0||00|
+80|Column|8|8|37||00|
+81|Integer|1|35|0||00|
+82|Column|8|9|39||00|
+83|Subtract|39|35|36||00|
+84|Multiply|36|37|40||00|
+85|AggStep|0|40|3|sum(1)|01|
+86|Column|8|0|1||00|
+87|Column|8|1|2||00|
+88|Column|8|2|4||00|
+89|Column|8|4|5||00|
+90|Column|8|5|6||00|
+91|Column|8|3|7||00|
+92|Column|8|6|8||00|
+93|Integer|1|11|0||00|
+94|SorterNext|5|66|0||00|
+95|Gosub|13|99|0||00|
+96|Goto|0|128|0||00|
+97|Integer|1|12|0||00|
+98|Return|13|0|0||00|
+99|IfPos|11|101|0||00|
+100|Return|13|0|0||00|
+101|AggFinal|3|1|0|sum(1)|00|
+102|Copy|1|50|0||00|
+103|Copy|2|51|0||00|
+104|Copy|3|52|0||00|
+105|Copy|4|53|0||00|
+106|Copy|5|54|0||00|
+107|Copy|6|55|0||00|
+108|Copy|7|56|0||00|
+109|Copy|8|57|0||00|
+110|MakeRecord|50|8|36||00|
+111|SCopy|3|41|0||00|
+112|Sequence|4|42|0||00|
+113|Move|36|43|1||00|
+114|MakeRecord|41|3|37||00|
+115|SorterInsert|4|37|0||00|
+116|Return|13|0|0||00|
+117|Null|0|1|0||00|
+118|Null|0|2|0||00|
+119|Null|0|4|0||00|
+120|Null|0|5|0||00|
+121|Null|0|6|0||00|
+122|Null|0|7|0||00|
+123|Null|0|8|0||00|
+124|Null|0|9|0||00|
+125|Null|0|10|0||00|
+126|Null|0|3|0||00|
+127|Return|14|0|0||00|
+128|OpenPseudo|9|36|8||00|
+129|OpenPseudo|10|58|3||00|
+130|SorterSort|4|143|0||00|
+131|SorterData|4|58|0||00|
+132|Column|10|2|36||20|
+133|Column|9|0|50||20|
+134|Column|9|1|51||00|
+135|Column|9|2|52||00|
+136|Column|9|3|53||00|
+137|Column|9|4|54||00|
+138|Column|9|5|55||00|
+139|Column|9|6|56||00|
+140|Column|9|7|57||00|
+141|ResultRow|50|8|0||00|
+142|SorterNext|4|131|0||00|
+143|Close|9|0|0||00|
+144|Halt|0|0|0||00|
+145|Transaction|0|0|0||00|
+146|VerifyCookie|0|27|0||00|
+147|TableLock|0|9|0|Orders|00|
+148|TableLock|0|5|0|Customer|00|
+149|TableLock|0|6|0|Nation|00|
+150|TableLock|0|8|0|LineItem|00|
+151|Goto|0|9|0||00|
+*/
