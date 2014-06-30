@@ -31,14 +31,15 @@ opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite', 'OP_Rewind',
            'OP_Eq', 'OP_Ne', 'OP_Lt', 'OP_Le', 'OP_Gt', 'OP_Ge',
            'OP_Integer', 'OP_Null', 'OP_AggStep', 'OP_AggFinal',
            'OP_Copy', 'OP_MustBeInt', 'OP_NotExists', 'OP_String',
-           'OP_String8', 'OP_Function']
+           'OP_String8', 'OP_Function', 'OP_Real', 'OP_RealAffinity']
 p4names = ['P4_INT32', 'P4_KEYINFO']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR', 'OPFLAG_CLEARCACHE', 'OPFLAG_LENGTHARG', 'OPFLAG_TYPEOFARG']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW', 'SQLITE_BUSY', 'SQLITE_CORRUPT_BKPT']
 btree_values = ['BTCURSOR_MAX_DEPTH', 'BTREE_BULKLOAD']
 other_constants = ['SQLITE_MAX_VARIABLE_NUMBER', 'CACHE_STALE']
+memValues = ['MEM_Real']
 
-for name in p4names + opnames + p5flags + result_codes + btree_values + other_constants:
+for name in p4names + opnames + p5flags + result_codes + btree_values + other_constants + memValues:
     setattr(CConfig, name, platform.DefinedConstantInteger(name))
 
 CConfig.__dict__.update(platform.configure(CConfig))
@@ -571,6 +572,10 @@ impl_OP_String8 = rffi.llexternal('impl_OP_String8', [VDBEP, SQLITE3P, rffi.INT,
     rffi.INT, compilation_info=CConfig._compilation_info_)
 impl_OP_Function = rffi.llexternal('impl_OP_Function', [VDBEP, SQLITE3P, rffi.INT, VDBEOPP],
     rffi.INT, compilation_info=CConfig._compilation_info_)
+impl_OP_Real = rffi.llexternal('impl_OP_Real', [VDBEP, SQLITE3P, rffi.INT, VDBEOPP],
+    lltype.Void, compilation_info=CConfig._compilation_info_)
+impl_OP_RealAffinity = rffi.llexternal('impl_OP_RealAffinity', [VDBEP, SQLITE3P, rffi.INT, VDBEOPP],
+    lltype.Void, compilation_info=CConfig._compilation_info_)
 
 sqlite3_reset = rffi.llexternal('sqlite3_reset', [VDBEP],
     rffi.INT, compilation_info=CConfig._compilation_info_)

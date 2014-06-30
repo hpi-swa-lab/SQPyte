@@ -1646,3 +1646,42 @@ int impl_OP_Function(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   // break;
   return rc;
 }
+
+/* Opcode: Real * P2 * P4 *
+** Synopsis: r[P2]=P4
+**
+** P4 is a pointer to a 64-bit floating point value.
+** Write that value into register P2.
+*/
+void impl_OP_Real(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+// case OP_Real: {            /* same as TK_FLOAT, out2-prerelease */
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pOut = 0;             /* Output operand */
+
+  pOut = &aMem[pOp->p2];
+  pOut->flags = MEM_Real;
+  assert( !sqlite3IsNaN(*pOp->p4.pReal) );
+  pOut->r = *pOp->p4.pReal;
+  // break;
+}
+
+/* Opcode: RealAffinity P1 * * * *
+**
+** If register P1 holds an integer convert it to a real value.
+**
+** This opcode is used when extracting information from a column that
+** has REAL affinity.  Such column values may still be stored as
+** integers, for space efficiency, but after extraction we want them
+** to have only a real value.
+*/
+void impl_OP_RealAffinity(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+// case OP_RealAffinity: {                  /* in1 */
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn1 = 0;             /* 1st input operand */
+
+  pIn1 = &aMem[pOp->p1];
+  if( pIn1->flags & MEM_Int ){
+    sqlite3VdbeMemRealify(pIn1);
+  }
+  // break;
+}

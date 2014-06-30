@@ -6,6 +6,7 @@ import sys
 import os
 import capi
 import translated
+import math
 
 testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test/test.db")
 jitdriver = jit.JitDriver(
@@ -134,6 +135,18 @@ class Sqlite3Query(object):
     def python_OP_Function(self, pc, pOp):
         return capi.impl_OP_Function(self.p, self.db, pc, pOp)
 
+    def python_OP_Real(self, pc, pOp):
+        # aMem = self.p.aMem
+        # pOut = aMem[pOp.p2]
+        # pOut.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Real)
+        # assert not math.isnan(pOp.p4.pReal)
+        # pOut.r = pOp.p4.pReal
+
+        capi.impl_OP_Real(self.p, self.db, pc, pOp)
+
+    def python_OP_RealAffinity(self, pc, pOp):
+        capi.impl_OP_RealAffinity(self.p, self.db, pc, pOp)
+
 
     def python_sqlite3_column_text(self, iCol):
         return capi.sqlite3_column_text(self.p, iCol)
@@ -145,6 +158,20 @@ class Sqlite3Query(object):
         return
         if not jit.we_are_jitted():
             print s
+
+    def get_compare_opcode_str(self, opcode):
+        if opcode == CConfig.OP_Eq:
+            return 'OP_Eq'
+        elif opcode == CConfig.OP_Ne:
+            return 'OP_Ne'
+        elif opcode == CConfig.OP_Lt:
+            return 'OP_Lt'
+        elif opcode == CConfig.OP_Le:
+            return 'OP_Le'
+        elif opcode == CConfig.OP_Gt:
+            return 'OP_Gt'
+        elif opcode == CConfig.OP_Ge:
+            return 'OP_Ge'
 
     @jit.elidable
     def get_opcode(self, pOp):
@@ -162,6 +189,7 @@ class Sqlite3Query(object):
         if pc < 0:
             pc = 0 # XXX maybe more to too, see vdbeapi.c:418
 
+        i = 0
         while True:
             jitdriver.jit_merge_point(pc=pc, self_=self, ops=ops, rc=rc)
             if rc != CConfig.SQLITE_OK:
@@ -215,7 +243,7 @@ class Sqlite3Query(object):
                   opcode == CConfig.OP_Le or 
                   opcode == CConfig.OP_Gt or 
                   opcode == CConfig.OP_Ge):
-                self.debug_print('>>> OP_Compare: %s <<<' % opcode)
+                self.debug_print('>>> OP_Compare: %s <<<' % self.get_compare_opcode_str(opcode))
                 pc = self.python_OP_Compare(pc, pOp)
             elif opcode == CConfig.OP_Integer:
                 self.debug_print('>>> OP_Integer <<<')
@@ -243,7 +271,13 @@ class Sqlite3Query(object):
                 rc = self.python_OP_String8(rc, pOp)
             elif opcode == CConfig.OP_Function:
                 self.debug_print('>>> OP_Function <<<')
-                rc = self.python_OP_Function(pc, pOp)                
+                rc = self.python_OP_Function(pc, pOp)
+            elif opcode == CConfig.OP_Real:
+                self.debug_print('>>> OP_Real <<<')
+                self.python_OP_Real(pc, pOp)
+            elif opcode == CConfig.OP_RealAffinity:
+                self.debug_print('>>> OP_RealAffinity <<<')
+                self.python_OP_RealAffinity(pc, pOp)
             else:
                 raise Exception("Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))

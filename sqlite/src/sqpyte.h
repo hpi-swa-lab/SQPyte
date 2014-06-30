@@ -25,5 +25,6 @@ int impl_OP_NotExists(Vdbe *p, sqlite3 *db, int *pc, Op *pOp);
 void impl_OP_String(Vdbe *p, sqlite3 *db, int pc, Op *pOp);
 int impl_OP_String8(Vdbe *p, sqlite3 *db, int pc, Op *pOp);
 int impl_OP_Function(Vdbe *p, sqlite3 *db, int pc, Op *pOp);
+void impl_OP_RealAffinity(Vdbe *p, sqlite3 *db, int pc, Op *pOp);
 
 #endif
