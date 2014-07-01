@@ -32,7 +32,8 @@ opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite', 'OP_Rewind',
            'OP_Integer', 'OP_Null', 'OP_AggStep', 'OP_AggFinal',
            'OP_Copy', 'OP_MustBeInt', 'OP_NotExists', 'OP_String',
            'OP_String8', 'OP_Function', 'OP_Real', 'OP_RealAffinity',
-           'OP_Add', 'OP_Subtract', 'OP_Multiply', 'OP_Divide', 'OP_Remainder']
+           'OP_Add', 'OP_Subtract', 'OP_Multiply', 'OP_Divide', 'OP_Remainder',
+           'OP_If', 'OP_IfNot']
 p4names = ['P4_INT32', 'P4_KEYINFO']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR', 'OPFLAG_CLEARCACHE', 'OPFLAG_LENGTHARG', 'OPFLAG_TYPEOFARG']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW', 'SQLITE_BUSY', 'SQLITE_CORRUPT_BKPT']
@@ -581,6 +582,8 @@ impl_OP_RealAffinity = rffi.llexternal('impl_OP_RealAffinity', [VDBEP, SQLITE3P,
     lltype.Void, compilation_info=CConfig._compilation_info_)
 impl_OP_Add_Subtract_Multiply_Divide_Remainder = rffi.llexternal('impl_OP_Add_Subtract_Multiply_Divide_Remainder', [VDBEP, SQLITE3P, rffi.INT, VDBEOPP],
     lltype.Void, compilation_info=CConfig._compilation_info_)
+impl_OP_If_IfNot = rffi.llexternal('impl_OP_If_IfNot', [VDBEP, SQLITE3P, rffi.INT, VDBEOPP],
+    rffi.INT, compilation_info=CConfig._compilation_info_)
 
 sqlite3_reset = rffi.llexternal('sqlite3_reset', [VDBEP],
     rffi.INT, compilation_info=CConfig._compilation_info_)

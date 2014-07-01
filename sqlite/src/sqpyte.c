@@ -1820,3 +1820,42 @@ arithmetic_result_is_null:
   // break;
   return;
 }
+
+/* Opcode: If P1 P2 P3 * *
+**
+** Jump to P2 if the value in register P1 is true.  The value
+** is considered true if it is numeric and non-zero.  If the value
+** in P1 is NULL then take the jump if P3 is non-zero.
+*/
+/* Opcode: IfNot P1 P2 P3 * *
+**
+** Jump to P2 if the value in register P1 is False.  The value
+** is considered false if it has a numeric value of zero.  If the value
+** in P1 is NULL then take the jump if P3 is zero.
+*/
+int impl_OP_If_IfNot(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+// case OP_If:                 /* jump, in1 */
+// case OP_IfNot: {            /* jump, in1 */
+  int c;
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn1 = 0;             /* 1st input operand */
+
+  pIn1 = &aMem[pOp->p1];
+  if( pIn1->flags & MEM_Null ){
+    c = pOp->p3;
+  }else{
+#ifdef SQLITE_OMIT_FLOATING_POINT
+    c = sqlite3VdbeIntValue(pIn1)!=0;
+#else
+    c = sqlite3VdbeRealValue(pIn1)!=0.0;
+#endif
+    if( pOp->opcode==OP_IfNot ) c = !c;
+  }
+  VdbeBranchTaken(c!=0, 2);
+  if( c ){
+    pc = pOp->p2-1;
+  }
+  // break;
+  return pc;
+}

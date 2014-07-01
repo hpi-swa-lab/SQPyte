@@ -150,6 +150,9 @@ class Sqlite3Query(object):
     def python_OP_Add_Subtract_Multiply_Divide_Remainder(self, pc, pOp):
         capi.impl_OP_Add_Subtract_Multiply_Divide_Remainder(self.p, self.db, pc, pOp)
 
+    def python_OP_If_IfNot(self, pc, pOp):
+        return capi.impl_OP_If_IfNot(self.p, self.db, pc, pOp)
+
 
     def python_sqlite3_column_text(self, iCol):
         return capi.sqlite3_column_text(self.p, iCol)
@@ -158,7 +161,7 @@ class Sqlite3Query(object):
 
 
     def debug_print(self, s):
-        # return
+        return
         if not jit.we_are_jitted():
             print s
 
@@ -185,6 +188,10 @@ class Sqlite3Query(object):
             return 'OP_Divide'
         elif opcode == CConfig.OP_Remainder:
             return 'OP_Remainder'
+        elif opcode == CConfig.OP_If:
+            return 'OP_If'
+        elif opcode == CConfig.OP_IfNot:
+            return 'OP_IfNot'
         else:
             return ''
 
@@ -300,6 +307,10 @@ class Sqlite3Query(object):
                   opcode == CConfig.OP_Remainder):
                 self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
                 self.python_OP_Add_Subtract_Multiply_Divide_Remainder(pc, pOp)
+            elif (opcode == CConfig.OP_If or
+                  opcode == CConfig.OP_IfNot):
+                self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
+                pc = self.python_OP_If_IfNot(pc, pOp)
             else:
                 raise Exception("Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))
