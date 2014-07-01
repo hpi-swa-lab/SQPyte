@@ -132,8 +132,8 @@ class Sqlite3Query(object):
     def python_OP_String8(self, rc, pOp):
         return capi.impl_OP_String8(self.p, self.db, rc, pOp)
 
-    def python_OP_Function(self, pc, pOp):
-        return capi.impl_OP_Function(self.p, self.db, pc, pOp)
+    def python_OP_Function(self, pc, rc, pOp):
+        return capi.impl_OP_Function(self.p, self.db, pc, rc, pOp)
 
     def python_OP_Real(self, pc, pOp):
         # aMem = self.p.aMem
@@ -293,7 +293,7 @@ class Sqlite3Query(object):
                 rc = self.python_OP_String8(rc, pOp)
             elif opcode == CConfig.OP_Function:
                 self.debug_print('>>> OP_Function <<<')
-                rc = self.python_OP_Function(pc, pOp)
+                rc = self.python_OP_Function(pc, rc, pOp)
             elif opcode == CConfig.OP_Real:
                 self.debug_print('>>> OP_Real <<<')
                 self.python_OP_Real(pc, pOp)

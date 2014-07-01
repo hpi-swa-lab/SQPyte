@@ -1474,12 +1474,12 @@ void impl_OP_String(Vdbe *p, sqlite3 *db, int rc, Op *pOp) {
 ** this transformation, the length of string P4 is computed and stored
 ** as the P1 parameter.
 */
-int impl_OP_String8(Vdbe *p, sqlite3 *db, int rc, Op *pOp) {
+int impl_OP_String8(Vdbe *p, sqlite3 *db, int rcIn, Op *pOp) {
 // case OP_String8: {         /* same as TK_STRING, out2-prerelease */
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
   Mem *pOut = 0;             /* Output operand */
   u8 encoding = ENC(db);     /* The database encoding */
-
+  int rc = rcIn;
   pOut = &aMem[pOp->p2];
 
   assert( pOp->p4.z!=0 );
@@ -1539,14 +1539,13 @@ int impl_OP_String8(Vdbe *p, sqlite3 *db, int rc, Op *pOp) {
 **
 ** See also: AggStep and AggFinal
 */
-int impl_OP_Function(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+int impl_OP_Function(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
 // case OP_Function: {
   int i;
   Mem *pArg;
   sqlite3_context ctx;
   sqlite3_value **apVal;
   int n;
-  int rc;
 
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
   Mem *pOut = 0;             /* Output operand */
