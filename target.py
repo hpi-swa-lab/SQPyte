@@ -1,5 +1,5 @@
 import sys, os, time
-from sqpyte.interpreter import Sqlite3DB, Sqlite3Query
+from sqpyte.interpreter import Sqlite3DB, Sqlite3Query, SQPyteException
 from rpython.rlib import jit
 from sqpyte.capi import CConfig
 
@@ -14,15 +14,19 @@ jitdriver = jit.JitDriver(
     # get_printable_location=get_printable_location)
 
 def run(query):
-    query.reset_query()
-    rc = query.mainloop()
-    i = 0
-    while rc == CConfig.SQLITE_ROW:
-        jitdriver.jit_merge_point(i=i, query=query, rc=rc)
-        textlen = query.python_sqlite3_column_bytes(0)
+    try:
+        query.reset_query()
         rc = query.mainloop()
-        i += textlen
-    return i
+        i = 0
+        while rc == CConfig.SQLITE_ROW:
+            jitdriver.jit_merge_point(i=i, query=query, rc=rc)
+            textlen = query.python_sqlite3_column_bytes(0)
+            rc = query.mainloop()
+            i += textlen
+        return i
+    except SQPyteException, e:
+        print "ERROR!", e.msg
+        raise
 
 def entry_point(argv):
     # try:
