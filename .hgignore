@@ -7,6 +7,8 @@ syntax: glob
 __pycache__
 .DS_Store
 target-c*
+sqpyte/test.db
+
 tpch/tpch-2.17.0/
 sqpyte/test/test.db
 tpch/ddl-schema.sql
