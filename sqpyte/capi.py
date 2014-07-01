@@ -506,12 +506,14 @@ VDBECURSOR.become(lltype.Struct("VdbeCursor",   # src/vdbeInt.h: 63
     #   ** aRow might point to (ephemeral) data for the current row, or it might
     #   ** be NULL.
     #   */
-    ("cacheStatus", CConfig.u32),               # Cache is valid if this matches Vdbe.cacheCtr
-    ("payloadSize", CConfig.u32),               # Total number of bytes in the record
-    ("szRow", CConfig.u32),                     # Byte available in aRow
-    ("iHdrOffset", CConfig.u32),                # Offset to next unparsed byte of the header
-    ("aRow", rffi.UCHARP),                      #   const u8 *aRow;       /* Data for the current row, if all on one page */
-    ("aType", lltype.FixedSizeArray(CConfig.u32, 1)) # Type values for all entries in the record
+    ("cacheStatus", CConfig.u32),                   # Cache is valid if this matches Vdbe.cacheCtr
+    ("payloadSize", CConfig.u32),                   # Total number of bytes in the record
+    ("szRow", CConfig.u32),                         # Byte available in aRow
+    ("iHdrOffset", CConfig.u32),                    # Offset to next unparsed byte of the header
+    ("aRow", rffi.UCHARP),                          #   const u8 *aRow;       /* Data for the current row, if all on one page */
+    ("aType", lltype.Ptr(lltype.Array(CConfig.u32,  # Type values for all entries in the record
+        hints={'nolength': True})))
+    # ("aType", lltype.FixedSizeArray(CConfig.u32, 1)) # Type values for all entries in the record
     #   /* 2*nField extra array elements allocated for aType[], beyond the one
     #   ** static element declared in the structure.  nField total array slots for
     #   ** aType[] and nField+1 array slots for aOffset[] */

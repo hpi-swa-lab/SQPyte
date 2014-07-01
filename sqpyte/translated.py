@@ -168,7 +168,11 @@ def python_OP_Column_translated(p, db, pc, pOp):
     assert pC
     assert p2 < pC.nField
     aType = pC.aType
-    aOffset = aType + pC.nField
+    # aOffset = aType + pC.nField
+    print 'p.aOnceFlag = %s' % p.aOnceFlag
+    print 'pC.aType = %s' % pC.aType
+    print 'pC.nField = %s' % pC.nField
+    aOffset = aType[pC.nField]
 
 # #ifndef SQLITE_OMIT_VIRTUALTABLE
 #   assert( pC->pVtabCursor==0 ); /* OP_Column never called on virtual table */
