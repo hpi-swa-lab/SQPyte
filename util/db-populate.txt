@@ -4,3 +4,8 @@ create table people (first_name text, last_name text, age integer, email text, c
 .separator ","
 .import data-june-11-2014.csv people
 
+create table people (first_name text, last_name text, age integer, email text, city text, country text, zip text, frequency text);
+.import data-june-11-2014.csv people
+
+create table contacts (name text, age integer, phone text, email text, city text, country text, postal_code text);
+.import data-may—20-2014.csv contacts
