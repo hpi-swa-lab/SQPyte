@@ -5,6 +5,7 @@ from rpython.translator.tool.cbuild import ExternalCompilationInfo
 
 sqlitedir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sqlite")
 srcdir = os.path.join(sqlitedir, "src")
+assert os.path.isdir(sqlitedir)
 
 class CConfig:
     _compilation_info_ = ExternalCompilationInfo(
@@ -12,7 +13,7 @@ class CConfig:
         libraries = ['sqlite3'],
         library_dirs = [sqlitedir],
         include_dirs = [srcdir, sqlitedir],
-        link_files = ["/Users/dkurilov/workspace/sqpyte/sqlite/sqlite3.o"]
+        link_files = [os.path.join(sqlitedir, "sqlite3.o")]
     )
 
     u8  = platform.SimpleType('uint8_t', rffi.UCHAR)
