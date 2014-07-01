@@ -131,6 +131,28 @@ def test_query_6():
     result = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
     assert float(result) == 1524721.6695
 
+def test_query_14():
+    db = Sqlite3DB(tpchdb).db
+    queryStr = ("select "
+                    "100.00 * sum(case "
+                        "when p.type like 'PROMO%' "
+                            "then l.extendedprice * (1 - l.discount) "
+                        "else 0 "
+                    "end) / sum(l.extendedprice * (1 - l.discount)) as promo_revenue "
+                "from "
+                    "lineitem l, "
+                    "part p "
+                "where "
+                    "l.partkey = p.partkey "
+                    "and l.shipdate >= date('1995-01-01') "
+                    "and l.shipdate < date('1995-01-01', '+1 month');"
+        )
+    query = Sqlite3Query(db, queryStr)
+    rc = query.mainloop()
+    assert rc == CConfig.SQLITE_ROW
+    textlen = query.python_sqlite3_column_bytes(0)
+    result = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
+    assert float(result) == 15.9871053076363
 
 def test_translated_allocateCursor():
     db = Sqlite3DB(testdb).db
