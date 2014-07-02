@@ -163,6 +163,9 @@ class Sqlite3Query(object):
     def python_OP_Rowid(self, rc, pOp):
         return capi.impl_OP_Rowid(self.p, self.db, rc, pOp)
 
+    def python_OP_IsNull(self, pc, pOp):
+        return capi.impl_OP_IsNull(self.p, self.db, pc, pOp)
+
 
     def python_sqlite3_column_text(self, iCol):
         return capi.sqlite3_column_text(self.p, iCol)
@@ -327,6 +330,9 @@ class Sqlite3Query(object):
             elif opcode == CConfig.OP_Rowid:
                 self.debug_print('>>> OP_Rowid <<<')
                 rc = self.python_OP_Rowid(rc, pOp)
+            elif opcode == CConfig.OP_IsNull:
+                self.debug_print('>>> OP_IsNull <<<')
+                pc = self.python_OP_IsNull(pc, pOp)
             else:
                 raise Exception("Unimplemented bytecode %s." % opcode)
                 # raise SQPyteException("Unimplemented bytecode %s." % opcode)
