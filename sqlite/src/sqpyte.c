@@ -2154,3 +2154,54 @@ int impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) 
   // break;
   return rc;
 }
+
+/* Opcode: Move P1 P2 P3 * *
+** Synopsis:  r[P2@P3]=r[P1@P3]
+**
+** Move the P3 values in register P1..P1+P3-1 over into
+** registers P2..P2+P3-1.  Registers P1..P1+P3-1 are
+** left holding a NULL.  It is an error for register ranges
+** P1..P1+P3-1 and P2..P2+P3-1 to overlap.  It is an error
+** for P3 to be less than 1.
+*/
+void impl_OP_Move(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+// case OP_Move: {
+  char *zMalloc;   /* Holding variable for allocated memory */
+  int n;           /* Number of registers left to copy */
+  int p1;          /* Register to copy from */
+  int p2;          /* Register to copy to */
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn1 = 0;             /* 1st input operand */
+  Mem *pOut = 0;             /* Output operand */
+
+  n = pOp->p3;
+  p1 = pOp->p1;
+  p2 = pOp->p2;
+  assert( n>0 && p1>0 && p2>0 );
+  assert( p1+n<=p2 || p2+n<=p1 );
+
+  pIn1 = &aMem[p1];
+  pOut = &aMem[p2];
+  do{
+    assert( pOut<=&aMem[(p->nMem-p->nCursor)] );
+    assert( pIn1<=&aMem[(p->nMem-p->nCursor)] );
+    assert( memIsValid(pIn1) );
+    memAboutToChange(p, pOut);
+    VdbeMemRelease(pOut);
+    zMalloc = pOut->zMalloc;
+    memcpy(pOut, pIn1, sizeof(Mem));
+#ifdef SQLITE_DEBUG
+    if( pOut->pScopyFrom>=&aMem[p1] && pOut->pScopyFrom<&aMem[p1+pOp->p3] ){
+      pOut->pScopyFrom += p1 - pOp->p2;
+    }
+#endif
+    pIn1->flags = MEM_Undefined;
+    pIn1->xDel = 0;
+    pIn1->zMalloc = zMalloc;
+    REGISTER_TRACE(p2++, pOut);
+    pIn1++;
+    pOut++;
+  }while( --n );
+  // break;
+}
