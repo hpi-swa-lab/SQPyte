@@ -166,6 +166,12 @@ class Sqlite3Query(object):
     def python_OP_IsNull(self, pc, pOp):
         return capi.impl_OP_IsNull(self.p, self.db, pc, pOp)
 
+    def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(self, pc, pOp):
+        self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        rc = capi.impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(self.p, self.db, self.internalPc, pOp)
+        retPc = self.internalPc[0]
+        return retPc, rc
+
 
     def python_sqlite3_column_text(self, iCol):
         return capi.sqlite3_column_text(self.p, iCol)
@@ -205,6 +211,14 @@ class Sqlite3Query(object):
             return 'OP_If'
         elif opcode == CConfig.OP_IfNot:
             return 'OP_IfNot'
+        elif opcode == CConfig.OP_SeekLT:
+            return 'OP_SeekLT'
+        elif opcode == CConfig.OP_SeekLE:
+            return 'OP_SeekLE'
+        elif opcode == CConfig.OP_SeekGE:
+            return 'OP_SeekGE'
+        elif opcode == CConfig.OP_SeekGT:
+            return 'OP_SeekGT'
         else:
             return ''
 
@@ -333,6 +347,12 @@ class Sqlite3Query(object):
             elif opcode == CConfig.OP_IsNull:
                 self.debug_print('>>> OP_IsNull <<<')
                 pc = self.python_OP_IsNull(pc, pOp)
+            elif (opcode == CConfig.OP_SeekLT or 
+                  opcode == CConfig.OP_SeekLE or 
+                  opcode == CConfig.OP_SeekGE or 
+                  opcode == CConfig.OP_SeekGT):
+                self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
+                pc, rc = self.python_OP_SeekLT_SeekLE_SeekGE_SeekGT(pc, pOp)
             else:
                 raise Exception("Unimplemented bytecode %s." % opcode)
                 # raise SQPyteException("Unimplemented bytecode %s." % opcode)

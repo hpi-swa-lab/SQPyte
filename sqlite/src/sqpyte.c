@@ -1936,3 +1936,221 @@ int impl_OP_IsNull(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   // break;
   return pc;
 }
+
+/* Opcode: SeekGe P1 P2 P3 P4 *
+** Synopsis: key=r[P3@P4]
+**
+** If cursor P1 refers to an SQL table (B-Tree that uses integer keys), 
+** use the value in register P3 as the key.  If cursor P1 refers 
+** to an SQL index, then P3 is the first in an array of P4 registers 
+** that are used as an unpacked index key. 
+**
+** Reposition cursor P1 so that  it points to the smallest entry that 
+** is greater than or equal to the key value. If there are no records 
+** greater than or equal to the key and P2 is not zero, then jump to P2.
+**
+** See also: Found, NotFound, Distinct, SeekLt, SeekGt, SeekLe
+*/
+/* Opcode: SeekGt P1 P2 P3 P4 *
+** Synopsis: key=r[P3@P4]
+**
+** If cursor P1 refers to an SQL table (B-Tree that uses integer keys), 
+** use the value in register P3 as a key. If cursor P1 refers 
+** to an SQL index, then P3 is the first in an array of P4 registers 
+** that are used as an unpacked index key. 
+**
+** Reposition cursor P1 so that  it points to the smallest entry that 
+** is greater than the key value. If there are no records greater than 
+** the key and P2 is not zero, then jump to P2.
+**
+** See also: Found, NotFound, Distinct, SeekLt, SeekGe, SeekLe
+*/
+/* Opcode: SeekLt P1 P2 P3 P4 * 
+** Synopsis: key=r[P3@P4]
+**
+** If cursor P1 refers to an SQL table (B-Tree that uses integer keys), 
+** use the value in register P3 as a key. If cursor P1 refers 
+** to an SQL index, then P3 is the first in an array of P4 registers 
+** that are used as an unpacked index key. 
+**
+** Reposition cursor P1 so that  it points to the largest entry that 
+** is less than the key value. If there are no records less than 
+** the key and P2 is not zero, then jump to P2.
+**
+** See also: Found, NotFound, Distinct, SeekGt, SeekGe, SeekLe
+*/
+/* Opcode: SeekLe P1 P2 P3 P4 *
+** Synopsis: key=r[P3@P4]
+**
+** If cursor P1 refers to an SQL table (B-Tree that uses integer keys), 
+** use the value in register P3 as a key. If cursor P1 refers 
+** to an SQL index, then P3 is the first in an array of P4 registers 
+** that are used as an unpacked index key. 
+**
+** Reposition cursor P1 so that it points to the largest entry that 
+** is less than or equal to the key value. If there are no records 
+** less than or equal to the key and P2 is not zero, then jump to P2.
+**
+** See also: Found, NotFound, Distinct, SeekGt, SeekGe, SeekLt
+*/
+int impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
+// case OP_SeekLT:         /* jump, in3 */
+// case OP_SeekLE:         /* jump, in3 */
+// case OP_SeekGE:         /* jump, in3 */
+// case OP_SeekGT: {       /* jump, in3 */
+  int res;
+  int oc;
+  VdbeCursor *pC;
+  UnpackedRecord r;
+  int nField;
+  i64 iKey;      /* The rowid we are to seek to */
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn1 = 0;             /* 1st input operand */
+  Mem *pIn2 = 0;
+  Mem *pIn3 = 0;             /* 3rd input operand */
+  Mem *pOut = 0;             /* Output operand */
+  int rc;
+
+  assert( pOp->p1>=0 && pOp->p1<p->nCursor );
+  assert( pOp->p2!=0 );
+  pC = p->apCsr[pOp->p1];
+  assert( pC!=0 );
+  assert( pC->pseudoTableReg==0 );
+  assert( OP_SeekLE == OP_SeekLT+1 );
+  assert( OP_SeekGE == OP_SeekLT+2 );
+  assert( OP_SeekGT == OP_SeekLT+3 );
+  assert( pC->isOrdered );
+  assert( pC->pCursor!=0 );
+  oc = pOp->opcode;
+  pC->nullRow = 0;
+  if( pC->isTable ){
+    /* The input value in P3 might be of any type: integer, real, string,
+    ** blob, or NULL.  But it needs to be an integer before we can do
+    ** the seek, so covert it. */
+    pIn3 = &aMem[pOp->p3];
+    applyNumericAffinity(pIn3);
+    iKey = sqlite3VdbeIntValue(pIn3);
+    pC->rowidIsValid = 0;
+
+    /* If the P3 value could not be converted into an integer without
+    ** loss of information, then special processing is required... */
+    if( (pIn3->flags & MEM_Int)==0 ){
+      if( (pIn3->flags & MEM_Real)==0 ){
+        /* If the P3 value cannot be converted into any kind of a number,
+        ** then the seek is not possible, so jump to P2 */
+        *pc = pOp->p2 - 1;  VdbeBranchTaken(1,2);
+        // break;
+        return rc;
+      }
+
+      /* If the approximation iKey is larger than the actual real search
+      ** term, substitute >= for > and < for <=. e.g. if the search term
+      ** is 4.9 and the integer approximation 5:
+      **
+      **        (x >  4.9)    ->     (x >= 5)
+      **        (x <= 4.9)    ->     (x <  5)
+      */
+      if( pIn3->r<(double)iKey ){
+        assert( OP_SeekGE==(OP_SeekGT-1) );
+        assert( OP_SeekLT==(OP_SeekLE-1) );
+        assert( (OP_SeekLE & 0x0001)==(OP_SeekGT & 0x0001) );
+        if( (oc & 0x0001)==(OP_SeekGT & 0x0001) ) oc--;
+      }
+
+      /* If the approximation iKey is smaller than the actual real search
+      ** term, substitute <= for < and > for >=.  */
+      else if( pIn3->r>(double)iKey ){
+        assert( OP_SeekLE==(OP_SeekLT+1) );
+        assert( OP_SeekGT==(OP_SeekGE+1) );
+        assert( (OP_SeekLT & 0x0001)==(OP_SeekGE & 0x0001) );
+        if( (oc & 0x0001)==(OP_SeekLT & 0x0001) ) oc++;
+      }
+    } 
+    rc = sqlite3BtreeMovetoUnpacked(pC->pCursor, 0, (u64)iKey, 0, &res);
+    if( rc!=SQLITE_OK ){
+      // goto abort_due_to_error;
+      printf("In impl_OP_SeekLT_SeekLE_SeekGE_SeekGT():1: abort_due_to_error.\n");
+      assert(0);
+    }
+    if( res==0 ){
+      pC->rowidIsValid = 1;
+      pC->lastRowid = iKey;
+    }
+  }else{
+    nField = pOp->p4.i;
+    assert( pOp->p4type==P4_INT32 );
+    assert( nField>0 );
+    r.pKeyInfo = pC->pKeyInfo;
+    r.nField = (u16)nField;
+
+    /* The next line of code computes as follows, only faster:
+    **   if( oc==OP_SeekGT || oc==OP_SeekLE ){
+    **     r.default_rc = -1;
+    **   }else{
+    **     r.default_rc = +1;
+    **   }
+    */
+    r.default_rc = ((1 & (oc - OP_SeekLT)) ? -1 : +1);
+    assert( oc!=OP_SeekGT || r.default_rc==-1 );
+    assert( oc!=OP_SeekLE || r.default_rc==-1 );
+    assert( oc!=OP_SeekGE || r.default_rc==+1 );
+    assert( oc!=OP_SeekLT || r.default_rc==+1 );
+
+    r.aMem = &aMem[pOp->p3];
+#ifdef SQLITE_DEBUG
+    { int i; for(i=0; i<r.nField; i++) assert( memIsValid(&r.aMem[i]) ); }
+#endif
+    ExpandBlob(r.aMem);
+    rc = sqlite3BtreeMovetoUnpacked(pC->pCursor, &r, 0, 0, &res);
+    if( rc!=SQLITE_OK ){
+      // goto abort_due_to_error;
+      printf("In impl_OP_SeekLT_SeekLE_SeekGE_SeekGT():2: abort_due_to_error.\n");
+      assert(0);
+    }
+    pC->rowidIsValid = 0;
+  }
+  pC->deferredMoveto = 0;
+  pC->cacheStatus = CACHE_STALE;
+#ifdef SQLITE_TEST
+  sqlite3_search_count++;
+#endif
+  if( oc>=OP_SeekGE ){  assert( oc==OP_SeekGE || oc==OP_SeekGT );
+    if( res<0 || (res==0 && oc==OP_SeekGT) ){
+      res = 0;
+      rc = sqlite3BtreeNext(pC->pCursor, &res);
+      if( rc!=SQLITE_OK ) {
+        // goto abort_due_to_error;
+        printf("In impl_OP_SeekLT_SeekLE_SeekGE_SeekGT():3: abort_due_to_error.\n");
+        assert(0);        
+      }
+      pC->rowidIsValid = 0;
+    }else{
+      res = 0;
+    }
+  }else{
+    assert( oc==OP_SeekLT || oc==OP_SeekLE );
+    if( res>0 || (res==0 && oc==OP_SeekLT) ){
+      res = 0;
+      rc = sqlite3BtreePrevious(pC->pCursor, &res);
+      if( rc!=SQLITE_OK ) {
+        // goto abort_due_to_error;
+        printf("In impl_OP_SeekLT_SeekLE_SeekGE_SeekGT():4: abort_due_to_error.\n");
+        assert(0);        
+      }
+      pC->rowidIsValid = 0;
+    }else{
+      /* res might be negative because the table is empty.  Check to
+      ** see if this is the case.
+      */
+      res = sqlite3BtreeEof(pC->pCursor);
+    }
+  }
+  assert( pOp->p2>0 );
+  VdbeBranchTaken(res!=0,2);
+  if( res ){
+    *pc = pOp->p2 - 1;
+  }
+  // break;
+  return rc;
+}
