@@ -1858,3 +1858,62 @@ int impl_OP_If_IfNot(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   // break;
   return pc;
 }
+
+/* Opcode: Rowid P1 P2 * * *
+** Synopsis: r[P2]=rowid
+**
+** Store in register P2 an integer which is the key of the table entry that
+** P1 is currently point to.
+**
+** P1 can be either an ordinary table or a virtual table.  There used to
+** be a separate OP_VRowid opcode for use with virtual tables, but this
+** one opcode now works for both table types.
+*/
+int impl_OP_Rowid(Vdbe *p, sqlite3 *db, int rc, Op *pOp) {
+// case OP_Rowid: {                 /* out2-prerelease */
+  VdbeCursor *pC;
+  i64 v;
+  sqlite3_vtab *pVtab;
+  const sqlite3_module *pModule;
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pOut = 0;             /* Output operand */
+  pOut = &aMem[pOp->p2];
+
+  assert( pOp->p1>=0 && pOp->p1<p->nCursor );
+  pC = p->apCsr[pOp->p1];
+  assert( pC!=0 );
+  assert( pC->pseudoTableReg==0 || pC->nullRow );
+  if( pC->nullRow ){
+    pOut->flags = MEM_Null;
+    // break;
+    return rc;
+  }else if( pC->deferredMoveto ){
+    v = pC->movetoTarget;
+#ifndef SQLITE_OMIT_VIRTUALTABLE
+  }else if( pC->pVtabCursor ){
+    pVtab = pC->pVtabCursor->pVtab;
+    pModule = pVtab->pModule;
+    assert( pModule->xRowid );
+    rc = pModule->xRowid(pC->pVtabCursor, &v);
+    sqlite3VtabImportErrmsg(p, pVtab);
+#endif /* SQLITE_OMIT_VIRTUALTABLE */
+  }else{
+    assert( pC->pCursor!=0 );
+    rc = sqlite3VdbeCursorMoveto(pC);
+    if( rc ) {
+      // goto abort_due_to_error;
+      printf("In impl_OP_Rowid(): abort_due_to_error.\n");
+      assert(0);
+    }
+    if( pC->rowidIsValid ){
+      v = pC->lastRowid;
+    }else{
+      rc = sqlite3BtreeKeySize(pC->pCursor, &v);
+      assert( rc==SQLITE_OK );  /* Always so because of CursorMoveto() above */
+    }
+  }
+  pOut->u.i = v;
+  // break;
+  return rc;
+}

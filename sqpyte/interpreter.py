@@ -160,6 +160,9 @@ class Sqlite3Query(object):
     def python_OP_If_IfNot(self, pc, pOp):
         return capi.impl_OP_If_IfNot(self.p, self.db, pc, pOp)
 
+    def python_OP_Rowid(self, rc, pOp):
+        return capi.impl_OP_Rowid(self.p, self.db, rc, pOp)
+
 
     def python_sqlite3_column_text(self, iCol):
         return capi.sqlite3_column_text(self.p, iCol)
@@ -321,8 +324,12 @@ class Sqlite3Query(object):
                   opcode == CConfig.OP_IfNot):
                 self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
                 pc = self.python_OP_If_IfNot(pc, pOp)
+            elif opcode == CConfig.OP_Rowid:
+                self.debug_print('>>> OP_Rowid <<<')
+                rc = self.python_OP_Rowid(rc, pOp)
             else:
-                raise SQPyteException("Unimplemented bytecode %s." % opcode)
+                raise Exception("Unimplemented bytecode %s." % opcode)
+                # raise SQPyteException("Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))
             pc += 1
             if pc <= oldpc:
