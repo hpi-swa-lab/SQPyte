@@ -37,5 +37,6 @@ int impl_OP_IfZero(Vdbe *p, sqlite3 *db, int pc, Op *pOp);
 int impl_OP_IdxRowid(Vdbe *p, sqlite3 *db, int pc, Op *pOp);
 int impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(Vdbe *p, sqlite3 *db, int *pc, Op *pOp);
 void impl_OP_Seek(Vdbe *p, sqlite3 *db, int pc, Op *pOp);
+int impl_OP_Once(Vdbe *p, sqlite3 *db, int pc, Op *pOp);
 
 #endif

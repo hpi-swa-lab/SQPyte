@@ -2401,3 +2401,23 @@ void impl_OP_Seek(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   pC->deferredMoveto = 1;
   // break;
 }
+
+/* Opcode: Once P1 P2 * * *
+**
+** Check if OP_Once flag P1 is set. If so, jump to instruction P2. Otherwise,
+** set the flag and fall through to the next instruction.  In other words,
+** this opcode causes all following opcodes up through P2 (but not including
+** P2) to run just once and to be skipped on subsequent times through the loop.
+*/
+int impl_OP_Once(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+// case OP_Once: {             /* jump */
+  assert( pOp->p1<p->nOnceFlag );
+  VdbeBranchTaken(p->aOnceFlag[pOp->p1]!=0, 2);
+  if( p->aOnceFlag[pOp->p1] ){
+    pc = pOp->p2-1;
+  }else{
+    p->aOnceFlag[pOp->p1] = 1;
+  }
+  // break;
+  return pc;
+}
