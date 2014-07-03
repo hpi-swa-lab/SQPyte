@@ -89,13 +89,13 @@ class Sqlite3Query(object):
         return capi.impl_OP_ResultRow(self.p, self.db, pc, pOp)
 
     def python_OP_Next(self, pc, pOp):
-        self.internalPc[0] = rffi.cast(rffi.INT, pc)
-        rc = capi.impl_OP_Next(self.p, self.db, self.internalPc, pOp)
-        retPc = self.internalPc[0]
-        return retPc, rc
+        #self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        #rc = capi.impl_OP_Next(self.p, self.db, self.internalPc, pOp)
+        #retPc = self.internalPc[0]
+        #return retPc, rc
 
-        # retPc, rc = translated.python_OP_Next_translated(self.p, self.db, pc, pOp) #self.internalPc, pOp)
-        # return retPc, rc
+        retPc, rc = translated.python_OP_Next_translated(self.p, self.db, pc, pOp) #self.internalPc, pOp)
+        return retPc, rc
 
     def python_OP_Close(self, pc, pOp):
         capi.impl_OP_Close(self.p, self.db, pc, pOp)
@@ -168,7 +168,6 @@ class Sqlite3Query(object):
 
 
     def debug_print(self, s):
-        return
         if not jit.we_are_jitted():
             print s
 

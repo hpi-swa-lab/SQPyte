@@ -129,19 +129,13 @@ def python_OP_Next_translated(p, db, pc, pOp):
     pC.cacheStatus = rffi.cast(rffi.UINT, CConfig.CACHE_STALE)
     # VdbeBranchTaken(res==0, 2)
 
-    copy = []
-    for i in range(0, len(p.aCounter) - 1):
-        copy[i] = rffi.cast(lltype.Unsigned, p.aCounter[i])
-
     if rffi.cast(lltype.Signed, resRet) == 0:
         pC.nullRow = rffi.cast(rffi.UCHAR, 0)
         pcRet = rffi.cast(lltype.Signed, pOp.p2) - 1
-        copy[p5] += 1
-        p.aCounter[p5] = rffi.cast(rffi.UINT, copy[p5])
 
-        # aCounterValue = rffi.cast(lltype.Unsigned, p.aCounter[p5])
-        # # aCounterValue += 1
-        # p.aCounter[p5] = rffi.cast(rffi.UINT, p.aCounter[p5])
+        aCounterValue = rffi.cast(lltype.Unsigned, p.aCounter[p5])
+        aCounterValue += 1
+        p.aCounter[p5] = rffi.cast(rffi.UINT, aCounterValue)
 
         #ifdef SQLITE_TEST
             # sqlite3_search_count++;
