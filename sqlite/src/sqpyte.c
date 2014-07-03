@@ -2006,10 +2006,7 @@ int impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) 
   i64 iKey;      /* The rowid we are to seek to */
 
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
-  Mem *pIn1 = 0;             /* 1st input operand */
-  Mem *pIn2 = 0;
-  Mem *pIn3 = 0;             /* 3rd input operand */
-  Mem *pOut = 0;             /* Output operand */
+  Mem *pIn3;                 /* 3rd input operand */
   int rc;
 
   assert( pOp->p1>=0 && pOp->p1<p->nCursor );
@@ -2204,4 +2201,29 @@ void impl_OP_Move(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
     pOut++;
   }while( --n );
   // break;
+}
+
+/* Opcode: IfZero P1 P2 P3 * *
+** Synopsis: r[P1]+=P3, if r[P1]==0 goto P2
+**
+** The register P1 must contain an integer.  Add literal P3 to the
+** value in register P1.  If the result is exactly 0, jump to P2. 
+**
+** It is illegal to use this instruction on a register that does
+** not contain an integer.  An assertion fault will result if you try.
+*/
+int impl_OP_IfZero(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+// case OP_IfZero: {        /* jump, in1 */
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn1 = 0;             /* 1st input operand */
+
+  pIn1 = &aMem[pOp->p1];
+  assert( pIn1->flags&MEM_Int );
+  pIn1->u.i += pOp->p3;
+  VdbeBranchTaken(pIn1->u.i==0, 2);
+  if( pIn1->u.i==0 ){
+     pc = pOp->p2 - 1;
+  }
+  // break;
+  return pc;
 }
