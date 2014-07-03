@@ -104,6 +104,13 @@ def sqlite3BtreeNext(pCur, pRes):
         rc = capi.sqlite3_sqlite3BtreeNext(pCur, res)
         return rc, res[0]
 
+@jit.dont_look_inside
+def _increase_counter_hidden_from_jit(p, p5):
+    # the JIT can't deal with FixedSizeArrays
+    aCounterValue = rffi.cast(lltype.Unsigned, p.aCounter[p5])
+    aCounterValue += 1
+    p.aCounter[p5] = rffi.cast(rffi.UINT, aCounterValue)
+
 def python_OP_Next_translated(p, db, pc, pOp):
     pcRet = pc
     p1 = rffi.cast(lltype.Signed, pOp.p1)
@@ -133,9 +140,7 @@ def python_OP_Next_translated(p, db, pc, pOp):
         pC.nullRow = rffi.cast(rffi.UCHAR, 0)
         pcRet = rffi.cast(lltype.Signed, pOp.p2) - 1
 
-        aCounterValue = rffi.cast(lltype.Unsigned, p.aCounter[p5])
-        aCounterValue += 1
-        p.aCounter[p5] = rffi.cast(rffi.UINT, aCounterValue)
+        _increase_counter_hidden_from_jit(p, p5)
 
         #ifdef SQLITE_TEST
             # sqlite3_search_count++;
