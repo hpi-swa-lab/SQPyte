@@ -178,6 +178,14 @@ class Sqlite3Query(object):
     def python_OP_IfZero(self, pc, pOp):
         return capi.impl_OP_IfZero(self.p, self.db, pc, pOp)
 
+    def python_OP_IdxRowid(self, pc, pOp):
+        return capi.impl_OP_IdxRowid(self.p, self.db, pc, pOp)
+
+    def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(self, pc, pOp):
+        self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        rc = capi.impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(self.p, self.db, self.internalPc, pOp)
+        retPc = self.internalPc[0]
+        return retPc, rc
 
     def python_sqlite3_column_text(self, iCol):
         return capi.sqlite3_column_text(self.p, iCol)
@@ -186,7 +194,7 @@ class Sqlite3Query(object):
 
 
     def debug_print(self, s):
-        return
+        # return
         if not jit.we_are_jitted():
             print s
 
@@ -225,6 +233,14 @@ class Sqlite3Query(object):
             return 'OP_SeekGE'
         elif opcode == CConfig.OP_SeekGT:
             return 'OP_SeekGT'
+        elif opcode == CConfig.OP_IdxLE:
+            return 'OP_IdxLE'
+        elif opcode == CConfig.OP_IdxGT:
+            return 'OP_IdxGT'
+        elif opcode == CConfig.OP_IdxLT:
+            return 'OP_IdxLT'
+        elif opcode == CConfig.OP_IdxGE:
+            return 'OP_IdxGE'
         else:
             return ''
 
@@ -365,6 +381,15 @@ class Sqlite3Query(object):
             elif opcode == CConfig.OP_IfZero:
                 self.debug_print('>>> OP_IfZero <<<')
                 pc = self.python_OP_IfZero(pc, pOp)
+            elif opcode == CConfig.OP_IdxRowid:
+                self.debug_print('>>> OP_IdxRowid <<<')
+                rc = self.python_OP_IdxRowid(pc, pOp)
+            elif (opcode == CConfig.OP_IdxLE or 
+                  opcode == CConfig.OP_IdxGT or 
+                  opcode == CConfig.OP_IdxLT or 
+                  opcode == CConfig.OP_IdxGE):
+                self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
+                pc, rc = self.python_OP_IdxLE_IdxGT_IdxLT_IdxGE(pc, pOp)
             else:
                 raise Exception("Unimplemented bytecode %s." % opcode)
                 # raise SQPyteException("Unimplemented bytecode %s." % opcode)

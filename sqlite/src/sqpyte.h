@@ -34,5 +34,7 @@ int impl_OP_IsNull(Vdbe *p, sqlite3 *db, int pc, Op *pOp);
 int impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(Vdbe *p, sqlite3 *db, int *pc, Op *pOp);
 void impl_OP_Move(Vdbe *p, sqlite3 *db, int pc, Op *pOp);
 int impl_OP_IfZero(Vdbe *p, sqlite3 *db, int pc, Op *pOp);
+int impl_OP_IdxRowid(Vdbe *p, sqlite3 *db, int pc, Op *pOp);
+int impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(Vdbe *p, sqlite3 *db, int *pc, Op *pOp);
 
 #endif

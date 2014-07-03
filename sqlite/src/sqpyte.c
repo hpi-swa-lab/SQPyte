@@ -2227,3 +2227,147 @@ int impl_OP_IfZero(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   // break;
   return pc;
 }
+
+/* Opcode: IdxRowid P1 P2 * * *
+** Synopsis: r[P2]=rowid
+**
+** Write into register P2 an integer which is the last entry in the record at
+** the end of the index key pointed to by cursor P1.  This integer should be
+** the rowid of the table entry to which this index entry points.
+**
+** See also: Rowid, MakeRecord.
+*/
+int impl_OP_IdxRowid(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+// case OP_IdxRowid: {              /* out2-prerelease */
+  BtCursor *pCrsr;
+  VdbeCursor *pC;
+  i64 rowid;
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pOut = 0;             /* Output operand */
+  int rc;
+
+  pOut = &aMem[pOp->p2];
+  assert( pOp->p1>=0 && pOp->p1<p->nCursor );
+  pC = p->apCsr[pOp->p1];
+  assert( pC!=0 );
+  pCrsr = pC->pCursor;
+  assert( pCrsr!=0 );
+  pOut->flags = MEM_Null;
+  rc = sqlite3VdbeCursorMoveto(pC);
+  if( NEVER(rc) ) {
+    // goto abort_due_to_error;
+    printf("In impl_OP_IdxRowid():1: abort_due_to_error.\n");
+    assert(0);            
+  }
+  assert( pC->deferredMoveto==0 );
+  assert( pC->isTable==0 );
+  if( !pC->nullRow ){
+    rowid = 0;  /* Not needed.  Only used to silence a warning. */
+    rc = sqlite3VdbeIdxRowid(db, pCrsr, &rowid);
+    if( rc!=SQLITE_OK ){
+      // goto abort_due_to_error;
+      printf("In impl_OP_IdxRowid():2: abort_due_to_error.\n");
+      assert(0);            
+    }
+    pOut->u.i = rowid;
+    pOut->flags = MEM_Int;
+  }
+  // break;
+  return rc;
+}
+
+/* Opcode: IdxGE P1 P2 P3 P4 P5
+** Synopsis: key=r[P3@P4]
+**
+** The P4 register values beginning with P3 form an unpacked index 
+** key that omits the PRIMARY KEY.  Compare this key value against the index 
+** that P1 is currently pointing to, ignoring the PRIMARY KEY or ROWID 
+** fields at the end.
+**
+** If the P1 index entry is greater than or equal to the key value
+** then jump to P2.  Otherwise fall through to the next instruction.
+*/
+/* Opcode: IdxGT P1 P2 P3 P4 P5
+** Synopsis: key=r[P3@P4]
+**
+** The P4 register values beginning with P3 form an unpacked index 
+** key that omits the PRIMARY KEY.  Compare this key value against the index 
+** that P1 is currently pointing to, ignoring the PRIMARY KEY or ROWID 
+** fields at the end.
+**
+** If the P1 index entry is greater than the key value
+** then jump to P2.  Otherwise fall through to the next instruction.
+*/
+/* Opcode: IdxLT P1 P2 P3 P4 P5
+** Synopsis: key=r[P3@P4]
+**
+** The P4 register values beginning with P3 form an unpacked index 
+** key that omits the PRIMARY KEY or ROWID.  Compare this key value against
+** the index that P1 is currently pointing to, ignoring the PRIMARY KEY or
+** ROWID on the P1 index.
+**
+** If the P1 index entry is less than the key value then jump to P2.
+** Otherwise fall through to the next instruction.
+*/
+/* Opcode: IdxLE P1 P2 P3 P4 P5
+** Synopsis: key=r[P3@P4]
+**
+** The P4 register values beginning with P3 form an unpacked index 
+** key that omits the PRIMARY KEY or ROWID.  Compare this key value against
+** the index that P1 is currently pointing to, ignoring the PRIMARY KEY or
+** ROWID on the P1 index.
+**
+** If the P1 index entry is less than or equal to the key value then jump
+** to P2. Otherwise fall through to the next instruction.
+*/
+int impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
+// case OP_IdxLE:          /* jump */
+// case OP_IdxGT:          /* jump */
+// case OP_IdxLT:          /* jump */
+// case OP_IdxGE:  {       /* jump */
+  VdbeCursor *pC;
+  int res;
+  UnpackedRecord r;
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  int rc;
+
+  assert( pOp->p1>=0 && pOp->p1<p->nCursor );
+  pC = p->apCsr[pOp->p1];
+  assert( pC!=0 );
+  assert( pC->isOrdered );
+  assert( pC->pCursor!=0);
+  assert( pC->deferredMoveto==0 );
+  assert( pOp->p5==0 || pOp->p5==1 );
+  assert( pOp->p4type==P4_INT32 );
+  r.pKeyInfo = pC->pKeyInfo;
+  r.nField = (u16)pOp->p4.i;
+  if( pOp->opcode<OP_IdxLT ){
+    assert( pOp->opcode==OP_IdxLE || pOp->opcode==OP_IdxGT );
+    r.default_rc = -1;
+  }else{
+    assert( pOp->opcode==OP_IdxGE || pOp->opcode==OP_IdxLT );
+    r.default_rc = 0;
+  }
+  r.aMem = &aMem[pOp->p3];
+#ifdef SQLITE_DEBUG
+  { int i; for(i=0; i<r.nField; i++) assert( memIsValid(&r.aMem[i]) ); }
+#endif
+  res = 0;  /* Not needed.  Only used to silence a warning. */
+  rc = sqlite3VdbeIdxKeyCompare(pC, &r, &res);
+  assert( (OP_IdxLE&1)==(OP_IdxLT&1) && (OP_IdxGE&1)==(OP_IdxGT&1) );
+  if( (pOp->opcode&1)==(OP_IdxLT&1) ){
+    assert( pOp->opcode==OP_IdxLE || pOp->opcode==OP_IdxLT );
+    res = -res;
+  }else{
+    assert( pOp->opcode==OP_IdxGE || pOp->opcode==OP_IdxGT );
+    res++;
+  }
+  VdbeBranchTaken(res>0,2);
+  if( res>0 ){
+    *pc = pOp->p2 - 1 ;
+  }
+  // break;
+  return rc;
+}
