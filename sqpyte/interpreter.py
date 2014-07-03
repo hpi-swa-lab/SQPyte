@@ -193,6 +193,10 @@ class Sqlite3Query(object):
     def python_OP_Once(self, pc, pOp):
         return capi.impl_OP_Once(self.p, self.db, pc, pOp)
 
+    def python_OP_SCopy(self, pc, pOp):
+        capi.impl_OP_SCopy(self.p, self.db, pc, pOp)
+
+
     def python_sqlite3_column_text(self, iCol):
         return capi.sqlite3_column_text(self.p, iCol)
     def python_sqlite3_column_bytes(self, iCol):
@@ -402,6 +406,9 @@ class Sqlite3Query(object):
             elif opcode == CConfig.OP_Once:
                 self.debug_print('>>> OP_Once <<<')
                 pc = self.python_OP_Once(pc, pOp)
+            elif opcode == CConfig.OP_SCopy:
+                self.debug_print('>>> OP_SCopy <<<')
+                self.python_OP_SCopy(pc, pOp)
             else:
                 raise Exception("Unimplemented bytecode %s." % opcode)
                 # raise SQPyteException("Unimplemented bytecode %s." % opcode)

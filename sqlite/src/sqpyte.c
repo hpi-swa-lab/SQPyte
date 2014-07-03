@@ -2421,3 +2421,32 @@ int impl_OP_Once(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   // break;
   return pc;
 }
+
+/* Opcode: SCopy P1 P2 * * *
+** Synopsis: r[P2]=r[P1]
+**
+** Make a shallow copy of register P1 into register P2.
+**
+** This instruction makes a shallow copy of the value.  If the value
+** is a string or blob, then the copy is only a pointer to the
+** original and hence if the original changes so will the copy.
+** Worse, if the original is deallocated, the copy becomes invalid.
+** Thus the program must guarantee that the original will not change
+** during the lifetime of the copy.  Use OP_Copy to make a complete
+** copy.
+*/
+void impl_OP_SCopy(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+// case OP_SCopy: {            /* out2 */
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn1;                 /* 1st input operand */
+  Mem *pOut;                 /* Output operand */
+
+  pIn1 = &aMem[pOp->p1];
+  pOut = &aMem[pOp->p2];
+  assert( pOut!=pIn1 );
+  sqlite3VdbeMemShallowCopy(pOut, pIn1, MEM_Ephem);
+#ifdef SQLITE_DEBUG
+  if( pOut->pScopyFrom==0 ) pOut->pScopyFrom = pIn1;
+#endif
+  // break;
+}
