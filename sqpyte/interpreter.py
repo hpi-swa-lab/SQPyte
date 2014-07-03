@@ -168,6 +168,7 @@ class Sqlite3Query(object):
 
 
     def debug_print(self, s):
+        return
         if not jit.we_are_jitted():
             print s
 
