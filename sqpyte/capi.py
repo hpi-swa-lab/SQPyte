@@ -37,7 +37,8 @@ opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite', 'OP_Rewind',
            'OP_If', 'OP_IfNot', 'OP_Rowid', 'OP_IsNull',
            'OP_SeekLT', 'OP_SeekLE', 'OP_SeekGE', 'OP_SeekGT',
            'OP_Move', 'OP_IfZero', 'OP_IdxRowid',
-           'OP_IdxLE', 'OP_IdxGT', 'OP_IdxLT', 'OP_IdxGE']
+           'OP_IdxLE', 'OP_IdxGT', 'OP_IdxLT', 'OP_IdxGE',
+           'OP_Seek']
 p4names = ['P4_INT32', 'P4_KEYINFO']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR', 'OPFLAG_CLEARCACHE', 'OPFLAG_LENGTHARG', 'OPFLAG_TYPEOFARG']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW', 'SQLITE_BUSY', 'SQLITE_CORRUPT_BKPT']
@@ -604,6 +605,9 @@ impl_OP_IdxRowid = rffi.llexternal('impl_OP_IdxRowid', [VDBEP, SQLITE3P, rffi.IN
     rffi.INT, compilation_info=CConfig._compilation_info_)
 impl_OP_IdxLE_IdxGT_IdxLT_IdxGE = rffi.llexternal('impl_OP_IdxLE_IdxGT_IdxLT_IdxGE', [VDBEP, SQLITE3P, rffi.INTP, VDBEOPP],
     rffi.INT, compilation_info=CConfig._compilation_info_)
+impl_OP_Seek = rffi.llexternal('impl_OP_Seek', [VDBEP, SQLITE3P, rffi.INT, VDBEOPP],
+    lltype.Void, compilation_info=CConfig._compilation_info_)
+
 
 sqlite3_reset = rffi.llexternal('sqlite3_reset', [VDBEP],
     rffi.INT, compilation_info=CConfig._compilation_info_)

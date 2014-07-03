@@ -2371,3 +2371,33 @@ int impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
   // break;
   return rc;
 }
+
+/* Opcode: Seek P1 P2 * * *
+** Synopsis:  intkey=r[P2]
+**
+** P1 is an open table cursor and P2 is a rowid integer.  Arrange
+** for P1 to move so that it points to the rowid given by P2.
+**
+** This is actually a deferred seek.  Nothing actually happens until
+** the cursor is used to read a record.  That way, if no reads
+** occur, no unnecessary I/O happens.
+*/
+void impl_OP_Seek(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+// case OP_Seek: {    /* in2 */
+  VdbeCursor *pC;
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn2;
+
+  assert( pOp->p1>=0 && pOp->p1<p->nCursor );
+  pC = p->apCsr[pOp->p1];
+  assert( pC!=0 );
+  assert( pC->pCursor!=0 );
+  assert( pC->isTable );
+  pC->nullRow = 0;
+  pIn2 = &aMem[pOp->p2];
+  pC->movetoTarget = sqlite3VdbeIntValue(pIn2);
+  pC->rowidIsValid = 0;
+  pC->deferredMoveto = 1;
+  // break;
+}
