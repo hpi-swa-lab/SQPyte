@@ -9,12 +9,18 @@ import translated
 import math
 
 testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test/test.db")
+
+def get_printable_location(pc, rc, ops, self):
+    opcode = self.get_opcode(ops[pc])
+    name = self.get_opcode_str(opcode)
+    return "%s %s %s" % (pc, rc, name)
+
+
 jitdriver = jit.JitDriver(
     greens=['pc', 'rc', 'ops', 'self_'], 
     reds=[],
     should_unroll_one_iteration=lambda *args: True,
-    )
-    # get_printable_location=get_printable_location)
+    get_printable_location=get_printable_location)
 
 class SQPyteException(Exception):
     def __init__(self, msg):
@@ -172,35 +178,9 @@ class Sqlite3Query(object):
         if not jit.we_are_jitted():
             print s
 
+    @jit.elidable
     def get_opcode_str(self, opcode):
-        if opcode == CConfig.OP_Eq:
-            return 'OP_Eq'
-        elif opcode == CConfig.OP_Ne:
-            return 'OP_Ne'
-        elif opcode == CConfig.OP_Lt:
-            return 'OP_Lt'
-        elif opcode == CConfig.OP_Le:
-            return 'OP_Le'
-        elif opcode == CConfig.OP_Gt:
-            return 'OP_Gt'
-        elif opcode == CConfig.OP_Ge:
-            return 'OP_Ge'
-        elif opcode == CConfig.OP_Add:
-            return 'OP_Add'
-        elif opcode == CConfig.OP_Subtract:
-            return 'OP_Subtract'
-        elif opcode == CConfig.OP_Multiply:
-            return 'OP_Multiply'
-        elif opcode == CConfig.OP_Divide:
-            return 'OP_Divide'
-        elif opcode == CConfig.OP_Remainder:
-            return 'OP_Remainder'
-        elif opcode == CConfig.OP_If:
-            return 'OP_If'
-        elif opcode == CConfig.OP_IfNot:
-            return 'OP_IfNot'
-        else:
-            return ''
+        return capi.opnames_dict.get(opcode, '')
 
     @jit.elidable
     def get_opcode(self, pOp):
@@ -216,7 +196,7 @@ class Sqlite3Query(object):
         # pc = self.p.pc
         pc = jit.promote(rffi.cast(lltype.Signed, self.p.pc))
         if pc < 0:
-            pc = 0 # XXX maybe more to too, see vdbeapi.c:418
+            pc = 0 # XXX maybe more to do, see vdbeapi.c:418
 
         i = 0
         while True:

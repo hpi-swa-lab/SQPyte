@@ -45,10 +45,15 @@ memValues = ['MEM_Real']
 for name in p4names + opnames + p5flags + result_codes + btree_values + other_constants + memValues:
     setattr(CConfig, name, platform.DefinedConstantInteger(name))
 
+
 CConfig.__dict__.update(platform.configure(CConfig))
 
 for name in p4names:
     setattr(CConfig, name, chr(256 + getattr(CConfig, name)))
+
+opnames_dict = {}
+for name in opnames:
+    opnames_dict[getattr(CConfig, name)] = name
 
 assert CConfig.SQLITE_MAX_VARIABLE_NUMBER < 32767
 
