@@ -2450,3 +2450,34 @@ void impl_OP_SCopy(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 #endif
   // break;
 }
+
+/* Opcode: Affinity P1 P2 * P4 *
+** Synopsis: affinity(r[P1@P2])
+**
+** Apply affinities to a range of P2 registers starting with P1.
+**
+** P4 is a string that is P2 characters long. The nth character of the
+** string indicates the column affinity that should be used for the nth
+** memory cell in the range.
+*/
+void impl_OP_Affinity(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+// case OP_Affinity: {
+  const char *zAffinity;   /* The affinity to be applied */
+  char cAff;               /* A single character of affinity */
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn1;                 /* 1st input operand */
+  u8 encoding = ENC(db);     /* The database encoding */
+
+  zAffinity = pOp->p4.z;
+  assert( zAffinity!=0 );
+  assert( zAffinity[pOp->p2]==0 );
+  pIn1 = &aMem[pOp->p1];
+  while( (cAff = *(zAffinity++))!=0 ){
+    assert( pIn1 <= &p->aMem[(p->nMem-p->nCursor)] );
+    assert( memIsValid(pIn1) );
+    applyAffinity(pIn1, cAff, encoding);
+    pIn1++;
+  }
+  // break;
+}
