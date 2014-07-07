@@ -205,6 +205,9 @@ class Sqlite3Query(object):
     def python_OP_Affinity(self, pc, pOp):
         capi.impl_OP_Affinity(self.p, self.db, pc, pOp)
 
+    def python_OP_OpenAutoindex_OpenEphemeral(self, pc, pOp):
+        return capi.impl_OP_OpenAutoindex_OpenEphemeral(self.p, self.db, pc, pOp)
+
 
     def python_sqlite3_column_text(self, iCol):
         return capi.sqlite3_column_text(self.p, iCol)
@@ -213,7 +216,7 @@ class Sqlite3Query(object):
 
 
     def debug_print(self, s):
-        return
+        # return
         if not jit.we_are_jitted():
             print s
 
@@ -379,6 +382,10 @@ class Sqlite3Query(object):
             elif opcode == CConfig.OP_Affinity:
                 self.debug_print('>>> OP_Affinity <<<')
                 self.python_OP_Affinity(pc, pOp)
+            elif (opcode == CConfig.OP_OpenAutoindex or 
+                  opcode == CConfig.OP_OpenEphemeral):
+                self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
+                rc = self.python_OP_OpenAutoindex_OpenEphemeral(pc, pOp)
             else:
                 raise Exception("Unimplemented bytecode %s." % opcode)
                 # raise SQPyteException("Unimplemented bytecode %s." % opcode)

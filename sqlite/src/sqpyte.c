@@ -2481,3 +2481,85 @@ void impl_OP_Affinity(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   }
   // break;
 }
+
+/* Opcode: OpenEphemeral P1 P2 * P4 P5
+** Synopsis: nColumn=P2
+**
+** Open a new cursor P1 to a transient table.
+** The cursor is always opened read/write even if 
+** the main database is read-only.  The ephemeral
+** table is deleted automatically when the cursor is closed.
+**
+** P2 is the number of columns in the ephemeral table.
+** The cursor points to a BTree table if P4==0 and to a BTree index
+** if P4 is not 0.  If P4 is not NULL, it points to a KeyInfo structure
+** that defines the format of keys in the index.
+**
+** The P5 parameter can be a mask of the BTREE_* flags defined
+** in btree.h.  These flags control aspects of the operation of
+** the btree.  The BTREE_OMIT_JOURNAL and BTREE_SINGLE flags are
+** added automatically.
+*/
+/* Opcode: OpenAutoindex P1 P2 * P4 *
+** Synopsis: nColumn=P2
+**
+** This opcode works the same as OP_OpenEphemeral.  It has a
+** different name to distinguish its use.  Tables created using
+** by this opcode will be used for automatically created transient
+** indices in joins.
+*/
+int impl_OP_OpenAutoindex_OpenEphemeral(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+// case OP_OpenAutoindex: 
+// case OP_OpenEphemeral: {
+  VdbeCursor *pCx;
+  KeyInfo *pKeyInfo;
+  int rc;
+
+  static const int vfsFlags = 
+      SQLITE_OPEN_READWRITE |
+      SQLITE_OPEN_CREATE |
+      SQLITE_OPEN_EXCLUSIVE |
+      SQLITE_OPEN_DELETEONCLOSE |
+      SQLITE_OPEN_TRANSIENT_DB;
+  assert( pOp->p1>=0 );
+  assert( pOp->p2>=0 );
+  pCx = allocateCursor(p, pOp->p1, pOp->p2, -1, 1);
+  if( pCx==0 ) {
+    // goto no_mem;
+    printf("In impl_OP_OpenAutoindex_OpenEphemeral(): no_mem.\n");
+    assert(0);
+  }
+  pCx->nullRow = 1;
+  pCx->isEphemeral = 1;
+  rc = sqlite3BtreeOpen(db->pVfs, 0, db, &pCx->pBt, 
+                        BTREE_OMIT_JOURNAL | BTREE_SINGLE | pOp->p5, vfsFlags);
+  if( rc==SQLITE_OK ){
+    rc = sqlite3BtreeBeginTrans(pCx->pBt, 1);
+  }
+  if( rc==SQLITE_OK ){
+    /* If a transient index is required, create it by calling
+    ** sqlite3BtreeCreateTable() with the BTREE_BLOBKEY flag before
+    ** opening it. If a transient table is required, just use the
+    ** automatically created table with root-page 1 (an BLOB_INTKEY table).
+    */
+    if( (pKeyInfo = pOp->p4.pKeyInfo)!=0 ){
+      int pgno;
+      assert( pOp->p4type==P4_KEYINFO );
+      rc = sqlite3BtreeCreateTable(pCx->pBt, &pgno, BTREE_BLOBKEY | pOp->p5); 
+      if( rc==SQLITE_OK ){
+        assert( pgno==MASTER_ROOT+1 );
+        assert( pKeyInfo->db==db );
+        assert( pKeyInfo->enc==ENC(db) );
+        pCx->pKeyInfo = pKeyInfo;
+        rc = sqlite3BtreeCursor(pCx->pBt, pgno, 1, pKeyInfo, pCx->pCursor);
+      }
+      pCx->isTable = 0;
+    }else{
+      rc = sqlite3BtreeCursor(pCx->pBt, MASTER_ROOT, 1, 0, pCx->pCursor);
+      pCx->isTable = 1;
+    }
+  }
+  pCx->isOrdered = (pOp->p5!=BTREE_UNORDERED);
+  // break;
+  return rc;
+}
