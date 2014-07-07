@@ -41,7 +41,7 @@ opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite', 'OP_Rewind',
            'OP_Seek', 'OP_Once', 'OP_SCopy', 'OP_Affinity',
            'OP_OpenAutoindex', 'OP_OpenEphemeral', 'OP_MakeRecord',
            'OP_SorterInsert', 'OP_IdxInsert',
-           'OP_NoConflict', 'OP_NotFound', 'OP_Found']
+           'OP_NoConflict', 'OP_NotFound', 'OP_Found', 'OP_RowSetTest']
 p4names = ['P4_INT32', 'P4_KEYINFO']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR', 'OPFLAG_CLEARCACHE', 'OPFLAG_LENGTHARG', 'OPFLAG_TYPEOFARG']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW', 'SQLITE_BUSY', 'SQLITE_CORRUPT_BKPT']
@@ -628,6 +628,8 @@ impl_OP_MakeRecord = rffi.llexternal('impl_OP_MakeRecord', [VDBEP, SQLITE3P, rff
 impl_OP_SorterInsert_IdxInsert = rffi.llexternal('impl_OP_SorterInsert_IdxInsert', [VDBEP, SQLITE3P, rffi.INT, VDBEOPP],
     rffi.INT, compilation_info=CConfig._compilation_info_)
 impl_OP_NoConflict_NotFound_Found = rffi.llexternal('impl_OP_NoConflict_NotFound_Found', [VDBEP, SQLITE3P, rffi.INTP, VDBEOPP],
+    rffi.INT, compilation_info=CConfig._compilation_info_)
+impl_OP_RowSetTest = rffi.llexternal('impl_OP_RowSetTest', [VDBEP, SQLITE3P, rffi.INT, VDBEOPP],
     rffi.INT, compilation_info=CConfig._compilation_info_)
 
 

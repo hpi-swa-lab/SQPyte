@@ -220,6 +220,9 @@ class Sqlite3Query(object):
         retPc = self.internalPc[0]
         return retPc, rc        
 
+    def python_OP_RowSetTest(self, pc, pOp):
+        return capi.impl_OP_RowSetTest(self.p, self.db, pc, pOp)
+
 
     def python_sqlite3_column_text(self, iCol):
         return capi.sqlite3_column_text(self.p, iCol)
@@ -410,6 +413,9 @@ class Sqlite3Query(object):
                   opcode == CConfig.OP_Found):
                 self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
                 pc, rc = self.python_OP_NoConflict_NotFound_Found(pc, pOp)
+            elif opcode == CConfig.OP_RowSetTest:
+                self.debug_print('>>> OP_RowSetTest <<<')
+                pc = self.python_OP_RowSetTest(pc, pOp)
             else:
                 raise Exception("Unimplemented bytecode %s." % opcode)
                 # raise SQPyteException("Unimplemented bytecode %s." % opcode)

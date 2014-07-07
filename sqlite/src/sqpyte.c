@@ -2924,3 +2924,71 @@ int impl_OP_NoConflict_NotFound_Found(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
   // break;
   return rc;
 }
+
+/* Opcode: RowSetTest P1 P2 P3 P4
+** Synopsis: if r[P3] in rowset(P1) goto P2
+**
+** Register P3 is assumed to hold a 64-bit integer value. If register P1
+** contains a RowSet object and that RowSet object contains
+** the value held in P3, jump to register P2. Otherwise, insert the
+** integer in P3 into the RowSet and continue on to the
+** next opcode.
+**
+** The RowSet object is optimized for the case where successive sets
+** of integers, where each set contains no duplicates. Each set
+** of values is identified by a unique P4 value. The first set
+** must have P4==0, the final set P4=-1.  P4 must be either -1 or
+** non-negative.  For non-negative values of P4 only the lower 4
+** bits are significant.
+**
+** This allows optimizations: (a) when P4==0 there is no need to test
+** the rowset object for P3, as it is guaranteed not to contain it,
+** (b) when P4==-1 there is no need to insert the value, as it will
+** never be tested for, and (c) when a value that is part of set X is
+** inserted, there is no need to search to see if the same value was
+** previously inserted as part of set X (only if it was previously
+** inserted as part of some other set).
+*/
+int impl_OP_RowSetTest(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+// case OP_RowSetTest: {                     /* jump, in1, in3 */
+  int iSet;
+  int exists;
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn1;                 /* 1st input operand */
+  Mem *pIn3;                 /* 3rd input operand */
+
+  pIn1 = &aMem[pOp->p1];
+  pIn3 = &aMem[pOp->p3];
+  iSet = pOp->p4.i;
+  assert( pIn3->flags&MEM_Int );
+
+  /* If there is anything other than a rowset object in memory cell P1,
+  ** delete it now and initialize P1 with an empty rowset
+  */
+  if( (pIn1->flags & MEM_RowSet)==0 ){
+    sqlite3VdbeMemSetRowSet(pIn1);
+    if( (pIn1->flags & MEM_RowSet)==0 ) {
+      // goto no_mem;
+      printf("In impl_OP_RowSetTest(): no_mem.\n");
+      assert(0);      
+    }
+  }
+
+  assert( pOp->p4type==P4_INT32 );
+  assert( iSet==-1 || iSet>=0 );
+  if( iSet ){
+    exists = sqlite3RowSetTest(pIn1->u.pRowSet, iSet, pIn3->u.i);
+    VdbeBranchTaken(exists!=0,2);
+    if( exists ){
+      pc = pOp->p2 - 1;
+      // break;
+      return pc;
+    }
+  }
+  if( iSet>=0 ){
+    sqlite3RowSetInsert(pIn1->u.pRowSet, pIn3->u.i);
+  }
+  // break;
+  return pc;
+}

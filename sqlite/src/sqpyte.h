@@ -44,5 +44,6 @@ int impl_OP_OpenAutoindex_OpenEphemeral(Vdbe *p, sqlite3 *db, int pc, Op *pOp);
 void impl_OP_MakeRecord(Vdbe *p, sqlite3 *db, int pc, Op *pOp);
 int impl_OP_SorterInsert_IdxInsert(Vdbe *p, sqlite3 *db, int pc, Op *pOp);
 int impl_OP_NoConflict_NotFound_Found(Vdbe *p, sqlite3 *db, int *pc, Op *pOp);
+int impl_OP_RowSetTest(Vdbe *p, sqlite3 *db, int pc, Op *pOp);
 
 #endif
