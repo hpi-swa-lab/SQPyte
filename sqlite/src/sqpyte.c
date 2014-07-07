@@ -2602,7 +2602,7 @@ void impl_OP_MakeRecord(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
   Mem *pOut;                 /* Output operand */
   u8 encoding = ENC(db);     /* The database encoding */
-  
+
   /* Assuming the record contains N fields, the record format looks
   ** like this:
   **
@@ -2723,4 +2723,65 @@ void impl_OP_MakeRecord(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   REGISTER_TRACE(pOp->p3, pOut);
   UPDATE_MAX_BLOBSIZE(pOut);
   // break;
+}
+
+/* Opcode: IdxInsert P1 P2 P3 * P5
+** Synopsis: key=r[P2]
+**
+** Register P2 holds an SQL index key made using the
+** MakeRecord instructions.  This opcode writes that key
+** into the index P1.  Data for the entry is nil.
+**
+** P3 is a flag that provides a hint to the b-tree layer that this
+** insert is likely to be an append.
+**
+** If P5 has the OPFLAG_NCHANGE bit set, then the change counter is
+** incremented by this instruction.  If the OPFLAG_NCHANGE bit is clear,
+** then the change counter is unchanged.
+**
+** If P5 has the OPFLAG_USESEEKRESULT bit set, then the cursor must have
+** just done a seek to the spot where the new entry is to be inserted.
+** This flag avoids doing an extra seek.
+**
+** This instruction only works for indices.  The equivalent instruction
+** for tables is OP_Insert.
+*/
+int impl_OP_SorterInsert_IdxInsert(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+// case OP_SorterInsert:       /* in2 */
+// case OP_IdxInsert: {        /* in2 */
+  VdbeCursor *pC;
+  BtCursor *pCrsr;
+  int nKey;
+  const char *zKey;
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn2;
+  int rc;
+
+  assert( pOp->p1>=0 && pOp->p1<p->nCursor );
+  pC = p->apCsr[pOp->p1];
+  assert( pC!=0 );
+  assert( isSorter(pC)==(pOp->opcode==OP_SorterInsert) );
+  pIn2 = &aMem[pOp->p2];
+  assert( pIn2->flags & MEM_Blob );
+  pCrsr = pC->pCursor;
+  if( pOp->p5 & OPFLAG_NCHANGE ) p->nChange++;
+  assert( pCrsr!=0 );
+  assert( pC->isTable==0 );
+  rc = ExpandBlob(pIn2);
+  if( rc==SQLITE_OK ){
+    if( isSorter(pC) ){
+      rc = sqlite3VdbeSorterWrite(db, pC, pIn2);
+    }else{
+      nKey = pIn2->n;
+      zKey = pIn2->z;
+      rc = sqlite3BtreeInsert(pCrsr, zKey, nKey, "", 0, 0, pOp->p3, 
+          ((pOp->p5 & OPFLAG_USESEEKRESULT) ? pC->seekResult : 0)
+          );
+      assert( pC->deferredMoveto==0 );
+      pC->cacheStatus = CACHE_STALE;
+    }
+  }
+  // break;
+  return rc;
 }
