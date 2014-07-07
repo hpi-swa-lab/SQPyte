@@ -214,6 +214,12 @@ class Sqlite3Query(object):
     def python_OP_SorterInsert_IdxInsert(self, pc, pOp):
         return capi.impl_OP_SorterInsert_IdxInsert(self.p, self.db, pc, pOp)
 
+    def python_OP_NoConflict_NotFound_Found(self, pc, pOp):
+        self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        rc = capi.impl_OP_NoConflict_NotFound_Found(self.p, self.db, self.internalPc, pOp)
+        retPc = self.internalPc[0]
+        return retPc, rc        
+
 
     def python_sqlite3_column_text(self, iCol):
         return capi.sqlite3_column_text(self.p, iCol)
@@ -399,6 +405,11 @@ class Sqlite3Query(object):
                   opcode == CConfig.OP_IdxInsert):
                 self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
                 rc = self.python_OP_SorterInsert_IdxInsert(pc, pOp)
+            elif (opcode == CConfig.OP_NoConflict or 
+                  opcode == CConfig.OP_NotFound or 
+                  opcode == CConfig.OP_Found):
+                self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
+                pc, rc = self.python_OP_NoConflict_NotFound_Found(pc, pOp)
             else:
                 raise Exception("Unimplemented bytecode %s." % opcode)
                 # raise SQPyteException("Unimplemented bytecode %s." % opcode)

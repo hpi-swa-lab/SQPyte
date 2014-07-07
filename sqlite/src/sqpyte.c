@@ -2785,3 +2785,142 @@ int impl_OP_SorterInsert_IdxInsert(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   // break;
   return rc;
 }
+
+/* Opcode: Found P1 P2 P3 P4 *
+** Synopsis: key=r[P3@P4]
+**
+** If P4==0 then register P3 holds a blob constructed by MakeRecord.  If
+** P4>0 then register P3 is the first of P4 registers that form an unpacked
+** record.
+**
+** Cursor P1 is on an index btree.  If the record identified by P3 and P4
+** is a prefix of any entry in P1 then a jump is made to P2 and
+** P1 is left pointing at the matching entry.
+**
+** See also: NotFound, NoConflict, NotExists. SeekGe
+*/
+/* Opcode: NotFound P1 P2 P3 P4 *
+** Synopsis: key=r[P3@P4]
+**
+** If P4==0 then register P3 holds a blob constructed by MakeRecord.  If
+** P4>0 then register P3 is the first of P4 registers that form an unpacked
+** record.
+** 
+** Cursor P1 is on an index btree.  If the record identified by P3 and P4
+** is not the prefix of any entry in P1 then a jump is made to P2.  If P1 
+** does contain an entry whose prefix matches the P3/P4 record then control
+** falls through to the next instruction and P1 is left pointing at the
+** matching entry.
+**
+** See also: Found, NotExists, NoConflict
+*/
+/* Opcode: NoConflict P1 P2 P3 P4 *
+** Synopsis: key=r[P3@P4]
+**
+** If P4==0 then register P3 holds a blob constructed by MakeRecord.  If
+** P4>0 then register P3 is the first of P4 registers that form an unpacked
+** record.
+** 
+** Cursor P1 is on an index btree.  If the record identified by P3 and P4
+** contains any NULL value, jump immediately to P2.  If all terms of the
+** record are not-NULL then a check is done to determine if any row in the
+** P1 index btree has a matching key prefix.  If there are no matches, jump
+** immediately to P2.  If there is a match, fall through and leave the P1
+** cursor pointing to the matching row.
+**
+** This opcode is similar to OP_NotFound with the exceptions that the
+** branch is always taken if any part of the search key input is NULL.
+**
+** See also: NotFound, Found, NotExists
+*/
+int impl_OP_NoConflict_NotFound_Found(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
+// case OP_NoConflict:     /* jump, in3 */
+// case OP_NotFound:       /* jump, in3 */
+// case OP_Found: {        /* jump, in3 */
+  int alreadyExists;
+  int ii;
+  VdbeCursor *pC;
+  int res;
+  char *pFree;
+  UnpackedRecord *pIdxKey;
+  UnpackedRecord r;
+  char aTempRec[ROUND8(sizeof(UnpackedRecord)) + sizeof(Mem)*4 + 7];
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn3;                 /* 3rd input operand */
+  Mem *pOut;                 /* Output operand */
+  int rc;
+
+#ifdef SQLITE_TEST
+  if( pOp->opcode!=OP_NoConflict ) sqlite3_found_count++;
+#endif
+
+  assert( pOp->p1>=0 && pOp->p1<p->nCursor );
+  assert( pOp->p4type==P4_INT32 );
+  pC = p->apCsr[pOp->p1];
+  assert( pC!=0 );
+  pIn3 = &aMem[pOp->p3];
+  assert( pC->pCursor!=0 );
+  assert( pC->isTable==0 );
+  pFree = 0;  /* Not needed.  Only used to suppress a compiler warning. */
+  if( pOp->p4.i>0 ){
+    r.pKeyInfo = pC->pKeyInfo;
+    r.nField = (u16)pOp->p4.i;
+    r.aMem = pIn3;
+    for(ii=0; ii<r.nField; ii++){
+      assert( memIsValid(&r.aMem[ii]) );
+      ExpandBlob(&r.aMem[ii]);
+#ifdef SQLITE_DEBUG
+      if( ii ) REGISTER_TRACE(pOp->p3+ii, &r.aMem[ii]);
+#endif
+    }
+    pIdxKey = &r;
+  }else{
+    pIdxKey = sqlite3VdbeAllocUnpackedRecord(
+        pC->pKeyInfo, aTempRec, sizeof(aTempRec), &pFree
+    ); 
+    if( pIdxKey==0 ) {
+      // goto no_mem;
+      printf("In impl_OP_NoConflict_NotFound_Found(): no_mem.\n");
+      assert(0);      
+    }
+    assert( pIn3->flags & MEM_Blob );
+    assert( (pIn3->flags & MEM_Zero)==0 );  /* zeroblobs already expanded */
+    sqlite3VdbeRecordUnpack(pC->pKeyInfo, pIn3->n, pIn3->z, pIdxKey);
+  }
+  pIdxKey->default_rc = 0;
+  if( pOp->opcode==OP_NoConflict ){
+    /* For the OP_NoConflict opcode, take the jump if any of the
+    ** input fields are NULL, since any key with a NULL will not
+    ** conflict */
+    for(ii=0; ii<r.nField; ii++){
+      if( r.aMem[ii].flags & MEM_Null ){
+        *pc = pOp->p2 - 1;
+        VdbeBranchTaken(1,2);
+        break;
+      }
+    }
+  }
+  rc = sqlite3BtreeMovetoUnpacked(pC->pCursor, pIdxKey, 0, 0, &res);
+  if( pOp->p4.i==0 ){
+    sqlite3DbFree(db, pFree);
+  }
+  if( rc!=SQLITE_OK ){
+    // break;
+    return rc;
+  }
+  pC->seekResult = res;
+  alreadyExists = (res==0);
+  pC->nullRow = 1-alreadyExists;
+  pC->deferredMoveto = 0;
+  pC->cacheStatus = CACHE_STALE;
+  if( pOp->opcode==OP_Found ){
+    VdbeBranchTaken(alreadyExists!=0,2);
+    if( alreadyExists ) *pc = pOp->p2 - 1;
+  }else{
+    VdbeBranchTaken(alreadyExists==0,2);
+    if( !alreadyExists ) *pc = pOp->p2 - 1;
+  }
+  // break;
+  return rc;
+}
