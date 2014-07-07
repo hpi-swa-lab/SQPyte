@@ -2992,3 +2992,25 @@ int impl_OP_RowSetTest(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   // break;
   return pc;
 }
+
+/* Opcode:  Gosub P1 P2 * * *
+**
+** Write the current address onto register P1
+** and then jump to address P2.
+*/
+int impl_OP_Gosub(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+// case OP_Gosub: {            /* jump */
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn1;                 /* 1st input operand */
+
+  assert( pOp->p1>0 && pOp->p1<=(p->nMem-p->nCursor) );
+  pIn1 = &aMem[pOp->p1];
+  assert( VdbeMemDynamic(pIn1)==0 );
+  memAboutToChange(p, pIn1);
+  pIn1->flags = MEM_Int;
+  pIn1->u.i = pc;
+  REGISTER_TRACE(pOp->p1, pIn1);
+  pc = pOp->p2 - 1;
+  // break;
+  return pc;
+}
