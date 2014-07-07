@@ -3014,3 +3014,21 @@ int impl_OP_Gosub(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   // break;
   return pc;
 }
+
+/* Opcode:  Return P1 * * * *
+**
+** Jump to the next instruction after the address in register P1.  After
+** the jump, register P1 becomes undefined.
+*/
+int impl_OP_Return(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+// case OP_Return: {           /* in1 */
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn1;                 /* 1st input operand */
+
+  pIn1 = &aMem[pOp->p1];
+  assert( pIn1->flags==MEM_Int );
+  pc = (int)pIn1->u.i;
+  pIn1->flags = MEM_Undefined;
+  // break;
+  return pc;
+}

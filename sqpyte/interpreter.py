@@ -226,6 +226,9 @@ class Sqlite3Query(object):
     def python_OP_Gosub(self, pc, pOp):
         return capi.impl_OP_Gosub(self.p, self.db, pc, pOp)
 
+    def python_OP_Return(self, pc, pOp):
+        return capi.impl_OP_Return(self.p, self.db, pc, pOp)
+
 
     def python_sqlite3_column_text(self, iCol):
         return capi.sqlite3_column_text(self.p, iCol)
@@ -422,6 +425,9 @@ class Sqlite3Query(object):
             elif opcode == CConfig.OP_Gosub:
                 self.debug_print('>>> OP_Gosub <<<')
                 pc = self.python_OP_Gosub(pc, pOp)
+            elif opcode == CConfig.OP_Return:
+                self.debug_print('>>> OP_Return <<<')
+                pc = self.python_OP_Return(pc, pOp)
             else:
                 raise Exception("Unimplemented bytecode %s." % opcode)
                 # raise SQPyteException("Unimplemented bytecode %s." % opcode)
