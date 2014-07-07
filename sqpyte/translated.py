@@ -123,17 +123,28 @@ def python_OP_Next_translated(p, db, pc, pOp):
     assert rffi.cast(lltype.Unsigned, pC.deferredMoveto) == 0
     assert pC.pCursor
     assert res == 0 or (res == 1 and rffi.cast(lltype.Signed, pC.isTable) == 0)
+    
+    # testcase() is used for SQLite3 coverage testing and logically
+    # should not be used in production.
+    # See sqliteInt.h lines 269-288
     # testcase( res==1 );
+
     # assert( pOp->opcode!=OP_Next || pOp->p4.xAdvance==sqlite3BtreeNext );
     # assert( pOp->opcode!=OP_Prev || pOp->p4.xAdvance==sqlite3BtreePrevious );
     # assert( pOp->opcode!=OP_NextIfOpen || pOp->p4.xAdvance==sqlite3BtreeNext );
     # assert( pOp->opcode!=OP_PrevIfOpen || pOp->p4.xAdvance==sqlite3BtreePrevious);
     
+    # Specifically for OP_Next, xAdvance() is always sqlite3BtreeNext()
+    # as can be deduced from assertions above.
     # rc = pOp->p4.xAdvance(pC->pCursor, &res);
     rc, resRet = sqlite3BtreeNext(pC.pCursor, res)
 
     # next_tail:
     pC.cacheStatus = rffi.cast(rffi.UINT, CConfig.CACHE_STALE)
+
+    # VdbeBranchTaken() is used for test suite validation only and 
+    # does not appear an production builds.
+    # See vdbe.c lines 110-136.
     # VdbeBranchTaken(res==0, 2)
 
     if rffi.cast(lltype.Signed, resRet) == 0:
@@ -142,6 +153,7 @@ def python_OP_Next_translated(p, db, pc, pOp):
 
         _increase_counter_hidden_from_jit(p, p5)
 
+        # Should not be used in production.
         #ifdef SQLITE_TEST
             # sqlite3_search_count++;
         #endif
@@ -149,7 +161,13 @@ def python_OP_Next_translated(p, db, pc, pOp):
         pC.nullRow = rffi.cast(rffi.UCHAR, 1)
 
     pC.rowidIsValid = rffi.cast(rffi.UCHAR, 0)
-    # goto check_for_interrupt;
+
+    # Translated goto check_for_interrupt;
+    if rffi.cast(lltype.Signed, db.u1.isInterrupted) != 0:
+        # goto abort_due_to_interrupt;
+        print 'In python_OP_Next_translated(): abort_due_to_interrupt.'
+        assert False
+
     return pcRet, rc
 
 
