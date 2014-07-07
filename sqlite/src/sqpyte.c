@@ -2563,3 +2563,164 @@ int impl_OP_OpenAutoindex_OpenEphemeral(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   // break;
   return rc;
 }
+
+/* Opcode: MakeRecord P1 P2 P3 P4 *
+** Synopsis: r[P3]=mkrec(r[P1@P2])
+**
+** Convert P2 registers beginning with P1 into the [record format]
+** use as a data record in a database table or as a key
+** in an index.  The OP_Column opcode can decode the record later.
+**
+** P4 may be a string that is P2 characters long.  The nth character of the
+** string indicates the column affinity that should be used for the nth
+** field of the index key.
+**
+** The mapping from character to affinity is given by the SQLITE_AFF_
+** macros defined in sqliteInt.h.
+**
+** If P4 is NULL then all index fields have the affinity NONE.
+*/
+void impl_OP_MakeRecord(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+// case OP_MakeRecord: {
+  u8 *zNewRecord;        /* A buffer to hold the data for the new record */
+  Mem *pRec;             /* The new record */
+  u64 nData;             /* Number of bytes of data space */
+  int nHdr;              /* Number of bytes of header space */
+  i64 nByte;             /* Data space required for this record */
+  int nZero;             /* Number of zero bytes at the end of the record */
+  int nVarint;           /* Number of bytes in a varint */
+  u32 serial_type;       /* Type field */
+  Mem *pData0;           /* First field to be combined into the record */
+  Mem *pLast;            /* Last field of the record */
+  int nField;            /* Number of fields in the record */
+  char *zAffinity;       /* The affinity string for the record */
+  int file_format;       /* File format to use for encoding */
+  int i;                 /* Space used in zNewRecord[] header */
+  int j;                 /* Space used in zNewRecord[] content */
+  int len;               /* Length of a field */
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pOut;                 /* Output operand */
+  u8 encoding = ENC(db);     /* The database encoding */
+  
+  /* Assuming the record contains N fields, the record format looks
+  ** like this:
+  **
+  ** ------------------------------------------------------------------------
+  ** | hdr-size | type 0 | type 1 | ... | type N-1 | data0 | ... | data N-1 | 
+  ** ------------------------------------------------------------------------
+  **
+  ** Data(0) is taken from register P1.  Data(1) comes from register P1+1
+  ** and so froth.
+  **
+  ** Each type field is a varint representing the serial type of the 
+  ** corresponding data element (see sqlite3VdbeSerialType()). The
+  ** hdr-size field is also a varint which is the offset from the beginning
+  ** of the record to data0.
+  */
+  nData = 0;         /* Number of bytes of data space */
+  nHdr = 0;          /* Number of bytes of header space */
+  nZero = 0;         /* Number of zero bytes at the end of the record */
+  nField = pOp->p1;
+  zAffinity = pOp->p4.z;
+  assert( nField>0 && pOp->p2>0 && pOp->p2+nField<=(p->nMem-p->nCursor)+1 );
+  pData0 = &aMem[nField];
+  nField = pOp->p2;
+  pLast = &pData0[nField-1];
+  file_format = p->minWriteFileFormat;
+
+  /* Identify the output register */
+  assert( pOp->p3<pOp->p1 || pOp->p3>=pOp->p1+pOp->p2 );
+  pOut = &aMem[pOp->p3];
+  memAboutToChange(p, pOut);
+
+  /* Apply the requested affinity to all inputs
+  */
+  assert( pData0<=pLast );
+  if( zAffinity ){
+    pRec = pData0;
+    do{
+      applyAffinity(pRec++, *(zAffinity++), encoding);
+      assert( zAffinity[0]==0 || pRec<=pLast );
+    }while( zAffinity[0] );
+  }
+
+  /* Loop through the elements that will make up the record to figure
+  ** out how much space is required for the new record.
+  */
+  pRec = pLast;
+  do{
+    assert( memIsValid(pRec) );
+    serial_type = sqlite3VdbeSerialType(pRec, file_format);
+    len = sqlite3VdbeSerialTypeLen(serial_type);
+    if( pRec->flags & MEM_Zero ){
+      if( nData ){
+        sqlite3VdbeMemExpandBlob(pRec);
+      }else{
+        nZero += pRec->u.nZero;
+        len -= pRec->u.nZero;
+      }
+    }
+    nData += len;
+    testcase( serial_type==127 );
+    testcase( serial_type==128 );
+    nHdr += serial_type<=127 ? 1 : sqlite3VarintLen(serial_type);
+  }while( (--pRec)>=pData0 );
+
+  /* Add the initial header varint and total the size */
+  testcase( nHdr==126 );
+  testcase( nHdr==127 );
+  if( nHdr<=126 ){
+    /* The common case */
+    nHdr += 1;
+  }else{
+    /* Rare case of a really large header */
+    nVarint = sqlite3VarintLen(nHdr);
+    nHdr += nVarint;
+    if( nVarint<sqlite3VarintLen(nHdr) ) nHdr++;
+  }
+  nByte = nHdr+nData;
+  if( nByte>db->aLimit[SQLITE_LIMIT_LENGTH] ){
+    // goto too_big;
+    printf("In impl_OP_MakeRecord(): too_big.\n");
+    assert(0);    
+  }
+
+  /* Make sure the output register has a buffer large enough to store 
+  ** the new record. The output register (pOp->p3) is not allowed to
+  ** be one of the input registers (because the following call to
+  ** sqlite3VdbeMemGrow() could clobber the value before it is used).
+  */
+  if( sqlite3VdbeMemGrow(pOut, (int)nByte, 0) ){
+    // goto no_mem;
+    printf("In impl_OP_MakeRecord(): no_mem.\n");
+    assert(0);    
+  }
+  zNewRecord = (u8 *)pOut->z;
+
+  /* Write the record */
+  i = putVarint32(zNewRecord, nHdr);
+  j = nHdr;
+  assert( pData0<=pLast );
+  pRec = pData0;
+  do{
+    serial_type = sqlite3VdbeSerialType(pRec, file_format);
+    i += putVarint32(&zNewRecord[i], serial_type);            /* serial type */
+    j += sqlite3VdbeSerialPut(&zNewRecord[j], pRec, serial_type); /* content */
+  }while( (++pRec)<=pLast );
+  assert( i==nHdr );
+  assert( j==nByte );
+
+  assert( pOp->p3>0 && pOp->p3<=(p->nMem-p->nCursor) );
+  pOut->n = (int)nByte;
+  pOut->flags = MEM_Blob;
+  pOut->xDel = 0;
+  if( nZero ){
+    pOut->u.nZero = nZero;
+    pOut->flags |= MEM_Zero;
+  }
+  pOut->enc = SQLITE_UTF8;  /* In case the blob is ever converted to text */
+  REGISTER_TRACE(pOp->p3, pOut);
+  UPDATE_MAX_BLOBSIZE(pOut);
+  // break;
+}
