@@ -134,3 +134,4 @@ def test_query_19():
     print textlen
     print result
     assert float(result) == 22923.028
+
