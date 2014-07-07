@@ -166,9 +166,9 @@ class Sqlite3Query(object):
     def python_OP_IsNull(self, pc, pOp):
         return capi.impl_OP_IsNull(self.p, self.db, pc, pOp)
 
-    def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(self, pc, pOp):
+    def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(self, pc, rc, pOp):
         self.internalPc[0] = rffi.cast(rffi.INT, pc)
-        rc = capi.impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(self.p, self.db, self.internalPc, pOp)
+        rc = capi.impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(self.p, self.db, self.internalPc, rc, pOp)
         retPc = self.internalPc[0]
         return retPc, rc
 
@@ -207,7 +207,7 @@ class Sqlite3Query(object):
 
 
     def debug_print(self, s):
-        # return
+        return
         if not jit.we_are_jitted():
             print s
 
@@ -387,7 +387,7 @@ class Sqlite3Query(object):
                   opcode == CConfig.OP_SeekGE or 
                   opcode == CConfig.OP_SeekGT):
                 self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
-                pc, rc = self.python_OP_SeekLT_SeekLE_SeekGE_SeekGT(pc, pOp)
+                pc, rc = self.python_OP_SeekLT_SeekLE_SeekGE_SeekGT(pc, rc, pOp)
             elif opcode == CConfig.OP_Move:
                 self.debug_print('>>> OP_Move <<<')
                 self.python_OP_Move(pc, pOp)

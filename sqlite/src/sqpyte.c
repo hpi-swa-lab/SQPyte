@@ -1070,9 +1070,10 @@ int impl_OP_Ne_Eq_Gt_Le_Lt_Ge(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   u16 flags3;         /* Copy of initial value of pIn3->flags */
 
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
-  Mem *pIn1 = 0;             /* 1st input operand */
-  Mem *pIn3 = 0;             /* 3rd input operand */
-  Mem *pOut = 0;             /* Output operand */
+  Mem *pIn1;                 /* 1st input operand */
+  Mem *pIn3;                 /* 3rd input operand */
+  Mem *pOut;                 /* Output operand */
+  u8 encoding = ENC(db);
 
   pIn1 = &aMem[pOp->p1];
   pIn3 = &aMem[pOp->p3];
@@ -1119,7 +1120,6 @@ int impl_OP_Ne_Eq_Gt_Le_Lt_Ge(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
     /* Neither operand is NULL.  Do a comparison. */
     affinity = pOp->p5 & SQLITE_AFF_MASK;
     if( affinity ){
-      u8 encoding = ENC(db);  // Added by DK
       applyAffinity(pIn1, affinity, encoding);
       applyAffinity(pIn3, affinity, encoding);
       if( db->mallocFailed ) {
@@ -1170,7 +1170,7 @@ int impl_OP_Ne_Eq_Gt_Le_Lt_Ge(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 void impl_OP_Integer(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 // case OP_Integer: {         /* out2-prerelease */
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
-  Mem *pOut = 0;             /* Output operand */
+  Mem *pOut;                 /* Output operand */
   pOut = &aMem[pOp->p2];
   pOut->u.i = pOp->p1;
   pOut->flags = MEM_Int;
@@ -1194,7 +1194,7 @@ void impl_OP_Null(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   int cnt;
   u16 nullFlag;
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
-  Mem *pOut = 0;             /* Output operand */
+  Mem *pOut;                 /* Output operand */
 
   cnt = pOp->p3-pOp->p2;
   assert( pOp->p3<=(p->nMem-p->nCursor) );
@@ -1326,8 +1326,8 @@ void impl_OP_Copy(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 // case OP_Copy: {
   int n;
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
-  Mem *pIn1 = 0;             /* 1st input operand */
-  Mem *pOut = 0;             /* Output operand */
+  Mem *pIn1;                 /* 1st input operand */
+  Mem *pOut;                 /* Output operand */
 
   n = pOp->p3;
   pIn1 = &aMem[pOp->p1];
@@ -1363,7 +1363,7 @@ void impl_OP_Copy(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 int impl_OP_MustBeInt(Vdbe *p, sqlite3 *db, int pcIn, Op *pOp) {
 // case OP_MustBeInt: {            /* jump, in1 */
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
-  Mem *pIn1 = 0;             /* 1st input operand */
+  Mem *pIn1;                 /* 1st input operand */
   u8 encoding = ENC(db);     /* The database encoding */
   int rc;
   int pc = pcIn;
@@ -1414,7 +1414,7 @@ int impl_OP_NotExists(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
   u64 iKey;
 
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
-  Mem *pIn3 = 0;             /* 3rd input operand */
+  Mem *pIn3;                 /* 3rd input operand */
   int rc;
 
   pIn3 = &aMem[pOp->p3];
@@ -1452,7 +1452,7 @@ int impl_OP_NotExists(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
 void impl_OP_String(Vdbe *p, sqlite3 *db, int rc, Op *pOp) {
 // case OP_String: {          /* out2-prerelease */
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
-  Mem *pOut = 0;             /* Output operand */
+  Mem *pOut;                 /* Output operand */
   u8 encoding = ENC(db);     /* The database encoding */
 
   pOut = &aMem[pOp->p2];
@@ -1477,7 +1477,7 @@ void impl_OP_String(Vdbe *p, sqlite3 *db, int rc, Op *pOp) {
 int impl_OP_String8(Vdbe *p, sqlite3 *db, int rcIn, Op *pOp) {
 // case OP_String8: {         /* same as TK_STRING, out2-prerelease */
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
-  Mem *pOut = 0;             /* Output operand */
+  Mem *pOut;                 /* Output operand */
   u8 encoding = ENC(db);     /* The database encoding */
   int rc = rcIn;
   pOut = &aMem[pOp->p2];
@@ -1548,7 +1548,7 @@ int impl_OP_Function(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
   int n;
 
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
-  Mem *pOut = 0;             /* Output operand */
+  Mem *pOut;                 /* Output operand */
   u8 encoding = ENC(db);     /* The database encoding */
 
   n = pOp->p5;
@@ -1655,7 +1655,7 @@ int impl_OP_Function(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
 void impl_OP_Real(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 // case OP_Real: {            /* same as TK_FLOAT, out2-prerelease */
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
-  Mem *pOut = 0;             /* Output operand */
+  Mem *pOut;                 /* Output operand */
 
   pOut = &aMem[pOp->p2];
   pOut->flags = MEM_Real;
@@ -1676,7 +1676,7 @@ void impl_OP_Real(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 void impl_OP_RealAffinity(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 // case OP_RealAffinity: {                  /* in1 */
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
-  Mem *pIn1 = 0;             /* 1st input operand */
+  Mem *pIn1;                 /* 1st input operand */
 
   pIn1 = &aMem[pOp->p1];
   if( pIn1->flags & MEM_Int ){
@@ -1739,9 +1739,9 @@ void impl_OP_Add_Subtract_Multiply_Divide_Remainder(Vdbe *p, sqlite3 *db, int pc
   double rB;      /* Real value of right operand */
 
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
-  Mem *pIn1 = 0;             /* 1st input operand */
-  Mem *pIn2 = 0;
-  Mem *pOut = 0;             /* Output operand */
+  Mem *pIn1;                 /* 1st input operand */
+  Mem *pIn2;
+  Mem *pOut;                 /* Output operand */
 
   pIn1 = &aMem[pOp->p1];
   type1 = numericType(pIn1);
@@ -1838,7 +1838,7 @@ int impl_OP_If_IfNot(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   int c;
 
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
-  Mem *pIn1 = 0;             /* 1st input operand */
+  Mem *pIn1;                 /* 1st input operand */
 
   pIn1 = &aMem[pOp->p1];
   if( pIn1->flags & MEM_Null ){
@@ -1877,7 +1877,7 @@ int impl_OP_Rowid(Vdbe *p, sqlite3 *db, int rc, Op *pOp) {
   const sqlite3_module *pModule;
 
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
-  Mem *pOut = 0;             /* Output operand */
+  Mem *pOut;                 /* Output operand */
   pOut = &aMem[pOp->p2];
 
   assert( pOp->p1>=0 && pOp->p1<p->nCursor );
@@ -1914,6 +1914,7 @@ int impl_OP_Rowid(Vdbe *p, sqlite3 *db, int rc, Op *pOp) {
     }
   }
   pOut->u.i = v;
+
   // break;
   return rc;
 }
@@ -1926,7 +1927,7 @@ int impl_OP_Rowid(Vdbe *p, sqlite3 *db, int rc, Op *pOp) {
 int impl_OP_IsNull(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 // case OP_IsNull: {            /* same as TK_ISNULL, jump, in1 */
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
-  Mem *pIn1 = 0;             /* 1st input operand */
+  Mem *pIn1;                 /* 1st input operand */
 
   pIn1 = &aMem[pOp->p1];
   VdbeBranchTaken( (pIn1->flags & MEM_Null)!=0, 2);
@@ -1993,7 +1994,7 @@ int impl_OP_IsNull(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 **
 ** See also: Found, NotFound, Distinct, SeekGt, SeekGe, SeekLt
 */
-int impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
+int impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(Vdbe *p, sqlite3 *db, int *pc, int rc, Op *pOp) {
 // case OP_SeekLT:         /* jump, in3 */
 // case OP_SeekLE:         /* jump, in3 */
 // case OP_SeekGE:         /* jump, in3 */
@@ -2007,7 +2008,6 @@ int impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) 
 
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
   Mem *pIn3;                 /* 3rd input operand */
-  int rc;
 
   assert( pOp->p1>=0 && pOp->p1<p->nCursor );
   assert( pOp->p2!=0 );
@@ -2169,8 +2169,8 @@ void impl_OP_Move(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   int p2;          /* Register to copy to */
 
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
-  Mem *pIn1 = 0;             /* 1st input operand */
-  Mem *pOut = 0;             /* Output operand */
+  Mem *pIn1;                 /* 1st input operand */
+  Mem *pOut;                 /* Output operand */
 
   n = pOp->p3;
   p1 = pOp->p1;
@@ -2215,7 +2215,7 @@ void impl_OP_Move(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 int impl_OP_IfZero(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 // case OP_IfZero: {        /* jump, in1 */
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
-  Mem *pIn1 = 0;             /* 1st input operand */
+  Mem *pIn1;                 /* 1st input operand */
 
   pIn1 = &aMem[pOp->p1];
   assert( pIn1->flags&MEM_Int );
@@ -2244,7 +2244,7 @@ int impl_OP_IdxRowid(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   i64 rowid;
 
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
-  Mem *pOut = 0;             /* Output operand */
+  Mem *pOut;                 /* Output operand */
   int rc;
 
   pOut = &aMem[pOp->p2];
