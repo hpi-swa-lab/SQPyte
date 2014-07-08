@@ -247,8 +247,8 @@ int impl_OP_TableLock(Vdbe *p, sqlite3 *db, int rc, Op *pOp) {
 ** that this Goto is the bottom of a loop and that the lines from P2 down
 ** to the current line should be indented for EXPLAIN output.
 */
-int impl_OP_Goto(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
-  pc = pOp->p2 - 1;
+int impl_OP_Goto(Vdbe *p, sqlite3 *db, int *pc, int rc, Op *pOp) {
+  *pc = pOp->p2 - 1;
 
   /* Opcodes that are used as the bottom of a loop (OP_Next, OP_Prev,
   ** OP_VNext, OP_RowSetNext, or OP_SorterNext) all jump here upon
@@ -265,7 +265,7 @@ int impl_OP_Goto(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
   if( db->u1.isInterrupted ) {
     // goto abort_due_to_interrupt;
     printf("In impl_OP_Goto(): abort_due_to_interrupt.\n");
-    rc = gotoAbortDueToInterrupt(p, db, pc, rc);
+    rc = gotoAbortDueToInterrupt(p, db, *pc, rc);
     return rc;
   }
 #ifndef SQLITE_OMIT_PROGRESS_CALLBACK
@@ -282,12 +282,12 @@ int impl_OP_Goto(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
       rc = SQLITE_INTERRUPT;
       // goto vdbe_error_halt;
       printf("In impl_OP_Goto(): vdbe_error_halt.\n");
-      rc = gotoVdbeErrorHalt(p, db, pc, rc);
+      rc = gotoVdbeErrorHalt(p, db, *pc, rc);
       return rc;
     }
   }
 #endif
-  return pc;
+  return rc;
 }
 
 /* Opcode: OpenRead P1 P2 P3 P4 P5
