@@ -60,11 +60,7 @@ class Sqlite3Query(object):
         capi.sqlite3_reset(self.p)
 
     def python_OP_Init(self, pc, pOp):
-        cond = rffi.cast(lltype.Bool, pOp.p2)
-        p2 = rffi.cast(lltype.Signed, pOp.p2)
-        if cond:
-            pc = p2 - 1
-        return pc
+        return translated.python_OP_Init_translated(pc, pOp)
 
     def python_OP_Rewind(self, pc, pOp):
         self.internalPc[0] = rffi.cast(rffi.INT, pc)
@@ -79,41 +75,11 @@ class Sqlite3Query(object):
         return capi.impl_OP_TableLock(self.p, self.db, rc, pOp)
 
     def python_OP_Goto(self, pc, rc, pOp):
-        p2 = rffi.cast(lltype.Signed, pOp.p2)
-        pc = p2 - 1
-
-        # Translated goto check_for_interrupt;
-        if self.db.u1.isInterrupted:
-            # goto abort_due_to_interrupt;
-            print 'In python_OP_Goto(): abort_due_to_interrupt.'
-            rc = capi.sqlite3_gotoAbortDueToInterrupt(p, db, pcRet, rc)
-            return pc, rc
-
-        # #ifndef SQLITE_OMIT_PROGRESS_CALLBACK
-        #   /* Call the progress callback if it is configured and the required number
-        #   ** of VDBE ops have been executed (either since this invocation of
-        #   ** sqlite3VdbeExec() or since last time the progress callback was called).
-        #   ** If the progress callback returns non-zero, exit the virtual machine with
-        #   ** a return code SQLITE_ABORT.
-        #   */
-        #   if( db->xProgress!=0 && nVmStep>=nProgressLimit ){
-        #     assert( db->nProgressOps!=0 );
-        #     nProgressLimit = nVmStep + db->nProgressOps - (nVmStep%db->nProgressOps);
-        #     if( db->xProgress(db->pProgressArg) ){
-        #       rc = SQLITE_INTERRUPT;
-        #       // goto vdbe_error_halt;
-        #       printf("In python_OP_Goto(): vdbe_error_halt.\n");
-        #       rc = gotoVdbeErrorHalt(p, db, *pc, rc);
-        #       return rc;
-        #     }
-        #   }
-        # #endif
-
-        return pc, rc
+        return translated.python_OP_Goto_translated(self.db, pc, rc, pOp)
 
     def python_OP_OpenRead_OpenWrite(self, pc, pOp):
         return capi.impl_OP_OpenRead_OpenWrite(self.p, self.db, pc, pOp)
-        # translated.python_OP_OpenRead_OpenWrite_translated(self.p, self.db, rc, pOp)
+        # translated.python_OP_OpenRead_OpenWrite_translated(self.p, self.db, pc, pOp)
 
     def python_OP_Column(self, pc, pOp):
         return capi.impl_OP_Column(self.p, self.db, pc, pOp)
@@ -128,7 +94,7 @@ class Sqlite3Query(object):
         #retPc = self.internalPc[0]
         #return retPc, rc
 
-        retPc, rc = translated.python_OP_Next_translated(self.p, self.db, pc, pOp) #self.internalPc, pOp)
+        retPc, rc = translated.python_OP_Next_translated(self.p, self.db, pc, pOp)
         return retPc, rc
 
     def python_OP_Close(self, pOp):

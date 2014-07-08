@@ -21,7 +21,77 @@ def sqlite3VdbeSorterRewind(db, pC, res):
         errorcode = capi.sqlite3_sqlite3VdbeSorterRewind(db, pC, res)
         return rffi.cast(rffi.INTP, res[0])
 
-def python_OP_OpenRead_OpenWrite_translated(p, db, rc, pOp):
+def python_OP_Init_translated(pc, pOp):
+    cond = rffi.cast(lltype.Bool, pOp.p2)
+    p2 = rffi.cast(lltype.Signed, pOp.p2)
+    if cond:
+        pc = p2 - 1
+
+    # #ifndef SQLITE_OMIT_TRACE
+    #   if( db->xTrace
+    #    && !p->doingRerun
+    #    && (zTrace = (pOp->p4.z ? pOp->p4.z : p->zSql))!=0
+    #   ){
+    #     z = sqlite3VdbeExpandSql(p, zTrace);
+    #     db->xTrace(db->pTraceArg, z);
+    #     sqlite3DbFree(db, z);
+    #   }
+    # #ifdef SQLITE_USE_FCNTL_TRACE
+    #   zTrace = (pOp->p4.z ? pOp->p4.z : p->zSql);
+    #   if( zTrace ){
+    #     int i;
+    #     for(i=0; i<db->nDb; i++){
+    #       if( MASKBIT(i) & p->btreeMask)==0 ) continue;
+    #       sqlite3_file_control(db, db->aDb[i].zName, SQLITE_FCNTL_TRACE, zTrace);
+    #     }
+    #   }
+    # #endif /* SQLITE_USE_FCNTL_TRACE */
+    # #ifdef SQLITE_DEBUG
+    #   if( (db->flags & SQLITE_SqlTrace)!=0
+    #    && (zTrace = (pOp->p4.z ? pOp->p4.z : p->zSql))!=0
+    #   ){
+    #     sqlite3DebugPrintf("SQL-trace: %s\n", zTrace);
+    #   }
+    # #endif /* SQLITE_DEBUG */
+    # #endif /* SQLITE_OMIT_TRACE */
+
+    return pc
+
+def python_OP_Goto_translated(db, pc, rc, pOp):
+    p2 = rffi.cast(lltype.Signed, pOp.p2)
+    pc = p2 - 1
+
+    # Translated goto check_for_interrupt;
+    if db.u1.isInterrupted:
+        # goto abort_due_to_interrupt;
+        print 'In python_OP_Goto(): abort_due_to_interrupt.'
+        rc = capi.sqlite3_gotoAbortDueToInterrupt(p, db, pcRet, rc)
+        return pc, rc
+
+    # #ifndef SQLITE_OMIT_PROGRESS_CALLBACK
+    #   /* Call the progress callback if it is configured and the required number
+    #   ** of VDBE ops have been executed (either since this invocation of
+    #   ** sqlite3VdbeExec() or since last time the progress callback was called).
+    #   ** If the progress callback returns non-zero, exit the virtual machine with
+    #   ** a return code SQLITE_ABORT.
+    #   */
+    #   if( db->xProgress!=0 && nVmStep>=nProgressLimit ){
+    #     assert( db->nProgressOps!=0 );
+    #     nProgressLimit = nVmStep + db->nProgressOps - (nVmStep%db->nProgressOps);
+    #     if( db->xProgress(db->pProgressArg) ){
+    #       rc = SQLITE_INTERRUPT;
+    #       // goto vdbe_error_halt;
+    #       printf("In python_OP_Goto(): vdbe_error_halt.\n");
+    #       rc = gotoVdbeErrorHalt(p, db, *pc, rc);
+    #       return rc;
+    #     }
+    #   }
+    # #endif
+
+    return pc, rc
+
+
+def python_OP_OpenRead_OpenWrite_translated(p, db, pc, pOp):
     assert pOp.p5 & (CConfig.OPFLAG_P2ISREG | CConfig.OPFLAG_BULKCSR) == pOp.p5
     assert pOp.opcode == CConfig.OP_OpenWrite or pOp.p5 == 0
     # assert(p.bIsReader)
