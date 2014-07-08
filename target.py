@@ -9,7 +9,7 @@ testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sqpyte/test/t
 assert os.path.isfile(testdb)
 
 jitdriver = jit.JitDriver(
-    greens=['query'], 
+    greens=['query', 'queryRes'], 
     reds=['i', 'rc'],
     )
     # get_printable_location=get_printable_location)
@@ -20,7 +20,7 @@ def run(query, queryRes):
     i = 0
     textlen = 0
     while rc == CConfig.SQLITE_ROW:
-        jitdriver.jit_merge_point(i=i, query=query, rc=rc)
+        jitdriver.jit_merge_point(i=i, query=query, queryRes=queryRes, rc=rc)
         textlen = query.python_sqlite3_column_bytes(0)
         rc = query.mainloop()
         i += textlen
