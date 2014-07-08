@@ -165,10 +165,31 @@ def python_OP_Next_translated(p, db, pc, pOp):
     pC.rowidIsValid = rffi.cast(rffi.UCHAR, 0)
 
     # Translated goto check_for_interrupt;
-    if rffi.cast(lltype.Signed, db.u1.isInterrupted) != 0:
+    if db.u1.isInterrupted:
         # goto abort_due_to_interrupt;
         print 'In python_OP_Next_translated(): abort_due_to_interrupt.'
-        assert False
+        rc = capi.sqlite3_gotoAbortDueToInterrupt(p, db, pcRet, rc)
+        return pcRet, rc
+
+    # #ifndef SQLITE_OMIT_PROGRESS_CALLBACK
+    #   /* Call the progress callback if it is configured and the required number
+    #   ** of VDBE ops have been executed (either since this invocation of
+    #   ** sqlite3VdbeExec() or since last time the progress callback was called).
+    #   ** If the progress callback returns non-zero, exit the virtual machine with
+    #   ** a return code SQLITE_ABORT.
+    #   */
+    #   if( db->xProgress!=0 && nVmStep>=nProgressLimit ){
+    #     assert( db->nProgressOps!=0 );
+    #     nProgressLimit = nVmStep + db->nProgressOps - (nVmStep%db->nProgressOps);
+    #     if( db->xProgress(db->pProgressArg) ){
+    #       rc = SQLITE_INTERRUPT;
+    #       // goto vdbe_error_halt;
+    #       printf("In impl_OP_Next(): vdbe_error_halt.\n");
+    #       rc = gotoVdbeErrorHalt(p, db, *pc, rc);
+    #       return rc;
+    #     }
+    #   }
+    # #endif
 
     return pcRet, rc
 

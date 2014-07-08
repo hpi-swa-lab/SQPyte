@@ -648,4 +648,6 @@ sqlite3_column_bytes = rffi.llexternal('sqlite3_column_bytes', [VDBEP, rffi.INT]
 
 sqlite3_sqlite3BtreeNext = rffi.llexternal('sqlite3BtreeNext', [BTCURSORP, rffi.INTP],
     rffi.INT, compilation_info=CConfig._compilation_info_)
+sqlite3_gotoAbortDueToInterrupt = rffi.llexternal('gotoAbortDueToInterrupt', [VDBEP, SQLITE3P, rffi.INT, rffi.INT],
+    rffi.INT, compilation_info=CConfig._compilation_info_)
 
