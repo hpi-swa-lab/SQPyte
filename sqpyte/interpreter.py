@@ -78,10 +78,38 @@ class Sqlite3Query(object):
     def python_OP_TableLock(self, rc, pOp):
         return capi.impl_OP_TableLock(self.p, self.db, rc, pOp)
 
-    def python_OP_Goto(self, pc, pOp):
+    def python_OP_Goto(self, pc, rc, pOp):
         p2 = rffi.cast(lltype.Signed, pOp.p2)
         pc = p2 - 1
-        return pc
+
+        # Translated goto check_for_interrupt;
+        if self.db.u1.isInterrupted:
+            # goto abort_due_to_interrupt;
+            print 'In python_OP_Goto(): abort_due_to_interrupt.'
+            rc = capi.sqlite3_gotoAbortDueToInterrupt(p, db, pcRet, rc)
+            return pc, rc
+
+        # #ifndef SQLITE_OMIT_PROGRESS_CALLBACK
+        #   /* Call the progress callback if it is configured and the required number
+        #   ** of VDBE ops have been executed (either since this invocation of
+        #   ** sqlite3VdbeExec() or since last time the progress callback was called).
+        #   ** If the progress callback returns non-zero, exit the virtual machine with
+        #   ** a return code SQLITE_ABORT.
+        #   */
+        #   if( db->xProgress!=0 && nVmStep>=nProgressLimit ){
+        #     assert( db->nProgressOps!=0 );
+        #     nProgressLimit = nVmStep + db->nProgressOps - (nVmStep%db->nProgressOps);
+        #     if( db->xProgress(db->pProgressArg) ){
+        #       rc = SQLITE_INTERRUPT;
+        #       // goto vdbe_error_halt;
+        #       printf("In python_OP_Goto(): vdbe_error_halt.\n");
+        #       rc = gotoVdbeErrorHalt(p, db, *pc, rc);
+        #       return rc;
+        #     }
+        #   }
+        # #endif
+
+        return pc, rc
 
     def python_OP_OpenRead_OpenWrite(self, pc, pOp):
         return capi.impl_OP_OpenRead_OpenWrite(self.p, self.db, pc, pOp)
@@ -300,7 +328,7 @@ class Sqlite3Query(object):
                 rc = self.python_OP_TableLock(rc, pOp)
             elif opcode == CConfig.OP_Goto:
                 self.debug_print('>>> OP_Goto <<<')
-                pc = self.python_OP_Goto(pc, pOp)
+                pc, rc = self.python_OP_Goto(pc, rc, pOp)
             elif opcode == CConfig.OP_Column:
                 self.debug_print('>>> OP_Column <<<')
                 rc = self.python_OP_Column(pc, pOp)
