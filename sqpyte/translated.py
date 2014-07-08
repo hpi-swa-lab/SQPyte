@@ -57,15 +57,15 @@ def python_OP_Init_translated(pc, pOp):
 
     return pc
 
-def python_OP_Goto_translated(db, pc, rc, pOp):
+def python_OP_Goto_translated(p, db, pc, rc, pOp):
     p2 = rffi.cast(lltype.Signed, pOp.p2)
     pc = p2 - 1
 
     # Translated goto check_for_interrupt;
-    if db.u1.isInterrupted:
+    if rffi.cast(lltype.Signed, db.u1.isInterrupted) != 0:
         # goto abort_due_to_interrupt;
         print 'In python_OP_Goto(): abort_due_to_interrupt.'
-        rc = capi.sqlite3_gotoAbortDueToInterrupt(p, db, pcRet, rc)
+        rc = capi.sqlite3_gotoAbortDueToInterrupt(p, db, pc, rc)
         return pc, rc
 
     # #ifndef SQLITE_OMIT_PROGRESS_CALLBACK
@@ -235,7 +235,7 @@ def python_OP_Next_translated(p, db, pc, pOp):
     pC.rowidIsValid = rffi.cast(rffi.UCHAR, 0)
 
     # Translated goto check_for_interrupt;
-    if db.u1.isInterrupted:
+    if rffi.cast(lltype.Signed, db.u1.isInterrupted) != 0:
         # goto abort_due_to_interrupt;
         print 'In python_OP_Next_translated(): abort_due_to_interrupt.'
         rc = capi.sqlite3_gotoAbortDueToInterrupt(p, db, pcRet, rc)

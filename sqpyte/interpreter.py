@@ -75,7 +75,7 @@ class Sqlite3Query(object):
         return capi.impl_OP_TableLock(self.p, self.db, rc, pOp)
 
     def python_OP_Goto(self, pc, rc, pOp):
-        return translated.python_OP_Goto_translated(self.db, pc, rc, pOp)
+        return translated.python_OP_Goto_translated(self.p, self.db, pc, rc, pOp)
 
     def python_OP_OpenRead_OpenWrite(self, pc, pOp):
         return capi.impl_OP_OpenRead_OpenWrite(self.p, self.db, pc, pOp)
@@ -240,7 +240,7 @@ class Sqlite3Query(object):
 
 
     def debug_print(self, s):
-        # return
+        return
         if not jit.we_are_jitted():
             print s
 
