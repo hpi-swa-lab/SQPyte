@@ -75,17 +75,17 @@ class Sqlite3Query(object):
     def python_OP_Transaction(self, pc, pOp):
         return capi.impl_OP_Transaction(self.p, self.db, pc, pOp)
 
-    def python_OP_TableLock(self, pc, pOp):
-        return capi.impl_OP_TableLock(self.p, self.db, pc, pOp)
+    def python_OP_TableLock(self, rc, pOp):
+        return capi.impl_OP_TableLock(self.p, self.db, rc, pOp)
 
     def python_OP_Goto(self, pc, pOp):
         p2 = rffi.cast(lltype.Signed, pOp.p2)
         pc = p2 - 1
         return pc
 
-    def python_OP_OpenRead(self, pc, pOp):
-        capi.impl_OP_OpenRead(self.p, self.db, pc, pOp)
-        # translated.python_OP_OpenRead_translated(self.p, self.db, pc, pOp)
+    def python_OP_OpenRead_OpenWrite(self, pc, pOp):
+        return capi.impl_OP_OpenRead_OpenWrite(self.p, self.db, pc, pOp)
+        # translated.python_OP_OpenRead_OpenWrite_translated(self.p, self.db, rc, pOp)
 
     def python_OP_Column(self, pc, pOp):
         return capi.impl_OP_Column(self.p, self.db, pc, pOp)
@@ -103,8 +103,8 @@ class Sqlite3Query(object):
         retPc, rc = translated.python_OP_Next_translated(self.p, self.db, pc, pOp) #self.internalPc, pOp)
         return retPc, rc
 
-    def python_OP_Close(self, pc, pOp):
-        capi.impl_OP_Close(self.p, self.db, pc, pOp)
+    def python_OP_Close(self, pOp):
+        capi.impl_OP_Close(self.p, pOp)
 
     def python_OP_Halt(self, pc, pOp):
         self.internalPc[0] = rffi.cast(rffi.INT, pc)
@@ -112,26 +112,32 @@ class Sqlite3Query(object):
         retPc = self.internalPc[0]
         return retPc, rc
 
-    def python_OP_Ne_Eq_Gt_Le_Lt_Ge(self, pc, pOp):
-        return capi.impl_OP_Ne_Eq_Gt_Le_Lt_Ge(self.p, self.db, pc, pOp)
+    def python_OP_Ne_Eq_Gt_Le_Lt_Ge(self, pc, rc, pOp):
+        self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        rc = capi.impl_OP_Ne_Eq_Gt_Le_Lt_Ge(self.p, self.db, self.internalPc, rc, pOp)
+        retPc = self.internalPc[0]
+        return retPc, rc
 
-    def python_OP_Integer(self, pc, pOp):
-        capi.impl_OP_Integer(self.p, self.db, pc, pOp)
+    def python_OP_Integer(self, pOp):
+        capi.impl_OP_Integer(self.p, pOp)
 
-    def python_OP_Null(self, pc, pOp):
-        capi.impl_OP_Null(self.p, self.db, pc, pOp)
+    def python_OP_Null(self, pOp):
+        capi.impl_OP_Null(self.p, pOp)
 
     def python_OP_AggStep(self, rc, pOp):
         return capi.impl_OP_AggStep(self.p, self.db, rc, pOp)
 
-    def python_OP_AggFinal(self, rc, pOp):
-        capi.impl_OP_AggFinal(self.p, self.db, rc, pOp)
+    def python_OP_AggFinal(self, pc, rc, pOp):
+        return capi.impl_OP_AggFinal(self.p, self.db, pc, rc, pOp)
 
-    def python_OP_Copy(self, pc, pOp):
-        capi.impl_OP_Copy(self.p, self.db, pc, pOp)
+    def python_OP_Copy(self, pc, rc, pOp):
+        return capi.impl_OP_Copy(self.p, self.db, pc, rc, pOp)
 
-    def python_OP_MustBeInt(self, pc, pOp):
-        return capi.impl_OP_MustBeInt(self.p, self.db, pc, pOp)
+    def python_OP_MustBeInt(self, pc, rc, pOp):
+        self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        rc = capi.impl_OP_MustBeInt(self.p, self.db, self.internalPc, rc, pOp)
+        retPc = self.internalPc[0]
+        return retPc, rc
 
     def python_OP_NotExists(self, pc, pOp):
         self.internalPc[0] = rffi.cast(rffi.INT, pc)
@@ -139,38 +145,38 @@ class Sqlite3Query(object):
         retPc = self.internalPc[0]
         return retPc, rc
 
-    def python_OP_String(self, pc, pOp):
-        capi.impl_OP_String(self.p, self.db, pc, pOp)
+    def python_OP_String(self, pOp):
+        capi.impl_OP_String(self.p, self.db, pOp)
 
-    def python_OP_String8(self, rc, pOp):
-        return capi.impl_OP_String8(self.p, self.db, rc, pOp)
+    def python_OP_String8(self, pc, rc, pOp):
+        return capi.impl_OP_String8(self.p, self.db, pc, rc, pOp)
 
     def python_OP_Function(self, pc, rc, pOp):
         return capi.impl_OP_Function(self.p, self.db, pc, rc, pOp)
 
-    def python_OP_Real(self, pc, pOp):
+    def python_OP_Real(self, pOp):
         # aMem = self.p.aMem
         # pOut = aMem[pOp.p2]
         # pOut.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Real)
         # assert not math.isnan(pOp.p4.pReal)
         # pOut.r = pOp.p4.pReal
 
-        capi.impl_OP_Real(self.p, self.db, pc, pOp)
+        capi.impl_OP_Real(self.p, pOp)
 
-    def python_OP_RealAffinity(self, pc, pOp):
-        capi.impl_OP_RealAffinity(self.p, self.db, pc, pOp)
+    def python_OP_RealAffinity(self, pOp):
+        capi.impl_OP_RealAffinity(self.p, pOp)
 
     def python_OP_Add_Subtract_Multiply_Divide_Remainder(self, pc, pOp):
-        capi.impl_OP_Add_Subtract_Multiply_Divide_Remainder(self.p, self.db, pc, pOp)
+        capi.impl_OP_Add_Subtract_Multiply_Divide_Remainder(self.p, pc, pOp)
 
     def python_OP_If_IfNot(self, pc, pOp):
-        return capi.impl_OP_If_IfNot(self.p, self.db, pc, pOp)
+        return capi.impl_OP_If_IfNot(self.p, pc, pOp)
 
-    def python_OP_Rowid(self, rc, pOp):
-        return capi.impl_OP_Rowid(self.p, self.db, rc, pOp)
+    def python_OP_Rowid(self, pc, rc, pOp):
+        return capi.impl_OP_Rowid(self.p, self.db, pc, rc, pOp)
 
     def python_OP_IsNull(self, pc, pOp):
-        return capi.impl_OP_IsNull(self.p, self.db, pc, pOp)
+        return capi.impl_OP_IsNull(self.p, pc, pOp)
 
     def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(self, pc, rc, pOp):
         self.internalPc[0] = rffi.cast(rffi.INT, pc)
@@ -178,56 +184,59 @@ class Sqlite3Query(object):
         retPc = self.internalPc[0]
         return retPc, rc
 
-    def python_OP_Move(self, pc, pOp):
-        capi.impl_OP_Move(self.p, self.db, pc, pOp)
+    def python_OP_Move(self, pOp):
+        capi.impl_OP_Move(self.p, pOp)
 
     def python_OP_IfZero(self, pc, pOp):
-        return capi.impl_OP_IfZero(self.p, self.db, pc, pOp)
+        return capi.impl_OP_IfZero(self.p, pc, pOp)
 
-    def python_OP_IdxRowid(self, pc, pOp):
-        return capi.impl_OP_IdxRowid(self.p, self.db, pc, pOp)
+    def python_OP_IdxRowid(self, pc, rc, pOp):
+        return capi.impl_OP_IdxRowid(self.p, self.db, pc, rc, pOp)
 
     def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(self, pc, pOp):
         self.internalPc[0] = rffi.cast(rffi.INT, pc)
-        rc = capi.impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(self.p, self.db, self.internalPc, pOp)
+        rc = capi.impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(self.p, self.internalPc, pOp)
         retPc = self.internalPc[0]
         return retPc, rc
 
-    def python_OP_Seek(self, pc, pOp):
-        capi.impl_OP_Seek(self.p, self.db, pc, pOp)
+    def python_OP_Seek(self, pOp):
+        capi.impl_OP_Seek(self.p, pOp)
 
     def python_OP_Once(self, pc, pOp):
-        return capi.impl_OP_Once(self.p, self.db, pc, pOp)
+        return capi.impl_OP_Once(self.p, pc, pOp)
 
-    def python_OP_SCopy(self, pc, pOp):
-        capi.impl_OP_SCopy(self.p, self.db, pc, pOp)
+    def python_OP_SCopy(self, pOp):
+        capi.impl_OP_SCopy(self.p, pOp)
 
-    def python_OP_Affinity(self, pc, pOp):
-        capi.impl_OP_Affinity(self.p, self.db, pc, pOp)
+    def python_OP_Affinity(self, pOp):
+        capi.impl_OP_Affinity(self.p, self.db, pOp)
 
     def python_OP_OpenAutoindex_OpenEphemeral(self, pc, pOp):
         return capi.impl_OP_OpenAutoindex_OpenEphemeral(self.p, self.db, pc, pOp)
 
-    def python_OP_MakeRecord(self, pc, pOp):
-        capi.impl_OP_MakeRecord(self.p, self.db, pc, pOp)
+    def python_OP_MakeRecord(self, pc, rc, pOp):
+        return capi.impl_OP_MakeRecord(self.p, self.db, pc, rc, pOp)
 
-    def python_OP_SorterInsert_IdxInsert(self, pc, pOp):
-        return capi.impl_OP_SorterInsert_IdxInsert(self.p, self.db, pc, pOp)
+    def python_OP_SorterInsert_IdxInsert(self, pOp):
+        return capi.impl_OP_SorterInsert_IdxInsert(self.p, self.db, pOp)
 
-    def python_OP_NoConflict_NotFound_Found(self, pc, pOp):
+    def python_OP_NoConflict_NotFound_Found(self, pc, rc, pOp):
         self.internalPc[0] = rffi.cast(rffi.INT, pc)
-        rc = capi.impl_OP_NoConflict_NotFound_Found(self.p, self.db, self.internalPc, pOp)
+        rc = capi.impl_OP_NoConflict_NotFound_Found(self.p, self.db, self.internalPc, rc, pOp)
         retPc = self.internalPc[0]
         return retPc, rc        
 
-    def python_OP_RowSetTest(self, pc, pOp):
-        return capi.impl_OP_RowSetTest(self.p, self.db, pc, pOp)
+    def python_OP_RowSetTest(self, pc, rc, pOp):
+        self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        rc = capi.impl_OP_RowSetTest(self.p, self.db, self.internalPc, rc, pOp)
+        retPc = self.internalPc[0]
+        return retPc, rc        
 
     def python_OP_Gosub(self, pc, pOp):
-        return capi.impl_OP_Gosub(self.p, self.db, pc, pOp)
+        return capi.impl_OP_Gosub(self.p, pc, pOp)
 
     def python_OP_Return(self, pc, pOp):
-        return capi.impl_OP_Return(self.p, self.db, pc, pOp)
+        return capi.impl_OP_Return(self.p, pc, pOp)
 
 
     def python_sqlite3_column_text(self, iCol):
@@ -237,7 +246,7 @@ class Sqlite3Query(object):
 
 
     def debug_print(self, s):
-        # return
+        return
         if not jit.we_are_jitted():
             print s
 
@@ -273,9 +282,10 @@ class Sqlite3Query(object):
             if opcode == CConfig.OP_Init:
                 self.debug_print('>>> OP_Init <<<')
                 pc = self.python_OP_Init(pc, pOp)
-            elif opcode == CConfig.OP_OpenRead or opcode == CConfig.OP_OpenWrite:
-                self.debug_print('>>> OP_OpenRead <<<')
-                self.python_OP_OpenRead(pc, pOp)
+            elif (opcode == CConfig.OP_OpenRead or
+                  opcode == CConfig.OP_OpenWrite):
+                self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
+                rc = self.python_OP_OpenRead_OpenWrite(pc, pOp)
             elif opcode == CConfig.OP_Rewind:
                 self.debug_print('>>> OP_Rewind <<<')
                 pc, rc = self.python_OP_Rewind(pc, pOp)
@@ -287,7 +297,7 @@ class Sqlite3Query(object):
                     return rc
             elif opcode == CConfig.OP_TableLock:
                 self.debug_print('>>> OP_TableLock <<<')
-                rc = self.python_OP_TableLock(pc, pOp)
+                rc = self.python_OP_TableLock(rc, pOp)
             elif opcode == CConfig.OP_Goto:
                 self.debug_print('>>> OP_Goto <<<')
                 pc = self.python_OP_Goto(pc, pOp)
@@ -304,7 +314,7 @@ class Sqlite3Query(object):
                 pc, rc = self.python_OP_Next(pc, pOp)
             elif opcode == CConfig.OP_Close:
                 self.debug_print('>>> OP_Close <<<')
-                self.python_OP_Close(pc, pOp)
+                self.python_OP_Close(pOp)
             elif opcode == CConfig.OP_Halt:
                 self.debug_print('>>> OP_Halt <<<')
                 pc, rc = self.python_OP_Halt(pc, pOp)
@@ -316,43 +326,43 @@ class Sqlite3Query(object):
                   opcode == CConfig.OP_Gt or 
                   opcode == CConfig.OP_Ge):
                 self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
-                pc = self.python_OP_Ne_Eq_Gt_Le_Lt_Ge(pc, pOp)
+                pc, rc = self.python_OP_Ne_Eq_Gt_Le_Lt_Ge(pc, rc, pOp)
             elif opcode == CConfig.OP_Integer:
                 self.debug_print('>>> OP_Integer <<<')
-                self.python_OP_Integer(pc, pOp)
+                self.python_OP_Integer(pOp)
             elif opcode == CConfig.OP_Null:
                 self.debug_print('>>> OP_Null <<<')
-                self.python_OP_Null(pc, pOp)
+                self.python_OP_Null(pOp)
             elif opcode == CConfig.OP_AggStep:
                 self.debug_print('>>> OP_AggStep <<<')
                 rc = self.python_OP_AggStep(rc, pOp)
             elif opcode == CConfig.OP_AggFinal:
                 self.debug_print('>>> OP_AggFinal <<<')
-                self.python_OP_AggFinal(rc, pOp)
+                rc = self.python_OP_AggFinal(pc, rc, pOp)
             elif opcode == CConfig.OP_Copy:
                 self.debug_print('>>> OP_Copy <<<')
-                self.python_OP_Copy(pc, pOp)
+                rc = self.python_OP_Copy(pc, rc, pOp)
             elif opcode == CConfig.OP_MustBeInt:
                 self.debug_print('>>> OP_MustBeInt <<<')
-                pc = self.python_OP_MustBeInt(pc, pOp)
+                pc, rc = self.python_OP_MustBeInt(pc, rc, pOp)
             elif opcode == CConfig.OP_NotExists:
                 self.debug_print('>>> OP_NotExists <<<')
                 pc, rc = self.python_OP_NotExists(pc, pOp)
             elif opcode == CConfig.OP_String:
                 self.debug_print('>>> OP_String <<<')
-                self.python_OP_String(pc, pOp)
+                self.python_OP_String(pOp)
             elif opcode == CConfig.OP_String8:
                 self.debug_print('>>> OP_String8 <<<')
-                rc = self.python_OP_String8(rc, pOp)
+                rc = self.python_OP_String8(pc, rc, pOp)
             elif opcode == CConfig.OP_Function:
                 self.debug_print('>>> OP_Function <<<')
                 rc = self.python_OP_Function(pc, rc, pOp)
             elif opcode == CConfig.OP_Real:
                 self.debug_print('>>> OP_Real <<<')
-                self.python_OP_Real(pc, pOp)
+                self.python_OP_Real(pOp)
             elif opcode == CConfig.OP_RealAffinity:
                 self.debug_print('>>> OP_RealAffinity <<<')
-                self.python_OP_RealAffinity(pc, pOp)
+                self.python_OP_RealAffinity(pOp)
             elif (opcode == CConfig.OP_Add or 
                   opcode == CConfig.OP_Subtract or 
                   opcode == CConfig.OP_Multiply or 
@@ -366,7 +376,7 @@ class Sqlite3Query(object):
                 pc = self.python_OP_If_IfNot(pc, pOp)
             elif opcode == CConfig.OP_Rowid:
                 self.debug_print('>>> OP_Rowid <<<')
-                rc = self.python_OP_Rowid(rc, pOp)
+                rc = self.python_OP_Rowid(pc, rc, pOp)
             elif opcode == CConfig.OP_IsNull:
                 self.debug_print('>>> OP_IsNull <<<')
                 pc = self.python_OP_IsNull(pc, pOp)
@@ -378,13 +388,13 @@ class Sqlite3Query(object):
                 pc, rc = self.python_OP_SeekLT_SeekLE_SeekGE_SeekGT(pc, rc, pOp)
             elif opcode == CConfig.OP_Move:
                 self.debug_print('>>> OP_Move <<<')
-                self.python_OP_Move(pc, pOp)
+                self.python_OP_Move(pOp)
             elif opcode == CConfig.OP_IfZero:
                 self.debug_print('>>> OP_IfZero <<<')
                 pc = self.python_OP_IfZero(pc, pOp)
             elif opcode == CConfig.OP_IdxRowid:
                 self.debug_print('>>> OP_IdxRowid <<<')
-                rc = self.python_OP_IdxRowid(pc, pOp)
+                rc = self.python_OP_IdxRowid(pc, rc, pOp)
             elif (opcode == CConfig.OP_IdxLE or 
                   opcode == CConfig.OP_IdxGT or 
                   opcode == CConfig.OP_IdxLT or 
@@ -393,35 +403,35 @@ class Sqlite3Query(object):
                 pc, rc = self.python_OP_IdxLE_IdxGT_IdxLT_IdxGE(pc, pOp)
             elif opcode == CConfig.OP_Seek:
                 self.debug_print('>>> OP_Seek <<<')
-                self.python_OP_Seek(pc, pOp)
+                self.python_OP_Seek(pOp)
             elif opcode == CConfig.OP_Once:
                 self.debug_print('>>> OP_Once <<<')
                 pc = self.python_OP_Once(pc, pOp)
             elif opcode == CConfig.OP_SCopy:
                 self.debug_print('>>> OP_SCopy <<<')
-                self.python_OP_SCopy(pc, pOp)
+                self.python_OP_SCopy(pOp)
             elif opcode == CConfig.OP_Affinity:
                 self.debug_print('>>> OP_Affinity <<<')
-                self.python_OP_Affinity(pc, pOp)
+                self.python_OP_Affinity(pOp)
             elif (opcode == CConfig.OP_OpenAutoindex or 
                   opcode == CConfig.OP_OpenEphemeral):
                 self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
                 rc = self.python_OP_OpenAutoindex_OpenEphemeral(pc, pOp)
             elif opcode == CConfig.OP_MakeRecord:
                 self.debug_print('>>> OP_MakeRecord <<<')
-                self.python_OP_MakeRecord(pc, pOp)
+                rc = self.python_OP_MakeRecord(pc, rc, pOp)
             elif (opcode == CConfig.OP_SorterInsert or 
                   opcode == CConfig.OP_IdxInsert):
                 self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
-                rc = self.python_OP_SorterInsert_IdxInsert(pc, pOp)
+                rc = self.python_OP_SorterInsert_IdxInsert(pOp)
             elif (opcode == CConfig.OP_NoConflict or 
                   opcode == CConfig.OP_NotFound or 
                   opcode == CConfig.OP_Found):
                 self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
-                pc, rc = self.python_OP_NoConflict_NotFound_Found(pc, pOp)
+                pc, rc = self.python_OP_NoConflict_NotFound_Found(pc, rc, pOp)
             elif opcode == CConfig.OP_RowSetTest:
                 self.debug_print('>>> OP_RowSetTest <<<')
-                pc = self.python_OP_RowSetTest(pc, pOp)
+                pc, rc = self.python_OP_RowSetTest(pc, rc, pOp)
             elif opcode == CConfig.OP_Gosub:
                 self.debug_print('>>> OP_Gosub <<<')
                 pc = self.python_OP_Gosub(pc, pOp)

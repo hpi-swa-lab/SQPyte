@@ -21,7 +21,7 @@ def sqlite3VdbeSorterRewind(db, pC, res):
         errorcode = capi.sqlite3_sqlite3VdbeSorterRewind(db, pC, res)
         return rffi.cast(rffi.INTP, res[0])
 
-def python_OP_OpenRead_translated(p, db, pc, pOp):
+def python_OP_OpenRead_OpenWrite_translated(p, db, rc, pOp):
     assert pOp.p5 & (CConfig.OPFLAG_P2ISREG | CConfig.OPFLAG_BULKCSR) == pOp.p5
     assert pOp.opcode == CConfig.OP_OpenWrite or pOp.p5 == 0
     # assert(p.bIsReader)
