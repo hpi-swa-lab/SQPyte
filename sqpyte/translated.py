@@ -100,9 +100,11 @@ def python_OP_OpenRead_OpenWrite_translated(p, db, rc, pOp):
 
 
 def sqlite3BtreeNext(pCur, pRes):
-    with lltype.scoped_alloc(rffi.INTP.TO, 1) as res:
-        rc = capi.sqlite3_sqlite3BtreeNext(pCur, res)
-        return rc, res[0]
+    internalRes = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
+    internalRes[0] = rffi.cast(rffi.INT, pRes)
+    rc = capi.sqlite3_sqlite3BtreeNext(pCur, internalRes)
+    retRes = internalRes[0]
+    return rc, retRes
 
 @jit.dont_look_inside
 def _increase_counter_hidden_from_jit(p, p5):
