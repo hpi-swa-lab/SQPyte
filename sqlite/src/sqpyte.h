@@ -5,7 +5,7 @@
 
 int impl_OP_Transaction(Vdbe *p, sqlite3 *db, int pc, Op *pOp);
 int impl_OP_TableLock(Vdbe *p, sqlite3 *db, int rc, Op *pOp);
-int impl_OP_Goto(Vdbe *p, sqlite3 *db, int pc, Op *pOp);
+int impl_OP_Goto(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp);
 int impl_OP_OpenRead_OpenWrite(Vdbe *p, sqlite3 *db, int pc, Op *pOp);
 int impl_OP_Rewind(Vdbe *p, sqlite3 *db, int *pc, Op *pOp);
 int impl_OP_Column(Vdbe *p, sqlite3 *db, int pc, Op *pOp);

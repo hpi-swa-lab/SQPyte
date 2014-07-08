@@ -247,7 +247,7 @@ int impl_OP_TableLock(Vdbe *p, sqlite3 *db, int rc, Op *pOp) {
 ** that this Goto is the bottom of a loop and that the lines from P2 down
 ** to the current line should be indented for EXPLAIN output.
 */
-int impl_OP_Goto(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+int impl_OP_Goto(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
   pc = pOp->p2 - 1;
 
   /* Opcodes that are used as the bottom of a loop (OP_Next, OP_Prev,
@@ -261,25 +261,32 @@ int impl_OP_Goto(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   ** checks on every opcode.  This helps sqlite3_step() to run about 1.5%
   ** faster according to "valgrind --tool=cachegrind" */
 
-// check_for_interrupt:
-//   if( db->u1.isInterrupted ) goto abort_due_to_interrupt;
-
-// #ifndef SQLITE_OMIT_PROGRESS_CALLBACK
+  // check_for_interrupt;
+  if( db->u1.isInterrupted ) {
+    // goto abort_due_to_interrupt;
+    printf("In impl_OP_Goto(): abort_due_to_interrupt.\n");
+    rc = gotoAbortDueToInterrupt(p, db, pc, rc);
+    return rc;
+  }
+#ifndef SQLITE_OMIT_PROGRESS_CALLBACK
   /* Call the progress callback if it is configured and the required number
   ** of VDBE ops have been executed (either since this invocation of
   ** sqlite3VdbeExec() or since last time the progress callback was called).
   ** If the progress callback returns non-zero, exit the virtual machine with
   ** a return code SQLITE_ABORT.
   */
-  // if( db->xProgress!=0 && nVmStep>=nProgressLimit ){
-  //   assert( db->nProgressOps!=0 );
-  //   nProgressLimit = nVmStep + db->nProgressOps - (nVmStep%db->nProgressOps);
-  //   if( db->xProgress(db->pProgressArg) ){
-  //     rc = SQLITE_INTERRUPT;
-  //     goto vdbe_error_halt;
-  //   }
-  // }
-// #endif
+  if( db->xProgress!=0 && nVmStep>=nProgressLimit ){
+    assert( db->nProgressOps!=0 );
+    nProgressLimit = nVmStep + db->nProgressOps - (nVmStep%db->nProgressOps);
+    if( db->xProgress(db->pProgressArg) ){
+      rc = SQLITE_INTERRUPT;
+      // goto vdbe_error_halt;
+      printf("In impl_OP_Goto(): vdbe_error_halt.\n");
+      rc = gotoVdbeErrorHalt(p, db, pc, rc);
+      return rc;
+    }
+  }
+#endif
   return pc;
 }
 
@@ -355,7 +362,7 @@ int impl_OP_OpenRead_OpenWrite(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 
   if( p->expired ){
     rc = SQLITE_ABORT;
-    // Translated: break;
+    // break;
     return rc;
   }
 
@@ -938,9 +945,11 @@ next_tail:
     pC->nullRow = 1;
   }
   pC->rowidIsValid = 0;
+
   // goto check_for_interrupt;
   if( db->u1.isInterrupted ) {
     // goto abort_due_to_interrupt;
+    printf("In impl_OP_Next(): abort_due_to_interrupt.\n");
     rc = gotoAbortDueToInterrupt(p, db, *pc, rc);
     return rc;
   }
@@ -957,6 +966,7 @@ next_tail:
     if( db->xProgress(db->pProgressArg) ){
       rc = SQLITE_INTERRUPT;
       // goto vdbe_error_halt;
+      printf("In impl_OP_Next(): vdbe_error_halt.\n");
       rc = gotoVdbeErrorHalt(p, db, *pc, rc);
       return rc;
     }
@@ -1031,7 +1041,7 @@ int impl_OP_Halt(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
     }
     aOp = p->aOp;
     aMem = p->aMem;
-    // Translated: break;
+    // break;
     return rc;
   }
   p->rc = pOp->p1;
