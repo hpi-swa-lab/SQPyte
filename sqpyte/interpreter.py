@@ -274,7 +274,7 @@ class Sqlite3Query(object):
 
 
     def debug_print(self, s):
-        return
+        # return
         if not jit.we_are_jitted():
             print s
 
@@ -293,7 +293,6 @@ class Sqlite3Query(object):
     def mainloop(self):
         ops = self.get_aOp()
         rc = CConfig.SQLITE_OK
-        # pc = self.p.pc
         pc = jit.promote(rffi.cast(lltype.Signed, self.p.pc))
         if pc < 0:
             pc = 0 # XXX maybe more to do, see vdbeapi.c:418
@@ -307,44 +306,34 @@ class Sqlite3Query(object):
             opcode = self.get_opcode(pOp)
             oldpc = pc
 
+            self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
             if opcode == CConfig.OP_Init:
-                self.debug_print('>>> OP_Init <<<')
                 pc = self.python_OP_Init(pc, pOp)
             elif (opcode == CConfig.OP_OpenRead or
                   opcode == CConfig.OP_OpenWrite):
-                self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
                 rc = self.python_OP_OpenRead_OpenWrite(pc, pOp)
             elif opcode == CConfig.OP_Rewind:
-                self.debug_print('>>> OP_Rewind <<<')
                 pc, rc = self.python_OP_Rewind(pc, pOp)
             elif opcode == CConfig.OP_Transaction:
-                self.debug_print('>>> OP_Transaction <<<')
                 rc = self.python_OP_Transaction(pc, pOp)
                 if rc == CConfig.SQLITE_BUSY:
                     print 'ERROR: in OP_Transaction SQLITE_BUSY'
                     return rc
             elif opcode == CConfig.OP_TableLock:
-                self.debug_print('>>> OP_TableLock <<<')
                 rc = self.python_OP_TableLock(rc, pOp)
             elif opcode == CConfig.OP_Goto:
-                self.debug_print('>>> OP_Goto <<<')
                 pc, rc = self.python_OP_Goto(pc, rc, pOp)
             elif opcode == CConfig.OP_Column:
-                self.debug_print('>>> OP_Column <<<')
                 rc = self.python_OP_Column(pc, pOp)
             elif opcode == CConfig.OP_ResultRow:
-                self.debug_print('>>> OP_ResultRow <<<')
                 rc = self.python_OP_ResultRow(pc, pOp)
                 if rc == CConfig.SQLITE_ROW:
                     return rc
             elif opcode == CConfig.OP_Next:
-                self.debug_print('>>> OP_Next <<<')
                 pc, rc = self.python_OP_Next(pc, pOp)
             elif opcode == CConfig.OP_Close:
-                self.debug_print('>>> OP_Close <<<')
                 self.python_OP_Close(pOp)
             elif opcode == CConfig.OP_Halt:
-                self.debug_print('>>> OP_Halt <<<')
                 pc, rc = self.python_OP_Halt(pc, pOp)
                 return rc
             elif (opcode == CConfig.OP_Eq or 
@@ -353,118 +342,85 @@ class Sqlite3Query(object):
                   opcode == CConfig.OP_Le or 
                   opcode == CConfig.OP_Gt or 
                   opcode == CConfig.OP_Ge):
-                self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
                 pc, rc = self.python_OP_Ne_Eq_Gt_Le_Lt_Ge(pc, rc, pOp)
             elif opcode == CConfig.OP_Integer:
-                self.debug_print('>>> OP_Integer <<<')
                 self.python_OP_Integer(pOp)
             elif opcode == CConfig.OP_Null:
-                self.debug_print('>>> OP_Null <<<')
                 self.python_OP_Null(pOp)
             elif opcode == CConfig.OP_AggStep:
-                self.debug_print('>>> OP_AggStep <<<')
                 rc = self.python_OP_AggStep(rc, pOp)
             elif opcode == CConfig.OP_AggFinal:
-                self.debug_print('>>> OP_AggFinal <<<')
                 rc = self.python_OP_AggFinal(pc, rc, pOp)
             elif opcode == CConfig.OP_Copy:
-                self.debug_print('>>> OP_Copy <<<')
                 rc = self.python_OP_Copy(pc, rc, pOp)
             elif opcode == CConfig.OP_MustBeInt:
-                self.debug_print('>>> OP_MustBeInt <<<')
                 pc, rc = self.python_OP_MustBeInt(pc, rc, pOp)
             elif opcode == CConfig.OP_NotExists:
-                self.debug_print('>>> OP_NotExists <<<')
                 pc, rc = self.python_OP_NotExists(pc, pOp)
             elif opcode == CConfig.OP_String:
-                self.debug_print('>>> OP_String <<<')
                 self.python_OP_String(pOp)
             elif opcode == CConfig.OP_String8:
-                self.debug_print('>>> OP_String8 <<<')
                 rc = self.python_OP_String8(pc, rc, pOp)
             elif opcode == CConfig.OP_Function:
-                self.debug_print('>>> OP_Function <<<')
                 rc = self.python_OP_Function(pc, rc, pOp)
             elif opcode == CConfig.OP_Real:
-                self.debug_print('>>> OP_Real <<<')
                 self.python_OP_Real(pOp)
             elif opcode == CConfig.OP_RealAffinity:
-                self.debug_print('>>> OP_RealAffinity <<<')
                 self.python_OP_RealAffinity(pOp)
             elif (opcode == CConfig.OP_Add or 
                   opcode == CConfig.OP_Subtract or 
                   opcode == CConfig.OP_Multiply or 
                   opcode == CConfig.OP_Divide or 
                   opcode == CConfig.OP_Remainder):
-                self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
                 self.python_OP_Add_Subtract_Multiply_Divide_Remainder(pc, pOp)
             elif (opcode == CConfig.OP_If or
                   opcode == CConfig.OP_IfNot):
-                self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
                 pc = self.python_OP_If_IfNot(pc, pOp)
             elif opcode == CConfig.OP_Rowid:
-                self.debug_print('>>> OP_Rowid <<<')
                 rc = self.python_OP_Rowid(pc, rc, pOp)
             elif opcode == CConfig.OP_IsNull:
-                self.debug_print('>>> OP_IsNull <<<')
                 pc = self.python_OP_IsNull(pc, pOp)
             elif (opcode == CConfig.OP_SeekLT or 
                   opcode == CConfig.OP_SeekLE or 
                   opcode == CConfig.OP_SeekGE or 
                   opcode == CConfig.OP_SeekGT):
-                self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
                 pc, rc = self.python_OP_SeekLT_SeekLE_SeekGE_SeekGT(pc, rc, pOp)
             elif opcode == CConfig.OP_Move:
-                self.debug_print('>>> OP_Move <<<')
                 self.python_OP_Move(pOp)
             elif opcode == CConfig.OP_IfZero:
-                self.debug_print('>>> OP_IfZero <<<')
                 pc = self.python_OP_IfZero(pc, pOp)
             elif opcode == CConfig.OP_IdxRowid:
-                self.debug_print('>>> OP_IdxRowid <<<')
                 rc = self.python_OP_IdxRowid(pc, rc, pOp)
             elif (opcode == CConfig.OP_IdxLE or 
                   opcode == CConfig.OP_IdxGT or 
                   opcode == CConfig.OP_IdxLT or 
                   opcode == CConfig.OP_IdxGE):
-                self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
                 pc, rc = self.python_OP_IdxLE_IdxGT_IdxLT_IdxGE(pc, pOp)
             elif opcode == CConfig.OP_Seek:
-                self.debug_print('>>> OP_Seek <<<')
                 self.python_OP_Seek(pOp)
             elif opcode == CConfig.OP_Once:
-                self.debug_print('>>> OP_Once <<<')
                 pc = self.python_OP_Once(pc, pOp)
             elif opcode == CConfig.OP_SCopy:
-                self.debug_print('>>> OP_SCopy <<<')
                 self.python_OP_SCopy(pOp)
             elif opcode == CConfig.OP_Affinity:
-                self.debug_print('>>> OP_Affinity <<<')
                 self.python_OP_Affinity(pOp)
             elif (opcode == CConfig.OP_OpenAutoindex or 
                   opcode == CConfig.OP_OpenEphemeral):
-                self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
                 rc = self.python_OP_OpenAutoindex_OpenEphemeral(pc, pOp)
             elif opcode == CConfig.OP_MakeRecord:
-                self.debug_print('>>> OP_MakeRecord <<<')
                 rc = self.python_OP_MakeRecord(pc, rc, pOp)
             elif (opcode == CConfig.OP_SorterInsert or 
                   opcode == CConfig.OP_IdxInsert):
-                self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
                 rc = self.python_OP_SorterInsert_IdxInsert(pOp)
             elif (opcode == CConfig.OP_NoConflict or 
                   opcode == CConfig.OP_NotFound or 
                   opcode == CConfig.OP_Found):
-                self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
                 pc, rc = self.python_OP_NoConflict_NotFound_Found(pc, rc, pOp)
             elif opcode == CConfig.OP_RowSetTest:
-                self.debug_print('>>> OP_RowSetTest <<<')
                 pc, rc = self.python_OP_RowSetTest(pc, rc, pOp)
             elif opcode == CConfig.OP_Gosub:
-                self.debug_print('>>> OP_Gosub <<<')
                 pc = self.python_OP_Gosub(pc, pOp)
             elif opcode == CConfig.OP_Return:
-                self.debug_print('>>> OP_Return <<<')
                 pc = self.python_OP_Return(pc, pOp)
             else:
                 raise Exception("Unimplemented bytecode %s." % opcode)
