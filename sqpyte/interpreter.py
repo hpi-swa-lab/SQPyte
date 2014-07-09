@@ -95,7 +95,7 @@ class Sqlite3Query(object):
         #retPc = self.internalPc[0]
         #return retPc, rc
 
-        retPc, rc = translated.python_OP_Next_translated(self.p, self.db, pc, pOp)
+        retPc, rc = translated.python_OP_Next_translated(self, self.db, pc, pOp)
         return retPc, rc
 
     def python_OP_Close(self, pOp):
