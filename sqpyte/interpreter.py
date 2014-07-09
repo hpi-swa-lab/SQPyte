@@ -47,6 +47,7 @@ class Sqlite3Query(object):
         self.db = db
         self.prepare(query)
         self.internalPc = lltype.malloc(rffi.LONGP.TO, 1, flavor='raw')
+        self.intp = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
 
     def prepare(self, query):
         length = len(query)

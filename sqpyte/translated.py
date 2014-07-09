@@ -169,8 +169,8 @@ def python_OP_OpenRead_OpenWrite_translated(p, db, pc, pOp):
         pCur.isTable = pOp.p4type != CConfig.P4_KEYINFO
 
 
-def sqlite3BtreeNext(pCur, pRes):
-    internalRes = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
+def sqlite3BtreeNext(hlquery, pCur, pRes):
+    internalRes = hlquery.intp
     internalRes[0] = rffi.cast(rffi.INT, pRes)
     rc = capi.sqlite3_sqlite3BtreeNext(pCur, internalRes)
     retRes = internalRes[0]
@@ -183,7 +183,8 @@ def _increase_counter_hidden_from_jit(p, p5):
     aCounterValue += 1
     p.aCounter[p5] = rffi.cast(rffi.UINT, aCounterValue)
 
-def python_OP_Next_translated(p, db, pc, pOp):
+def python_OP_Next_translated(hlquery, db, pc, pOp):
+    p = hlquery.p
     pcRet = pc
     p1 = rffi.cast(lltype.Signed, pOp.p1)
     p5 = rffi.cast(lltype.Unsigned, pOp.p5)
@@ -209,7 +210,7 @@ def python_OP_Next_translated(p, db, pc, pOp):
     # Specifically for OP_Next, xAdvance() is always sqlite3BtreeNext()
     # as can be deduced from assertions above.
     # rc = pOp->p4.xAdvance(pC->pCursor, &res);
-    rc, resRet = sqlite3BtreeNext(pC.pCursor, res)
+    rc, resRet = sqlite3BtreeNext(hlquery, pC.pCursor, res)
 
     # next_tail:
     pC.cacheStatus = rffi.cast(rffi.UINT, CConfig.CACHE_STALE)
