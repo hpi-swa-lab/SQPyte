@@ -112,7 +112,7 @@ int gotoAbortDueToInterrupt(Vdbe *p, sqlite3 *db, int pc, int rc) {
 ** halts.  The sqlite3_step() wrapper function might then reprepare the
 ** statement and rerun it from the beginning.
 */
-int impl_OP_Transaction(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+long impl_OP_Transaction(Vdbe *p, sqlite3 *db, long pc, Op *pOp) {
   int rc;
   Btree *pBt;
   int iMeta;
@@ -126,28 +126,28 @@ int impl_OP_Transaction(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
     rc = SQLITE_READONLY;
     // goto abort_due_to_error;
     printf("In impl_OP_Transaction():1: abort_due_to_error.\n");
-    rc = gotoAbortDueToError(p, db, pc, rc);
-    return rc;
+    rc = gotoAbortDueToError(p, db, (int)pc, rc);
+    return (long)rc;
   }
   pBt = db->aDb[pOp->p1].pBt;
 
   if( pBt ){
     rc = sqlite3BtreeBeginTrans(pBt, pOp->p2);
     if( rc==SQLITE_BUSY ){
-      p->pc = pc;
+      p->pc = (int)pc;
       p->rc = rc = SQLITE_BUSY;
       // Translated: goto vdbe_return;
       db->lastRowid = lastRowid;
       testcase( nVmStep>0 );
       p->aCounter[SQLITE_STMTSTATUS_VM_STEP] += (int)nVmStep;
       sqlite3VdbeLeave(p);
-      return rc;
+      return (long)rc;
     }
     if( rc!=SQLITE_OK ){
       // goto abort_due_to_error;
       printf("In impl_OP_Transaction():2: abort_due_to_error.\n");
-      rc = gotoAbortDueToError(p, db, pc, rc);
-      return rc;
+      rc = gotoAbortDueToError(p, db, (int)pc, rc);
+      return (long)rc;
     }
 
     if( pOp->p2 && p->usesStmtJournal 
@@ -201,7 +201,7 @@ int impl_OP_Transaction(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
     p->expired = 1;
     rc = SQLITE_SCHEMA;
   }
-  return rc;
+  return (long)rc;
 }
 
 /* Opcode: TableLock P1 P2 P3 P4 *
@@ -219,14 +219,14 @@ int impl_OP_Transaction(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 ** P4 contains a pointer to the name of the table being locked. This is only
 ** used to generate an error message if the lock cannot be obtained.
 */
-int impl_OP_TableLock(Vdbe *p, sqlite3 *db, int rc, Op *pOp) {
+long impl_OP_TableLock(Vdbe *p, sqlite3 *db, long rc, Op *pOp) {
   u8 isWriteLock = (u8)pOp->p3;
   if( isWriteLock || 0==(db->flags&SQLITE_ReadUncommitted) ){
     int p1 = pOp->p1; 
     assert( p1>=0 && p1<db->nDb );
     assert( (p->btreeMask & (((yDbMask)1)<<p1))!=0 );
     assert( isWriteLock==0 || isWriteLock==1 );
-    rc = sqlite3BtreeLockTable(db->aDb[p1].pBt, pOp->p2, isWriteLock);
+    rc = (long)sqlite3BtreeLockTable(db->aDb[p1].pBt, pOp->p2, isWriteLock);
     if( (rc&0xFF)==SQLITE_LOCKED ){
       const char *z = pOp->p4.z;
       sqlite3SetString(&p->zErrMsg, db, "database table is locked: %s", z);
@@ -247,8 +247,8 @@ int impl_OP_TableLock(Vdbe *p, sqlite3 *db, int rc, Op *pOp) {
 ** that this Goto is the bottom of a loop and that the lines from P2 down
 ** to the current line should be indented for EXPLAIN output.
 */
-int impl_OP_Goto(Vdbe *p, sqlite3 *db, int *pc, int rc, Op *pOp) {
-  *pc = pOp->p2 - 1;
+long impl_OP_Goto(Vdbe *p, sqlite3 *db, long *pc, long rc, Op *pOp) {
+  *pc = (long)pOp->p2 - 1;
 
   /* Opcodes that are used as the bottom of a loop (OP_Next, OP_Prev,
   ** OP_VNext, OP_RowSetNext, or OP_SorterNext) all jump here upon
@@ -265,7 +265,7 @@ int impl_OP_Goto(Vdbe *p, sqlite3 *db, int *pc, int rc, Op *pOp) {
   if( db->u1.isInterrupted ) {
     // goto abort_due_to_interrupt;
     printf("In impl_OP_Goto(): abort_due_to_interrupt.\n");
-    rc = gotoAbortDueToInterrupt(p, db, *pc, rc);
+    rc = (long)gotoAbortDueToInterrupt(p, db, (int)*pc, (int)rc);
     return rc;
   }
 #ifndef SQLITE_OMIT_PROGRESS_CALLBACK
@@ -279,10 +279,10 @@ int impl_OP_Goto(Vdbe *p, sqlite3 *db, int *pc, int rc, Op *pOp) {
     assert( db->nProgressOps!=0 );
     nProgressLimit = nVmStep + db->nProgressOps - (nVmStep%db->nProgressOps);
     if( db->xProgress(db->pProgressArg) ){
-      rc = SQLITE_INTERRUPT;
+      rc = (long)SQLITE_INTERRUPT;
       // goto vdbe_error_halt;
       printf("In impl_OP_Goto(): vdbe_error_halt.\n");
-      rc = gotoVdbeErrorHalt(p, db, *pc, rc);
+      rc = (long)gotoVdbeErrorHalt(p, db, (int)*pc, (int)rc);
       return rc;
     }
   }
@@ -341,7 +341,7 @@ int impl_OP_Goto(Vdbe *p, sqlite3 *db, int *pc, int rc, Op *pOp) {
 **
 ** See also OpenRead.
 */
-int impl_OP_OpenRead_OpenWrite(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+long impl_OP_OpenRead_OpenWrite(Vdbe *p, sqlite3 *db, long pc, Op *pOp) {
   int nField;
   KeyInfo *pKeyInfo;
   int p2;
@@ -363,7 +363,7 @@ int impl_OP_OpenRead_OpenWrite(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   if( p->expired ){
     rc = SQLITE_ABORT;
     // break;
-    return rc;
+    return (long)rc;
   }
 
   nField = 0;
@@ -400,8 +400,8 @@ int impl_OP_OpenRead_OpenWrite(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
       rc = SQLITE_CORRUPT_BKPT;
       // goto abort_due_to_error;
       printf("In impl_OP_OpenRead_OpenWrite(): abort_due_to_error.\n");
-      rc = gotoAbortDueToError(p, db, pc, rc);
-      return rc;
+      rc = gotoAbortDueToError(p, db, (long)pc, rc);
+      return (long)rc;
     }
   }
   if( pOp->p4type==P4_KEYINFO ){
@@ -419,8 +419,8 @@ int impl_OP_OpenRead_OpenWrite(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   if( pCur==0 ) {
     // goto no_mem;
     printf("In impl_OP_OpenRead_OpenWrite(): no_mem.\n");
-    rc = gotoNoMem(p, db, pc);
-    return rc;
+    rc = gotoNoMem(p, db, (long)pc);
+    return (long)rc;
   }
   pCur->nullRow = 1;
   pCur->isOrdered = 1;
@@ -439,7 +439,7 @@ int impl_OP_OpenRead_OpenWrite(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   ** since moved into the btree layer.  */  
   pCur->isTable = pOp->p4type!=P4_KEYINFO;
 
-  return rc;
+  return (long)rc;
 }
 
 /* Opcode: Rewind P1 P2 * * *
@@ -450,7 +450,7 @@ int impl_OP_OpenRead_OpenWrite(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 ** If P2 is 0 or if the table or index is not empty, fall through
 ** to the following instruction.
 */
-int impl_OP_Rewind(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
+long impl_OP_Rewind(Vdbe *p, sqlite3 *db, long *pc, Op *pOp) {
   int rc;
   VdbeCursor *pC;
   BtCursor *pCrsr;
@@ -475,9 +475,9 @@ int impl_OP_Rewind(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
   assert( pOp->p2>0 && pOp->p2<p->nOp );
   VdbeBranchTaken(res!=0,2);
   if( res ){
-    *pc = pOp->p2 - 1;
+    *pc = (long)pOp->p2 - 1;
   }
-  return rc;
+  return (long)rc;
 }
 
 /* Opcode: Column P1 P2 P3 P4 P5
@@ -505,7 +505,7 @@ int impl_OP_Rewind(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
 ** or typeof() function, respectively.  The loading of large blobs can be
 ** skipped for length() and all content loading can be skipped for typeof().
 */
-int impl_OP_Column(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+long impl_OP_Column(Vdbe *p, sqlite3 *db, long pc, Op *pOp) {
   i64 payloadSize64; /* Number of bytes in the record */
   int p2;            /* column number to retrieve */
   VdbeCursor *pC;    /* The VDBE cursor */
@@ -550,8 +550,8 @@ int impl_OP_Column(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   if( rc ) {
     // goto abort_due_to_error;
     printf("In impl_OP_Column(): abort_due_to_error.\n");
-    rc = gotoAbortDueToError(p, db, pc, rc);
-    return rc;
+    rc = gotoAbortDueToError(p, db, (int)pc, rc);
+    return (long)rc;
   }
   if( pC->cacheStatus!=p->cacheCtr || (pOp->p5&OPFLAG_CLEARCACHE)!=0 ){
     if( pC->nullRow ){
@@ -593,8 +593,8 @@ int impl_OP_Column(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
       if( pC->payloadSize > (u32)db->aLimit[SQLITE_LIMIT_LENGTH] ){
         // goto too_big;
         printf("In impl_OP_Column(): too_big.\n");
-        rc = gotoTooBig(p, db, pc);
-        return rc;
+        rc = gotoTooBig(p, db, (int)pc);
+        return (long)rc;
       }
     }
     pC->cacheStatus = p->cacheCtr;
@@ -764,15 +764,15 @@ op_column_out:
   if( ((pDest)->flags&MEM_Ephem)!=0 && sqlite3VdbeMemMakeWriteable(pDest) ) {
     // goto no_mem;
     printf("In impl_OP_Column(): no_mem.\n");
-    rc = gotoNoMem(p, db, pc);
-    return rc;
+    rc = gotoNoMem(p, db, (int)pc);
+    return (long)rc;
   }
 
 op_column_error:
   UPDATE_MAX_BLOBSIZE(pDest);
   REGISTER_TRACE(pOp->p3, pDest);
 
-  return rc;
+  return (long)rc;
 }
 
 /* Opcode: ResultRow P1 P2 * * *
@@ -784,7 +784,7 @@ op_column_error:
 ** structure to provide access to the r(P1)..r(P1+P2-1) values as
 ** the result row.
 */
-int impl_OP_ResultRow(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+long impl_OP_ResultRow(Vdbe *p, sqlite3 *db, long pc, Op *pOp) {
   Mem *pMem;
   int i;
   int rc;
@@ -804,8 +804,8 @@ int impl_OP_ResultRow(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   ){
     rc = SQLITE_INTERRUPT;
     // goto vdbe_error_halt;
-    rc = gotoVdbeErrorHalt(p, db, pc, rc);
-    return rc;
+    rc = gotoVdbeErrorHalt(p, db, (int)pc, rc);
+    return (long)rc;
   }
 #endif
 
@@ -816,7 +816,7 @@ int impl_OP_ResultRow(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
     assert( db->flags&SQLITE_CountRows );
     assert( p->usesStmtJournal );
     // break;
-    return rc;
+    return (long)rc;
   }
 
   /* If the SQLITE_CountRows flag is set in sqlite3.flags mask, then 
@@ -838,7 +838,7 @@ int impl_OP_ResultRow(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   rc = sqlite3VdbeCloseStatement(p, SAVEPOINT_RELEASE);
   if( NEVER(rc!=SQLITE_OK) ){
     // break;
-    return rc;
+    return (long)rc;
   }
 
   /* Invalidate all ephemeral cursor row caches */
@@ -856,8 +856,8 @@ int impl_OP_ResultRow(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
     if( ((&pMem[i])->flags&MEM_Ephem)!=0 && sqlite3VdbeMemMakeWriteable(&pMem[i]) ) {
       // goto no_mem;
       printf("In impl_OP_ResultRow():1: no_mem.\n");
-      rc = gotoNoMem(p, db, pc);
-      return rc;
+      rc = gotoNoMem(p, db, (int)pc);
+      return (long)rc;
     }
 
     assert( (pMem[i].flags & MEM_Ephem)==0
@@ -868,20 +868,20 @@ int impl_OP_ResultRow(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   if( db->mallocFailed ) {
     // goto no_mem;
     printf("In impl_OP_ResultRow():2: no_mem.\n");
-    rc = gotoNoMem(p, db, pc);
-    return rc;
+    rc = gotoNoMem(p, db, (int)pc);
+    return (long)rc;
   }
 
   /* Return SQLITE_ROW
   */
-  p->pc = pc + 1;
+  p->pc = (int)pc + 1;
   rc = SQLITE_ROW;
   // Translated: goto vdbe_return;
   db->lastRowid = lastRowid;
   testcase( nVmStep>0 );
   p->aCounter[SQLITE_STMTSTATUS_VM_STEP] += (int)nVmStep;
   sqlite3VdbeLeave(p);
-  return rc;
+  return (long)rc;
 }
 
 /* Opcode: Next P1 P2 P3 P4 P5
@@ -912,7 +912,7 @@ int impl_OP_ResultRow(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 ** This opcode works just like OP_Next except that if cursor P1 is not
 ** open it behaves a no-op.
 */
-int impl_OP_Next(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
+long impl_OP_Next(Vdbe *p, sqlite3 *db, long *pc, Op *pOp) {
   VdbeCursor *pC;
   int res;
   int rc;
@@ -936,7 +936,7 @@ next_tail:
   VdbeBranchTaken(res==0,2);
   if( res==0 ){
     pC->nullRow = 0;
-    *pc = pOp->p2 - 1;
+    *pc = (long)pOp->p2 - 1;
     p->aCounter[pOp->p5]++;
 #ifdef SQLITE_TEST
     sqlite3_search_count++;
@@ -950,8 +950,8 @@ next_tail:
   if( db->u1.isInterrupted ) {
     // goto abort_due_to_interrupt;
     printf("In impl_OP_Next(): abort_due_to_interrupt.\n");
-    rc = gotoAbortDueToInterrupt(p, db, *pc, rc);
-    return rc;
+    rc = gotoAbortDueToInterrupt(p, db, (int)*pc, rc);
+    return (long)rc;
   }
 #ifndef SQLITE_OMIT_PROGRESS_CALLBACK
   /* Call the progress callback if it is configured and the required number
@@ -967,12 +967,12 @@ next_tail:
       rc = SQLITE_INTERRUPT;
       // goto vdbe_error_halt;
       printf("In impl_OP_Next(): vdbe_error_halt.\n");
-      rc = gotoVdbeErrorHalt(p, db, *pc, rc);
-      return rc;
+      rc = gotoVdbeErrorHalt(p, db, (int)*pc, rc);
+      return (long)rc;
     }
   }
 #endif
-  return rc;
+  return (long)rc;
 }
 
 /* Opcode: Close P1 * * * *
@@ -1016,7 +1016,7 @@ void impl_OP_Close(Vdbe *p, Op *pOp) {
 ** every program.  So a jump past the last instruction of the program
 ** is the same as executing Halt.
 */
-int impl_OP_Halt(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
+long impl_OP_Halt(Vdbe *p, sqlite3 *db, long *pc, Op *pOp) {
   const char *zType;
   const char *zLogFmt;
   int rc;
@@ -1029,7 +1029,7 @@ int impl_OP_Halt(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
     p->pFrame = pFrame->pParent;
     p->nFrame--;
     sqlite3VdbeSetChanges(db, p->nChange);
-    *pc = sqlite3VdbeFrameRestore(pFrame);
+    *pc = (long)sqlite3VdbeFrameRestore(pFrame);
     lastRowid = db->lastRowid;
     if( pOp->p2==OE_Ignore ){
       /* Instruction pc is the OP_Program that invoked the sub-program 
@@ -1037,16 +1037,16 @@ int impl_OP_Halt(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
       ** instruction is set to OE_Ignore, then the sub-program is throwing
       ** an IGNORE exception. In this case jump to the address specified
       ** as the p2 of the calling OP_Program.  */
-      *pc = p->aOp[*pc].p2-1;
+      *pc = (long)p->aOp[(int)*pc].p2-1;
     }
     aOp = p->aOp;
     aMem = p->aMem;
     // break;
-    return rc;
+    return (long)rc;
   }
   p->rc = pOp->p1;
   p->errorAction = (u8)pOp->p2;
-  p->pc = *pc;
+  p->pc = (int)*pc;
   if( p->rc ){
     if( pOp->p5 ){
       static const char * const azType[] = { "NOT NULL", "UNIQUE", "CHECK",
@@ -1086,7 +1086,7 @@ int impl_OP_Halt(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
   testcase( nVmStep>0 );
   p->aCounter[SQLITE_STMTSTATUS_VM_STEP] += (int)nVmStep;
   sqlite3VdbeLeave(p);
-  return rc;
+  return (long)rc;
 }
 
 /* Opcode: Lt P1 P2 P3 P4 P5
@@ -1171,7 +1171,7 @@ int impl_OP_Halt(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
 ** the content of register P3 is greater than or equal to the content of
 ** register P1.  See the Lt opcode for additional information.
 */
-int impl_OP_Ne_Eq_Gt_Le_Lt_Ge(Vdbe *p, sqlite3 *db, int *pc, int rc, Op *pOp) {
+long impl_OP_Ne_Eq_Gt_Le_Lt_Ge(Vdbe *p, sqlite3 *db, long *pc, long rc, Op *pOp) {
 // case OP_Eq:               /* same as TK_EQ, jump, in1, in3 */
 // case OP_Ne:               /* same as TK_NE, jump, in1, in3 */
 // case OP_Lt:               /* same as TK_LT, jump, in1, in3 */
@@ -1224,7 +1224,7 @@ int impl_OP_Ne_Eq_Gt_Le_Lt_Ge(Vdbe *p, sqlite3 *db, int *pc, int rc, Op *pOp) {
       }else{
         VdbeBranchTaken(2,3);
         if( pOp->p5 & SQLITE_JUMPIFNULL ){
-          *pc = pOp->p2-1;
+          *pc = (long)pOp->p2-1;
         }
       }
       // break;
@@ -1239,7 +1239,7 @@ int impl_OP_Ne_Eq_Gt_Le_Lt_Ge(Vdbe *p, sqlite3 *db, int *pc, int rc, Op *pOp) {
       if( db->mallocFailed ) {
         // goto no_mem;
         printf("In impl_OP_Ne_Eq_Gt_Le_Lt_Ge(): no_mem.\n");
-        rc = gotoNoMem(p, db, *pc);
+        rc = (long)gotoNoMem(p, db, (long)*pc);
         return rc;
       }
     }
@@ -1267,7 +1267,7 @@ int impl_OP_Ne_Eq_Gt_Le_Lt_Ge(Vdbe *p, sqlite3 *db, int *pc, int rc, Op *pOp) {
   }else{
     VdbeBranchTaken(res!=0, (pOp->p5 & SQLITE_NULLEQ)?2:3);
     if( res ){
-      *pc = pOp->p2-1;
+      *pc = (long)pOp->p2-1;
     }
   }
   /* Undo any changes made by applyAffinity() to the input registers. */
@@ -1336,7 +1336,7 @@ void impl_OP_Null(Vdbe *p, Op *pOp) {
 ** The P5 arguments are taken from register P2 and its
 ** successors.
 */
-int impl_OP_AggStep(Vdbe *p, sqlite3 *db, int rc, Op *pOp) {
+long impl_OP_AggStep(Vdbe *p, sqlite3 *db, long rc, Op *pOp) {
 // case OP_AggStep: {
   int n;
   int i;
@@ -1377,7 +1377,7 @@ int impl_OP_AggStep(Vdbe *p, sqlite3 *db, int rc, Op *pOp) {
   (ctx.pFunc->xStep)(&ctx, n, apVal); /* IMP: R-24505-23230 */
   if( ctx.isError ){
     sqlite3SetString(&p->zErrMsg, db, "%s", sqlite3_value_text(&ctx.s));
-    rc = ctx.isError;
+    rc = (long)ctx.isError;
   }
   if( ctx.skipFlag ){
     assert( pOp[-1].opcode==OP_CollSeq );
@@ -1404,7 +1404,7 @@ int impl_OP_AggStep(Vdbe *p, sqlite3 *db, int rc, Op *pOp) {
 ** P4 argument is only needed for the degenerate case where
 ** the step function was not previously called.
 */
-int impl_OP_AggFinal(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
+long impl_OP_AggFinal(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp) {
 // case OP_AggFinal: {
   Mem *pMem;
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
@@ -1413,7 +1413,7 @@ int impl_OP_AggFinal(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
   assert( pOp->p1>0 && pOp->p1<=(p->nMem-p->nCursor) );
   pMem = &aMem[pOp->p1];
   assert( (pMem->flags & ~(MEM_Null|MEM_Agg))==0 );
-  rc = sqlite3VdbeMemFinalize(pMem, pOp->p4.pFunc);
+  rc = (long)sqlite3VdbeMemFinalize(pMem, pOp->p4.pFunc);
   if( rc ){
     sqlite3SetString(&p->zErrMsg, db, "%s", sqlite3_value_text(pMem));
   }
@@ -1422,7 +1422,7 @@ int impl_OP_AggFinal(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
   if( sqlite3VdbeMemTooBig(pMem) ){
     // goto too_big;
     printf("In impl_OP_AggFinal(): too_big.\n");
-    rc = gotoTooBig(p, db, pc);
+    rc = (long)gotoTooBig(p, db, (int)pc);
     return rc;
   }
   // break;
@@ -1437,7 +1437,7 @@ int impl_OP_AggFinal(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
 ** This instruction makes a deep copy of the value.  A duplicate
 ** is made of any string or blob constant.  See also OP_SCopy.
 */
-int impl_OP_Copy(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
+long impl_OP_Copy(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp) {
 // case OP_Copy: {
   int n;
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
@@ -1454,7 +1454,7 @@ int impl_OP_Copy(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
     if( ((pOut)->flags&MEM_Ephem)!=0 && sqlite3VdbeMemMakeWriteable(pOut) ) {
       // goto no_mem;
       printf("In impl_OP_Copy(): no_mem.\n");
-      rc = gotoNoMem(p, db, pc);
+      rc = (long)gotoNoMem(p, db, (int)pc);
       return rc;
     }
 
@@ -1477,7 +1477,7 @@ int impl_OP_Copy(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
 ** without data loss, then jump immediately to P2, or if P2==0
 ** raise an SQLITE_MISMATCH exception.
 */
-int impl_OP_MustBeInt(Vdbe *p, sqlite3 *db, int *pc, int rc, Op *pOp) {
+long impl_OP_MustBeInt(Vdbe *p, sqlite3 *db, long *pc, long rc, Op *pOp) {
 // case OP_MustBeInt: {            /* jump, in1 */
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
   Mem *pIn1;                 /* 1st input operand */
@@ -1489,13 +1489,13 @@ int impl_OP_MustBeInt(Vdbe *p, sqlite3 *db, int *pc, int rc, Op *pOp) {
     VdbeBranchTaken((pIn1->flags&MEM_Int)==0, 2);
     if( (pIn1->flags & MEM_Int)==0 ){
       if( pOp->p2==0 ){
-        rc = SQLITE_MISMATCH;
+        rc = (long)SQLITE_MISMATCH;
         // goto abort_due_to_error;
         printf("In impl_OP_MustBeInt(): abort_due_to_error.\n");
-        rc = gotoAbortDueToError(p, db, *pc, rc);
+        rc = (long)gotoAbortDueToError(p, db, (int)*pc, (int)rc);
         return rc;
       }else{
-        *pc = pOp->p2 - 1;
+        *pc = (long)pOp->p2 - 1;
         // break;
         return rc;
       }
@@ -1520,7 +1520,7 @@ int impl_OP_MustBeInt(Vdbe *p, sqlite3 *db, int *pc, int rc, Op *pOp) {
 **
 ** See also: Found, NotFound, NoConflict
 */
-int impl_OP_NotExists(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
+long impl_OP_NotExists(Vdbe *p, sqlite3 *db, long *pc, Op *pOp) {
 // case OP_NotExists: {        /* jump, in3 */
   VdbeCursor *pC;
   BtCursor *pCrsr;
@@ -1550,12 +1550,12 @@ int impl_OP_NotExists(Vdbe *p, sqlite3 *db, int *pc, Op *pOp) {
   pC->deferredMoveto = 0;
   VdbeBranchTaken(res!=0,2);
   if( res!=0 ){
-    *pc = pOp->p2 - 1;
+    *pc = (long)pOp->p2 - 1;
     assert( pC->rowidIsValid==0 );
   }
   pC->seekResult = res;
   // break;
-  return rc;
+  return (long)rc;
 }
 
 /* Opcode: String P1 P2 * P4 *
@@ -1588,7 +1588,7 @@ void impl_OP_String(Vdbe *p, sqlite3 *db, Op *pOp) {
 ** this transformation, the length of string P4 is computed and stored
 ** as the P1 parameter.
 */
-int impl_OP_String8(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
+long impl_OP_String8(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp) {
 // case OP_String8: {         /* same as TK_STRING, out2-prerelease */
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
   Mem *pOut;                 /* Output operand */
@@ -1601,17 +1601,17 @@ int impl_OP_String8(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
 
 #ifndef SQLITE_OMIT_UTF16
   if( encoding!=SQLITE_UTF8 ){
-    rc = sqlite3VdbeMemSetStr(pOut, pOp->p4.z, -1, SQLITE_UTF8, SQLITE_STATIC);
-    if( rc==SQLITE_TOOBIG ) {
+    rc = (long)sqlite3VdbeMemSetStr(pOut, pOp->p4.z, -1, SQLITE_UTF8, SQLITE_STATIC);
+    if( rc==(long)SQLITE_TOOBIG ) {
       // goto too_big;
       printf("In impl_OP_String8():1: too_big.\n");
-      rc = gotoTooBig(p, db, pc);
+      rc = (long)gotoTooBig(p, db, (int)pc);
       return rc;
     }
     if( SQLITE_OK!=sqlite3VdbeChangeEncoding(pOut, encoding) ) {
       // goto no_mem;
       printf("In impl_OP_String8(): no_mem.\n");
-      rc = gotoNoMem(p, db, pc);
+      rc = (long)gotoNoMem(p, db, (int)pc);
       return rc;      
     }
     assert( pOut->zMalloc==pOut->z );
@@ -1629,7 +1629,7 @@ int impl_OP_String8(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
   if( pOp->p1>db->aLimit[SQLITE_LIMIT_LENGTH] ){
     // goto too_big;
     printf("In impl_OP_String8():2: too_big.\n");
-    rc = gotoTooBig(p, db, pc);
+    rc = (long)gotoTooBig(p, db, (int)pc);
     return rc;
   }
   /* Fall through to the next case, OP_String */
@@ -1655,7 +1655,7 @@ int impl_OP_String8(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
 **
 ** See also: AggStep and AggFinal
 */
-int impl_OP_Function(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
+long impl_OP_Function(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp) {
 // case OP_Function: {
   int i;
   Mem *pArg;
@@ -1685,7 +1685,7 @@ int impl_OP_Function(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
     if( ((pArg)->flags&MEM_Ephem)!=0 && sqlite3VdbeMemMakeWriteable(pArg) ) {
       // goto no_mem;
       printf("In impl_OP_Function():1: no_mem.\n");
-      rc = gotoNoMem(p, db, pc);
+      rc = (long)gotoNoMem(p, db, (int)pc);
       return rc;            
     }
 
@@ -1694,7 +1694,7 @@ int impl_OP_Function(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
 
   assert( pOp->p4type==P4_FUNCDEF );
   ctx.pFunc = pOp->p4.pFunc;
-  ctx.iOp = pc;
+  ctx.iOp = (int)pc;
   ctx.pVdbe = p;
 
   /* The output cell may already have a buffer allocated. Move
@@ -1727,7 +1727,7 @@ int impl_OP_Function(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
     sqlite3VdbeMemRelease(&ctx.s);
     // goto no_mem;
     printf("In impl_OP_Function():2: no_mem.\n");
-    rc = gotoNoMem(p, db, pc);
+    rc = (long)gotoNoMem(p, db, (int)pc);
     return rc;                
   }
 
@@ -1735,9 +1735,9 @@ int impl_OP_Function(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
   if( ctx.fErrorOrAux ){
     if( ctx.isError ){
       sqlite3SetString(&p->zErrMsg, db, "%s", sqlite3_value_text(&ctx.s));
-      rc = ctx.isError;
+      rc = (long)ctx.isError;
     }
-    sqlite3VdbeDeleteAuxData(p, pc, pOp->p1);
+    sqlite3VdbeDeleteAuxData(p, (int)pc, pOp->p1);
   }
 
   /* Copy the result of the function into register P3 */
@@ -1747,7 +1747,7 @@ int impl_OP_Function(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
   if( sqlite3VdbeMemTooBig(pOut) ){
     // goto too_big;
     printf("In impl_OP_Function():2: too_big.\n");
-    rc = gotoTooBig(p, db, pc);
+    rc = (long)gotoTooBig(p, db, (int)pc);
     return rc;    
   }
 
@@ -1842,7 +1842,7 @@ void impl_OP_RealAffinity(Vdbe *p, Op *pOp) {
 ** If the value in register P1 is zero the result is NULL.
 ** If either operand is NULL, the result is NULL.
 */
-void impl_OP_Add_Subtract_Multiply_Divide_Remainder(Vdbe *p, int pc, Op *pOp) {
+void impl_OP_Add_Subtract_Multiply_Divide_Remainder(Vdbe *p, Op *pOp) {
 // case OP_Add:                   /* same as TK_PLUS, in1, in2, out3 */
 // case OP_Subtract:              /* same as TK_MINUS, in1, in2, out3 */
 // case OP_Multiply:              /* same as TK_STAR, in1, in2, out3 */
@@ -1951,7 +1951,7 @@ arithmetic_result_is_null:
 ** is considered false if it has a numeric value of zero.  If the value
 ** in P1 is NULL then take the jump if P3 is zero.
 */
-int impl_OP_If_IfNot(Vdbe *p, int pc, Op *pOp) {
+long impl_OP_If_IfNot(Vdbe *p, long pc, Op *pOp) {
 // case OP_If:                 /* jump, in1 */
 // case OP_IfNot: {            /* jump, in1 */
   int c;
@@ -1972,7 +1972,7 @@ int impl_OP_If_IfNot(Vdbe *p, int pc, Op *pOp) {
   }
   VdbeBranchTaken(c!=0, 2);
   if( c ){
-    pc = pOp->p2-1;
+    pc = (long)pOp->p2-1;
   }
   // break;
   return pc;
@@ -1988,7 +1988,7 @@ int impl_OP_If_IfNot(Vdbe *p, int pc, Op *pOp) {
 ** be a separate OP_VRowid opcode for use with virtual tables, but this
 ** one opcode now works for both table types.
 */
-int impl_OP_Rowid(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
+long impl_OP_Rowid(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp) {
 // case OP_Rowid: {                 /* out2-prerelease */
   VdbeCursor *pC;
   i64 v;
@@ -2015,24 +2015,24 @@ int impl_OP_Rowid(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
     pVtab = pC->pVtabCursor->pVtab;
     pModule = pVtab->pModule;
     assert( pModule->xRowid );
-    rc = pModule->xRowid(pC->pVtabCursor, &v);
+    rc = (long)pModule->xRowid(pC->pVtabCursor, &v);
     sqlite3VtabImportErrmsg(p, pVtab);
   }
 #endif /* SQLITE_OMIT_VIRTUALTABLE */
   else{
     assert( pC->pCursor!=0 );
-    rc = sqlite3VdbeCursorMoveto(pC);
+    rc = (long)sqlite3VdbeCursorMoveto(pC);
     if( rc ) {
       // goto abort_due_to_error;
       printf("In impl_OP_Rowid(): abort_due_to_error.\n");
-      rc = gotoAbortDueToError(p, db, pc, rc);
+      rc = (long)gotoAbortDueToError(p, db, (int)pc, (int)rc);
       return rc;
     }
     if( pC->rowidIsValid ){
       v = pC->lastRowid;
     }else{
-      rc = sqlite3BtreeKeySize(pC->pCursor, &v);
-      assert( rc==SQLITE_OK );  /* Always so because of CursorMoveto() above */
+      rc = (long)sqlite3BtreeKeySize(pC->pCursor, &v);
+      assert( rc==(long)SQLITE_OK );  /* Always so because of CursorMoveto() above */
     }
   }
   pOut->u.i = v;
@@ -2046,7 +2046,7 @@ int impl_OP_Rowid(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
 **
 ** Jump to P2 if the value in register P1 is NULL.
 */
-int impl_OP_IsNull(Vdbe *p, int pc, Op *pOp) {
+long impl_OP_IsNull(Vdbe *p, long pc, Op *pOp) {
 // case OP_IsNull: {            /* same as TK_ISNULL, jump, in1 */
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
   Mem *pIn1;                 /* 1st input operand */
@@ -2054,7 +2054,7 @@ int impl_OP_IsNull(Vdbe *p, int pc, Op *pOp) {
   pIn1 = &aMem[pOp->p1];
   VdbeBranchTaken( (pIn1->flags & MEM_Null)!=0, 2);
   if( (pIn1->flags & MEM_Null)!=0 ){
-    pc = pOp->p2 - 1;
+    pc = (long)pOp->p2 - 1;
   }
   // break;
   return pc;
@@ -2116,7 +2116,7 @@ int impl_OP_IsNull(Vdbe *p, int pc, Op *pOp) {
 **
 ** See also: Found, NotFound, Distinct, SeekGt, SeekGe, SeekLt
 */
-int impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(Vdbe *p, sqlite3 *db, int *pc, int rc, Op *pOp) {
+long impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(Vdbe *p, sqlite3 *db, long *pc, long rc, Op *pOp) {
 // case OP_SeekLT:         /* jump, in3 */
 // case OP_SeekLE:         /* jump, in3 */
 // case OP_SeekGE:         /* jump, in3 */
@@ -2158,7 +2158,7 @@ int impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(Vdbe *p, sqlite3 *db, int *pc, int rc, O
       if( (pIn3->flags & MEM_Real)==0 ){
         /* If the P3 value cannot be converted into any kind of a number,
         ** then the seek is not possible, so jump to P2 */
-        *pc = pOp->p2 - 1;  VdbeBranchTaken(1,2);
+        *pc = (long)pOp->p2 - 1;  VdbeBranchTaken(1,2);
         // break;
         return rc;
       }
@@ -2186,11 +2186,11 @@ int impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(Vdbe *p, sqlite3 *db, int *pc, int rc, O
         if( (oc & 0x0001)==(OP_SeekLT & 0x0001) ) oc++;
       }
     } 
-    rc = sqlite3BtreeMovetoUnpacked(pC->pCursor, 0, (u64)iKey, 0, &res);
-    if( rc!=SQLITE_OK ){
+    rc = (long)sqlite3BtreeMovetoUnpacked(pC->pCursor, 0, (u64)iKey, 0, &res);
+    if( rc!=(long)SQLITE_OK ){
       // goto abort_due_to_error;
       printf("In impl_OP_SeekLT_SeekLE_SeekGE_SeekGT():1: abort_due_to_error.\n");
-      rc = gotoAbortDueToError(p, db, *pc, rc);
+      rc = (long)gotoAbortDueToError(p, db, (int)*pc, rc);
       return rc;
     }
     if( res==0 ){
@@ -2222,11 +2222,11 @@ int impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(Vdbe *p, sqlite3 *db, int *pc, int rc, O
     { int i; for(i=0; i<r.nField; i++) assert( memIsValid(&r.aMem[i]) ); }
 #endif
     ExpandBlob(r.aMem);
-    rc = sqlite3BtreeMovetoUnpacked(pC->pCursor, &r, 0, 0, &res);
-    if( rc!=SQLITE_OK ){
+    rc = (long)sqlite3BtreeMovetoUnpacked(pC->pCursor, &r, 0, 0, &res);
+    if( rc!=(long)SQLITE_OK ){
       // goto abort_due_to_error;
       printf("In impl_OP_SeekLT_SeekLE_SeekGE_SeekGT():2: abort_due_to_error.\n");
-      rc = gotoAbortDueToError(p, db, *pc, rc);
+      rc = (long)gotoAbortDueToError(p, db, (int)*pc, rc);
       return rc;
     }
     pC->rowidIsValid = 0;
@@ -2239,11 +2239,11 @@ int impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(Vdbe *p, sqlite3 *db, int *pc, int rc, O
   if( oc>=OP_SeekGE ){  assert( oc==OP_SeekGE || oc==OP_SeekGT );
     if( res<0 || (res==0 && oc==OP_SeekGT) ){
       res = 0;
-      rc = sqlite3BtreeNext(pC->pCursor, &res);
-      if( rc!=SQLITE_OK ) {
+      rc = (long)sqlite3BtreeNext(pC->pCursor, &res);
+      if( rc!=(long)SQLITE_OK ) {
         // goto abort_due_to_error;
         printf("In impl_OP_SeekLT_SeekLE_SeekGE_SeekGT():3: abort_due_to_error.\n");
-        rc = gotoAbortDueToError(p, db, *pc, rc);
+        rc = gotoAbortDueToError(p, db, (int)*pc, rc);
         return rc;
       }
       pC->rowidIsValid = 0;
@@ -2254,11 +2254,11 @@ int impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(Vdbe *p, sqlite3 *db, int *pc, int rc, O
     assert( oc==OP_SeekLT || oc==OP_SeekLE );
     if( res>0 || (res==0 && oc==OP_SeekLT) ){
       res = 0;
-      rc = sqlite3BtreePrevious(pC->pCursor, &res);
-      if( rc!=SQLITE_OK ) {
+      rc = (long)sqlite3BtreePrevious(pC->pCursor, &res);
+      if( rc!=(long)SQLITE_OK ) {
         // goto abort_due_to_error;
         printf("In impl_OP_SeekLT_SeekLE_SeekGE_SeekGT():4: abort_due_to_error.\n");
-        rc = gotoAbortDueToError(p, db, *pc, rc);
+        rc = (long)gotoAbortDueToError(p, db, (int)*pc, rc);
         return rc;
       }
       pC->rowidIsValid = 0;
@@ -2272,7 +2272,7 @@ int impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(Vdbe *p, sqlite3 *db, int *pc, int rc, O
   assert( pOp->p2>0 );
   VdbeBranchTaken(res!=0,2);
   if( res ){
-    *pc = pOp->p2 - 1;
+    *pc = (long)pOp->p2 - 1;
   }
   // break;
   return rc;
@@ -2338,7 +2338,7 @@ void impl_OP_Move(Vdbe *p, Op *pOp) {
 ** It is illegal to use this instruction on a register that does
 ** not contain an integer.  An assertion fault will result if you try.
 */
-int impl_OP_IfZero(Vdbe *p, int pc, Op *pOp) {
+long impl_OP_IfZero(Vdbe *p, long pc, Op *pOp) {
 // case OP_IfZero: {        /* jump, in1 */
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
   Mem *pIn1;                 /* 1st input operand */
@@ -2348,7 +2348,7 @@ int impl_OP_IfZero(Vdbe *p, int pc, Op *pOp) {
   pIn1->u.i += pOp->p3;
   VdbeBranchTaken(pIn1->u.i==0, 2);
   if( pIn1->u.i==0 ){
-     pc = pOp->p2 - 1;
+     pc = (long)pOp->p2 - 1;
   }
   // break;
   return pc;
@@ -2363,7 +2363,7 @@ int impl_OP_IfZero(Vdbe *p, int pc, Op *pOp) {
 **
 ** See also: Rowid, MakeRecord.
 */
-int impl_OP_IdxRowid(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
+long impl_OP_IdxRowid(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp) {
 // case OP_IdxRowid: {              /* out2-prerelease */
   BtCursor *pCrsr;
   VdbeCursor *pC;
@@ -2379,22 +2379,22 @@ int impl_OP_IdxRowid(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
   pCrsr = pC->pCursor;
   assert( pCrsr!=0 );
   pOut->flags = MEM_Null;
-  rc = sqlite3VdbeCursorMoveto(pC);
+  rc = (long)sqlite3VdbeCursorMoveto(pC);
   if( NEVER(rc) ) {
     // goto abort_due_to_error;
     printf("In impl_OP_IdxRowid():1: abort_due_to_error.\n");
-    rc = gotoAbortDueToError(p, db, pc, rc);
+    rc = (long)gotoAbortDueToError(p, db, (int)pc, (int)rc);
     return rc;      
   }
   assert( pC->deferredMoveto==0 );
   assert( pC->isTable==0 );
   if( !pC->nullRow ){
     rowid = 0;  /* Not needed.  Only used to silence a warning. */
-    rc = sqlite3VdbeIdxRowid(db, pCrsr, &rowid);
-    if( rc!=SQLITE_OK ){
+    rc = (long)sqlite3VdbeIdxRowid(db, pCrsr, &rowid);
+    if( rc!=(long)SQLITE_OK ){
       // goto abort_due_to_error;
       printf("In impl_OP_IdxRowid():2: abort_due_to_error.\n");
-      rc = gotoAbortDueToError(p, db, pc, rc);
+      rc = (long)gotoAbortDueToError(p, db, (int)pc, (int)rc);
       return rc;      
     }
     pOut->u.i = rowid;
@@ -2448,7 +2448,7 @@ int impl_OP_IdxRowid(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
 ** If the P1 index entry is less than or equal to the key value then jump
 ** to P2. Otherwise fall through to the next instruction.
 */
-int impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(Vdbe *p, int *pc, Op *pOp) {
+long impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(Vdbe *p, long *pc, Op *pOp) {
 // case OP_IdxLE:          /* jump */
 // case OP_IdxGT:          /* jump */
 // case OP_IdxLT:          /* jump */
@@ -2493,10 +2493,10 @@ int impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(Vdbe *p, int *pc, Op *pOp) {
   }
   VdbeBranchTaken(res>0,2);
   if( res>0 ){
-    *pc = pOp->p2 - 1 ;
+    *pc = (long)pOp->p2 - 1 ;
   }
   // break;
-  return rc;
+  return (long)rc;
 }
 
 /* Opcode: Seek P1 P2 * * *
@@ -2536,12 +2536,12 @@ void impl_OP_Seek(Vdbe *p, Op *pOp) {
 ** this opcode causes all following opcodes up through P2 (but not including
 ** P2) to run just once and to be skipped on subsequent times through the loop.
 */
-int impl_OP_Once(Vdbe *p, int pc, Op *pOp) {
+long impl_OP_Once(Vdbe *p, long pc, Op *pOp) {
 // case OP_Once: {             /* jump */
   assert( pOp->p1<p->nOnceFlag );
   VdbeBranchTaken(p->aOnceFlag[pOp->p1]!=0, 2);
   if( p->aOnceFlag[pOp->p1] ){
-    pc = pOp->p2-1;
+    pc = (long)pOp->p2-1;
   }else{
     p->aOnceFlag[pOp->p1] = 1;
   }
@@ -2635,7 +2635,7 @@ void impl_OP_Affinity(Vdbe *p, sqlite3 *db, Op *pOp) {
 ** by this opcode will be used for automatically created transient
 ** indices in joins.
 */
-int impl_OP_OpenAutoindex_OpenEphemeral(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
+long impl_OP_OpenAutoindex_OpenEphemeral(Vdbe *p, sqlite3 *db, long pc, Op *pOp) {
 // case OP_OpenAutoindex: 
 // case OP_OpenEphemeral: {
   VdbeCursor *pCx;
@@ -2654,8 +2654,8 @@ int impl_OP_OpenAutoindex_OpenEphemeral(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   if( pCx==0 ) {
     // goto no_mem;
     printf("In impl_OP_OpenAutoindex_OpenEphemeral(): no_mem.\n");
-    rc = gotoNoMem(p, db, pc);
-    return rc;                    
+    rc = gotoNoMem(p, db, (int)pc);
+    return (long)rc;                    
   }
   pCx->nullRow = 1;
   pCx->isEphemeral = 1;
@@ -2689,7 +2689,7 @@ int impl_OP_OpenAutoindex_OpenEphemeral(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
   }
   pCx->isOrdered = (pOp->p5!=BTREE_UNORDERED);
   // break;
-  return rc;
+  return (long)rc;
 }
 
 /* Opcode: MakeRecord P1 P2 P3 P4 *
@@ -2708,7 +2708,7 @@ int impl_OP_OpenAutoindex_OpenEphemeral(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
 **
 ** If P4 is NULL then all index fields have the affinity NONE.
 */
-int impl_OP_MakeRecord(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
+long impl_OP_MakeRecord(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp) {
 // case OP_MakeRecord: {
   u8 *zNewRecord;        /* A buffer to hold the data for the new record */
   Mem *pRec;             /* The new record */
@@ -2811,7 +2811,7 @@ int impl_OP_MakeRecord(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
   if( nByte>db->aLimit[SQLITE_LIMIT_LENGTH] ){
     // goto too_big;
     printf("In impl_OP_MakeRecord(): too_big.\n");
-    rc = gotoTooBig(p, db, pc);
+    rc = (long)gotoTooBig(p, db, (int)pc);
     return rc;    
 
   }
@@ -2824,7 +2824,7 @@ int impl_OP_MakeRecord(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
   if( sqlite3VdbeMemGrow(pOut, (int)nByte, 0) ){
     // goto no_mem;
     printf("In impl_OP_MakeRecord(): no_mem.\n");
-    rc = gotoNoMem(p, db, pc);
+    rc = (long)gotoNoMem(p, db, (int)pc);
     return rc;                        
   }
   zNewRecord = (u8 *)pOut->z;
@@ -2878,7 +2878,7 @@ int impl_OP_MakeRecord(Vdbe *p, sqlite3 *db, int pc, int rc, Op *pOp) {
 ** This instruction only works for indices.  The equivalent instruction
 ** for tables is OP_Insert.
 */
-int impl_OP_SorterInsert_IdxInsert(Vdbe *p, sqlite3 *db, Op *pOp) {
+long impl_OP_SorterInsert_IdxInsert(Vdbe *p, sqlite3 *db, Op *pOp) {
 // case OP_SorterInsert:       /* in2 */
 // case OP_IdxInsert: {        /* in2 */
   VdbeCursor *pC;
@@ -2915,7 +2915,7 @@ int impl_OP_SorterInsert_IdxInsert(Vdbe *p, sqlite3 *db, Op *pOp) {
     }
   }
   // break;
-  return rc;
+  return (long)rc;
 }
 
 /* Opcode: Found P1 P2 P3 P4 *
@@ -2965,7 +2965,7 @@ int impl_OP_SorterInsert_IdxInsert(Vdbe *p, sqlite3 *db, Op *pOp) {
 **
 ** See also: NotFound, Found, NotExists
 */
-int impl_OP_NoConflict_NotFound_Found(Vdbe *p, sqlite3 *db, int *pc, int rc, Op *pOp) {
+long impl_OP_NoConflict_NotFound_Found(Vdbe *p, sqlite3 *db, long *pc, long rc, Op *pOp) {
 // case OP_NoConflict:     /* jump, in3 */
 // case OP_NotFound:       /* jump, in3 */
 // case OP_Found: {        /* jump, in3 */
@@ -3013,7 +3013,7 @@ int impl_OP_NoConflict_NotFound_Found(Vdbe *p, sqlite3 *db, int *pc, int rc, Op 
     if( pIdxKey==0 ) {
       // goto no_mem;
       printf("In impl_OP_NoConflict_NotFound_Found(): no_mem.\n");
-      rc = gotoNoMem(p, db, *pc);
+      rc = (long)gotoNoMem(p, db, (int)*pc);
       return rc;                              
     }
     assert( pIn3->flags & MEM_Blob );
@@ -3027,17 +3027,17 @@ int impl_OP_NoConflict_NotFound_Found(Vdbe *p, sqlite3 *db, int *pc, int rc, Op 
     ** conflict */
     for(ii=0; ii<r.nField; ii++){
       if( r.aMem[ii].flags & MEM_Null ){
-        *pc = pOp->p2 - 1;
+        *pc = (long)pOp->p2 - 1;
         VdbeBranchTaken(1,2);
         break;
       }
     }
   }
-  rc = sqlite3BtreeMovetoUnpacked(pC->pCursor, pIdxKey, 0, 0, &res);
+  rc = (long)sqlite3BtreeMovetoUnpacked(pC->pCursor, pIdxKey, 0, 0, &res);
   if( pOp->p4.i==0 ){
     sqlite3DbFree(db, pFree);
   }
-  if( rc!=SQLITE_OK ){
+  if( rc!=(long)SQLITE_OK ){
     // break;
     return rc;
   }
@@ -3048,10 +3048,10 @@ int impl_OP_NoConflict_NotFound_Found(Vdbe *p, sqlite3 *db, int *pc, int rc, Op 
   pC->cacheStatus = CACHE_STALE;
   if( pOp->opcode==OP_Found ){
     VdbeBranchTaken(alreadyExists!=0,2);
-    if( alreadyExists ) *pc = pOp->p2 - 1;
+    if( alreadyExists ) *pc = (long)pOp->p2 - 1;
   }else{
     VdbeBranchTaken(alreadyExists==0,2);
-    if( !alreadyExists ) *pc = pOp->p2 - 1;
+    if( !alreadyExists ) *pc = (long)pOp->p2 - 1;
   }
   // break;
   return rc;
@@ -3081,7 +3081,7 @@ int impl_OP_NoConflict_NotFound_Found(Vdbe *p, sqlite3 *db, int *pc, int rc, Op 
 ** previously inserted as part of set X (only if it was previously
 ** inserted as part of some other set).
 */
-int impl_OP_RowSetTest(Vdbe *p, sqlite3 *db, int *pc, int rc, Op *pOp) {
+long impl_OP_RowSetTest(Vdbe *p, sqlite3 *db, long *pc, long rc, Op *pOp) {
 // case OP_RowSetTest: {                     /* jump, in1, in3 */
   int iSet;
   int exists;
@@ -3103,7 +3103,7 @@ int impl_OP_RowSetTest(Vdbe *p, sqlite3 *db, int *pc, int rc, Op *pOp) {
     if( (pIn1->flags & MEM_RowSet)==0 ) {
       // goto no_mem;
       printf("In impl_OP_RowSetTest(): no_mem.\n");
-      rc = gotoNoMem(p, db, *pc);
+      rc = (long)gotoNoMem(p, db, (int)*pc);
       return rc;                                    
     }
   }
@@ -3114,7 +3114,7 @@ int impl_OP_RowSetTest(Vdbe *p, sqlite3 *db, int *pc, int rc, Op *pOp) {
     exists = sqlite3RowSetTest(pIn1->u.pRowSet, iSet, pIn3->u.i);
     VdbeBranchTaken(exists!=0,2);
     if( exists ){
-      *pc = pOp->p2 - 1;
+      *pc = (long)pOp->p2 - 1;
       // break;
       return rc;
     }
@@ -3131,7 +3131,7 @@ int impl_OP_RowSetTest(Vdbe *p, sqlite3 *db, int *pc, int rc, Op *pOp) {
 ** Write the current address onto register P1
 ** and then jump to address P2.
 */
-int impl_OP_Gosub(Vdbe *p, int pc, Op *pOp) {
+long impl_OP_Gosub(Vdbe *p, long pc, Op *pOp) {
 // case OP_Gosub: {            /* jump */
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
   Mem *pIn1;                 /* 1st input operand */
@@ -3143,7 +3143,7 @@ int impl_OP_Gosub(Vdbe *p, int pc, Op *pOp) {
   pIn1->flags = MEM_Int;
   pIn1->u.i = pc;
   REGISTER_TRACE(pOp->p1, pIn1);
-  pc = pOp->p2 - 1;
+  pc = (long)pOp->p2 - 1;
   // break;
   return pc;
 }
@@ -3153,14 +3153,14 @@ int impl_OP_Gosub(Vdbe *p, int pc, Op *pOp) {
 ** Jump to the next instruction after the address in register P1.  After
 ** the jump, register P1 becomes undefined.
 */
-int impl_OP_Return(Vdbe *p, int pc, Op *pOp) {
+long impl_OP_Return(Vdbe *p, long pc, Op *pOp) {
 // case OP_Return: {           /* in1 */
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
   Mem *pIn1;                 /* 1st input operand */
 
   pIn1 = &aMem[pOp->p1];
   assert( pIn1->flags==MEM_Int );
-  pc = (int)pIn1->u.i;
+  pc = (long)pIn1->u.i;
   pIn1->flags = MEM_Undefined;
   // break;
   return pc;

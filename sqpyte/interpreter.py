@@ -46,7 +46,7 @@ class Sqlite3Query(object):
     def __init__(self, db, query):
         self.db = db
         self.prepare(query)
-        self.internalPc = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
+        self.internalPc = lltype.malloc(rffi.LONGP.TO, 1, flavor='raw')
 
     def prepare(self, query):
         length = len(query)
@@ -63,7 +63,7 @@ class Sqlite3Query(object):
         return translated.python_OP_Init_translated(pc, pOp)
 
     def python_OP_Rewind(self, pc, pOp):
-        self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         rc = capi.impl_OP_Rewind(self.p, self.db, self.internalPc, pOp)
         retPc = self.internalPc[0]
         return retPc, rc
@@ -89,7 +89,7 @@ class Sqlite3Query(object):
         return capi.impl_OP_ResultRow(self.p, self.db, pc, pOp)
 
     def python_OP_Next(self, pc, pOp):
-        #self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        #self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         #rc = capi.impl_OP_Next(self.p, self.db, self.internalPc, pOp)
         #retPc = self.internalPc[0]
         #return retPc, rc
@@ -101,13 +101,13 @@ class Sqlite3Query(object):
         capi.impl_OP_Close(self.p, pOp)
 
     def python_OP_Halt(self, pc, pOp):
-        self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         rc = capi.impl_OP_Halt(self.p, self.db, self.internalPc, pOp)
         retPc = self.internalPc[0]
         return retPc, rc
 
     def python_OP_Ne_Eq_Gt_Le_Lt_Ge(self, pc, rc, pOp):
-        self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         rc = capi.impl_OP_Ne_Eq_Gt_Le_Lt_Ge(self.p, self.db, self.internalPc, rc, pOp)
         retPc = self.internalPc[0]
         return retPc, rc
@@ -128,13 +128,13 @@ class Sqlite3Query(object):
         return capi.impl_OP_Copy(self.p, self.db, pc, rc, pOp)
 
     def python_OP_MustBeInt(self, pc, rc, pOp):
-        self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         rc = capi.impl_OP_MustBeInt(self.p, self.db, self.internalPc, rc, pOp)
         retPc = self.internalPc[0]
         return retPc, rc
 
     def python_OP_NotExists(self, pc, pOp):
-        self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         rc = capi.impl_OP_NotExists(self.p, self.db, self.internalPc, pOp)
         retPc = self.internalPc[0]
         return retPc, rc
@@ -160,8 +160,8 @@ class Sqlite3Query(object):
     def python_OP_RealAffinity(self, pOp):
         capi.impl_OP_RealAffinity(self.p, pOp)
 
-    def python_OP_Add_Subtract_Multiply_Divide_Remainder(self, pc, pOp):
-        capi.impl_OP_Add_Subtract_Multiply_Divide_Remainder(self.p, pc, pOp)
+    def python_OP_Add_Subtract_Multiply_Divide_Remainder(self, pOp):
+        capi.impl_OP_Add_Subtract_Multiply_Divide_Remainder(self.p, pOp)
 
     def python_OP_If_IfNot(self, pc, pOp):
         return capi.impl_OP_If_IfNot(self.p, pc, pOp)
@@ -173,7 +173,7 @@ class Sqlite3Query(object):
         return capi.impl_OP_IsNull(self.p, pc, pOp)
 
     def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(self, pc, rc, pOp):
-        self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         rc = capi.impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(self.p, self.db, self.internalPc, rc, pOp)
         retPc = self.internalPc[0]
         return retPc, rc
@@ -188,7 +188,7 @@ class Sqlite3Query(object):
         return capi.impl_OP_IdxRowid(self.p, self.db, pc, rc, pOp)
 
     def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(self, pc, pOp):
-        self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         rc = capi.impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(self.p, self.internalPc, pOp)
         retPc = self.internalPc[0]
         return retPc, rc
@@ -215,13 +215,13 @@ class Sqlite3Query(object):
         return capi.impl_OP_SorterInsert_IdxInsert(self.p, self.db, pOp)
 
     def python_OP_NoConflict_NotFound_Found(self, pc, rc, pOp):
-        self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         rc = capi.impl_OP_NoConflict_NotFound_Found(self.p, self.db, self.internalPc, rc, pOp)
         retPc = self.internalPc[0]
         return retPc, rc        
 
     def python_OP_RowSetTest(self, pc, rc, pOp):
-        self.internalPc[0] = rffi.cast(rffi.INT, pc)
+        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         rc = capi.impl_OP_RowSetTest(self.p, self.db, self.internalPc, rc, pOp)
         retPc = self.internalPc[0]
         return retPc, rc        
@@ -338,7 +338,7 @@ class Sqlite3Query(object):
                   opcode == CConfig.OP_Multiply or 
                   opcode == CConfig.OP_Divide or 
                   opcode == CConfig.OP_Remainder):
-                self.python_OP_Add_Subtract_Multiply_Divide_Remainder(pc, pOp)
+                self.python_OP_Add_Subtract_Multiply_Divide_Remainder(pOp)
             elif (opcode == CConfig.OP_If or
                   opcode == CConfig.OP_IfNot):
                 pc = self.python_OP_If_IfNot(pc, pOp)
