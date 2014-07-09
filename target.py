@@ -76,7 +76,10 @@ def entry_point(argv):
     for i in range(2):
         run(query, "")
     t1 = time.time()
-    print 'Query result:\n%s\n' % run(query, queryRes)
+    if queryRes != "":
+        print 'Query result:\n%s\n' % run(query, queryRes)
+    else:    
+        print run(query, queryRes)
     t2 = time.time()
     print "%s" % (t2 - t1)
     return 0
