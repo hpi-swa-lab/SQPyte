@@ -1,7 +1,7 @@
 INSTALL_DIR=`pwd`/../sqlite_install
 
 all:
-	cd sqlite && ./configure --prefix=${INSTALL_DIR}
+	cd sqlite && ./configure --prefix=${INSTALL_DIR} --disable-tcl
 	cd sqlite && ${MAKE} ${MFLAGS} install
 
 clean:
