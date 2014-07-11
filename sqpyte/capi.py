@@ -45,14 +45,15 @@ opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite', 'OP_Rewind',
            'OP_SorterInsert', 'OP_IdxInsert',
            'OP_NoConflict', 'OP_NotFound', 'OP_Found', 'OP_RowSetTest',
            'OP_Gosub', 'OP_Return']
-p4names = ['P4_INT32', 'P4_KEYINFO']
+p4names = ['P4_INT32', 'P4_KEYINFO', 'P4_COLLSEQ']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR', 'OPFLAG_CLEARCACHE', 'OPFLAG_LENGTHARG', 'OPFLAG_TYPEOFARG']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW', 'SQLITE_BUSY', 'SQLITE_CORRUPT_BKPT']
+sqlite_codes = ['SQLITE_NULLEQ', 'SQLITE_JUMPIFNULL', 'SQLITE_STOREP2', 'SQLITE_AFF_MASK']
 btree_values = ['BTCURSOR_MAX_DEPTH', 'BTREE_BULKLOAD']
 other_constants = ['SQLITE_MAX_VARIABLE_NUMBER', 'CACHE_STALE']
-memValues = ['MEM_Real']
+memValues = ['MEM_Null', 'MEM_Real', 'MEM_Cleared', 'MEM_TypeMask', 'MEM_Zero']
 
-for name in p4names + opnames + p5flags + result_codes + btree_values + other_constants + memValues:
+for name in p4names + opnames + p5flags + result_codes + sqlite_codes + btree_values + other_constants + memValues:
     setattr(CConfig, name, platform.DefinedConstantInteger(name))
 
 

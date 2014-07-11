@@ -264,6 +264,106 @@ def python_OP_Next_translated(hlquery, db, pc, pOp):
 
     return pcRet, rc
 
+def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(p, db, pc, rc, pOp):
+    aMem = p.aMem           # /* Copy of p->aMem */
+    pIn1 = aMem[pOp.p1]     # /* 1st input operand */
+    pin3 = aMem[pOp.p3]     # /* 3rd input operand */
+    flags1 = pIn1.flags
+    flags3 = pIn3.flags
+    encoding = db.aDb[0].pSchema.enc    
+
+    if (flags1 | flags3) & CConfig.MEM_Null:
+        # /* One or both operands are NULL */
+        if pOp.p5 & CConfig.SQLITE_NULLEQ:
+            # /* If SQLITE_NULLEQ is set (which will only happen if the operator is
+            #  ** OP_Eq or OP_Ne) then take the jump or not depending on whether
+            #  ** or not both operands are null.
+            #  */
+            assert pOp.opcode == CConfig.OP_Eq or pOp.opcode = CConfig.OP_Ne
+            assert flags1 & CConfig.MEM_Cleared == 0
+            assert pOp.p5 & CConfig.SQLITE_JUMPIFNULL == 0
+            if (flags1 & CConfig.MEM_Null != 0
+                and flags3 & CConfig.MEM_Null != 0
+                and flags3 & CConfig.MEM_Cleared == 0):
+                res = 0     # /* Results are equal */
+            else:
+                res = 1     # /* Results are not equal */
+        else:
+            # /* SQLITE_NULLEQ is clear and at least one operand is NULL,
+            #  ** then the result is always NULL.
+            #  ** The jump is taken if the SQLITE_JUMPIFNULL bit is set.
+            #  */
+            if pOp.p5 & CConfig.SQLITE_STOREP2:
+                pOut = aMem[pOp.p2]
+
+                pOut.flags = (p.flags & ~(CConfig.MEM_TypeMask | CConfig.MEM_Zero)) | CConfig.MEM_Null
+
+                # Used only for debugging, i.e., not in production.
+                # REGISTER_TRACE(pOp->p2, pOut);
+
+            else:
+                # VdbeBranchTaken() is used for test suite validation only and 
+                # does not appear an production builds.
+                # See vdbe.c lines 110-136.
+                # VdbeBranchTaken(2,3);
+                if pOp.p5 & CConfig.SQLITE_JUMPIFNULL:
+                    pc = pOp.p2 - 1
+            return pc, rc
+    else:
+        # /* Neither operand is NULL.  Do a comparison. */
+        affinity = pOp.p5 & CConfig.SQLITE_AFF_MASK
+        if affinity:
+            pass
+            #     applyAffinity(pIn1, affinity, encoding);
+            #     applyAffinity(pIn3, affinity, encoding);
+            #     if( db->mallocFailed ) {
+            #       // goto no_mem;
+            #       printf("In impl_OP_Ne_Eq_Gt_Le_Lt_Ge(): no_mem.\n");
+            #       rc = (long)gotoNoMem(p, db, (long)*pc);
+            #       return rc;
+            #     }
+
+        assert pOp.p4type == CConfig.P4_COLLSEQ || pOp.p4.pColl == 0
+        #   ExpandBlob(pIn1);
+        #   ExpandBlob(pIn3);
+        #   res = sqlite3MemCompare(pIn3, pIn1, pOp->p4.pColl);
+
+        if pOp.opcode == CConfig.OP_Eq:
+            res = res == 0
+        elif pOp.opcode == CConfig.OP_Ne:
+            res = res != 0
+        elif pOp.opcode == CConfig.OP_Lt:
+            res = res < 0
+        elif pOp.opcode == CConfig.OP_Le:
+            res = res <= 0
+        elif pOp.opcode == CConfig.OP_Gt:
+            res = res > 0
+        else:
+            res = res >= 0
+
+        if pOp.p5 & CConfig.SQLITE_STOREP2:
+            pOut = aMem[pOp.p2]
+            #   memAboutToChange(p, pOut);
+            #   MemSetTypeFlag(pOut, MEM_Int);
+            pOut.u.i = res
+
+            # Used only for debugging, i.e., not in production.
+            # REGISTER_TRACE(pOp->p2, pOut);
+        else:
+            # VdbeBranchTaken() is used for test suite validation only and 
+            # does not appear an production builds.
+            # See vdbe.c lines 110-136.
+            # VdbeBranchTaken(res!=0, (pOp->p5 & SQLITE_NULLEQ)?2:3);
+
+            if res:
+                pc = pOp.p2 - 1
+
+        # /* Undo any changes made by applyAffinity() to the input registers. */
+        pIn1.flags = (pIn1.flags & ~CConfig.MEM_TypeMask) | (flags1 & CConfig.MEM_TypeMask)
+        pIn3.flags = (pIn3.flags & ~CConfig.MEM_TypeMask) | (flags3 & CConfig.MEM_TypeMask)
+
+        return pc, rc
+
 
 def python_OP_Column_translated(p, db, pc, pOp):
     aMem = p.aMem
