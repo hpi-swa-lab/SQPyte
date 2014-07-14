@@ -99,7 +99,7 @@ def test_count():
     count = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
     assert int(count) == 76
 
-def test_compare():
+def test_null_comparison():
     db = Sqlite3DB(testdb).db
     query = Sqlite3Query(db, 'select count(*) from contacts where age > 10 and age < 14;')
     rc = query.mainloop()
@@ -107,6 +107,24 @@ def test_compare():
     textlen = query.python_sqlite3_column_bytes(0)
     count = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
     assert int(count) == 3
+
+def test_comparison():
+    db = Sqlite3DB(testdb).db
+    query = Sqlite3Query(db, 'select count(*) from contacts where age > 40 and age < 60;')
+    rc = query.mainloop()
+    assert rc == CConfig.SQLITE_ROW
+    textlen = query.python_sqlite3_column_bytes(0)
+    count = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
+    assert int(count) == 18
+
+def test_string_comparison():
+    db = Sqlite3DB(testdb).db
+    query = Sqlite3Query(db, "select count(*) from contacts where name = 'Raphael Paul';")
+    rc = query.mainloop()
+    assert rc == CConfig.SQLITE_ROW
+    textlen = query.python_sqlite3_column_bytes(0)
+    count = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
+    assert int(count) == 1    
 
 def test_translated_allocateCursor():
     db = Sqlite3DB(testdb).db
