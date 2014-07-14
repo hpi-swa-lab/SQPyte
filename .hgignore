@@ -8,6 +8,7 @@ __pycache__
 .DS_Store
 target-c*
 sqpyte/test/big-test.db
+sqpyte/test/big-tpch.db
 sqlite_install/
 
 tpch/tpch-2.17.0/

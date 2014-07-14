@@ -6,6 +6,8 @@ from rpython.rtyper.lltypesystem import rffi
 
 # testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sqpyte/test/test.db")
 testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sqpyte/test/tpch.db")
+# testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sqpyte/test/big-tpch.db")
+
 assert os.path.isfile(testdb)
 
 jitdriver = jit.JitDriver(
