@@ -7,6 +7,7 @@ from sqpyte.translated import sqlite3BtreeCursorHints, sqlite3VdbeSorterRewind
 import os, sys
 
 testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test.db")
+# testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "big-test.db")
 
 def test_opendb():
     db = Sqlite3DB(testdb).db

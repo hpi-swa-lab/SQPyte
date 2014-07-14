@@ -9,6 +9,7 @@ import translated
 import math
 
 testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test/test.db")
+# testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test/big-test.db")
 
 def get_printable_location(pc, rc, ops, self):
     opcode = self.get_opcode(ops[pc])
