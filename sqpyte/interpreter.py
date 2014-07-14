@@ -108,13 +108,13 @@ class Sqlite3Query(object):
         return retPc, rc
 
     def python_OP_Ne_Eq_Gt_Le_Lt_Ge(self, pc, rc, pOp):
-        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        rc = capi.impl_OP_Ne_Eq_Gt_Le_Lt_Ge(self.p, self.db, self.internalPc, rc, pOp)
-        retPc = self.internalPc[0]
-        return retPc, rc
+        # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
+        # rc = capi.impl_OP_Ne_Eq_Gt_Le_Lt_Ge(self.p, self.db, self.internalPc, rc, pOp)
+        # retPc = self.internalPc[0]
+        # return retPc, rc
 
-        # retPc, retRc = translated.python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(self, self.db, pc, rc, pOp)
-        # return retPc, retRc
+        retPc, retRc = translated.python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(self.p, self.db, pc, rc, pOp)
+        return retPc, retRc
 
     def python_OP_Integer(self, pOp):
         capi.impl_OP_Integer(self.p, pOp)

@@ -51,7 +51,7 @@ result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'S
 sqlite_codes = ['SQLITE_NULLEQ', 'SQLITE_JUMPIFNULL', 'SQLITE_STOREP2', 'SQLITE_AFF_MASK']
 btree_values = ['BTCURSOR_MAX_DEPTH', 'BTREE_BULKLOAD']
 other_constants = ['SQLITE_MAX_VARIABLE_NUMBER', 'CACHE_STALE']
-memValues = ['MEM_Null', 'MEM_Real', 'MEM_Cleared', 'MEM_TypeMask', 'MEM_Zero']
+memValues = ['MEM_Null', 'MEM_Real', 'MEM_Cleared', 'MEM_TypeMask', 'MEM_Zero', 'MEM_Int']
 
 for name in p4names + opnames + p5flags + result_codes + sqlite_codes + btree_values + other_constants + memValues:
     setattr(CConfig, name, platform.DefinedConstantInteger(name))
@@ -651,6 +651,12 @@ sqlite3_column_bytes = rffi.llexternal('sqlite3_column_bytes', [VDBEP, rffi.INT]
 
 sqlite3_sqlite3BtreeNext = rffi.llexternal('sqlite3BtreeNext', [BTCURSORP, rffi.INTP],
     rffi.INT, compilation_info=CConfig._compilation_info_)
+sqlite3_applyAffinity = rffi.llexternal('applyAffinity', [MEMP, rffi.CHAR, CConfig.u8],
+    lltype.Void, compilation_info=CConfig._compilation_info_)
+sqlite3_sqlite3MemCompare = rffi.llexternal('sqlite3MemCompare', [MEMP, MEMP, COLLSEQP],
+    rffi.INT, compilation_info=CConfig._compilation_info_)
 sqlite3_gotoAbortDueToInterrupt = rffi.llexternal('gotoAbortDueToInterrupt', [VDBEP, SQLITE3P, rffi.INT, rffi.INT],
+    rffi.INT, compilation_info=CConfig._compilation_info_)
+sqlite3_gotoNoMem = rffi.llexternal('gotoNoMem', [VDBEP, SQLITE3P, rffi.INT],
     rffi.INT, compilation_info=CConfig._compilation_info_)
 
