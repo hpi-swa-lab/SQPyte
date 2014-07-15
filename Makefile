@@ -6,4 +6,4 @@ all:
 
 clean:
 	rm -rf sqlite_install
-	cd sqlite && ${MAKE} ${MFLAGS} clean
+	cd sqlite && ${MAKE} ${MFLAGS} distclean
