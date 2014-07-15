@@ -408,53 +408,64 @@ def python_OP_Column_translated(p, db, pc, pOp):
     assert pOp.p3 > 0 and pOp.p3 <= (p.nMem - p.nCursor)
     pDest = aMem[pOp.p3]
 
-  # memAboutToChange(p, pDest);
+    # Used only for debugging, i.e., not in production.
+    # See vdbe.c lines 24-37.
+    # memAboutToChange(p, pDest);
 
     assert pOp.p1 >= 0 and pOp.p1 < p.nCursor
     pC = p.apCsr[pOp.p1]
     assert pC
     assert p2 < pC.nField
     aType = pC.aType
-    # aOffset = aType + pC.nField
-    print 'p.aOnceFlag = %s' % p.aOnceFlag
-    print 'pC.aType = %s' % pC.aType
-    print 'pC.nField = %s' % pC.nField
+    # aOffset = aType + pC.nField   # <<< FIX
     aOffset = aType[pC.nField]
 
-# #ifndef SQLITE_OMIT_VIRTUALTABLE
-#   assert( pC->pVtabCursor==0 ); /* OP_Column never called on virtual table */
-# #endif
+    # #ifndef SQLITE_OMIT_VIRTUALTABLE
+    #   assert( pC->pVtabCursor==0 ); /* OP_Column never called on virtual table */
+    # #endif
+
     pCrsr = pC.pCursor
     assert pCrsr != 0 or pC.pseudoTableReg > 0
     assert pCrsr != 0 or pC.nullRow
 
+    # /* If the cursor cache is stale, bring it up-to-date */
+    # rc = sqlite3VdbeCursorMoveto(pC);  <<< CALL INTO C
 
-  # /* If the cursor cache is stale, bring it up-to-date */
-  # rc = sqlite3VdbeCursorMoveto(pC);
-    if rc:
-        # goto abort_due_to_error;
+    if rc != 0:
+        # goto abort_due_to_error;  <<< CALL INTO C
         print "In python_OP_Column_translated(): abort_due_to_error."
         assert False
 
     if pC.cacheStatus != p.cacheCtr or (pOp.p5 & CConfig.OPFLAG_CLEARCACHE) != 0:
-        if pC.nullRow:
+        if pC.nullRow != 0:
             if pCrsr == 0:
                 assert pC.pseudoTableReg > 0
                 pReg = aMem[pC.pseudoTableReg]
                 assert pReg.flags & MEM_Blob
+
+                # Used only for debugging, i.e., not in production.
+                # See vdbeInt.c lines 228-234.                
                 # assert( memIsValid(pReg) );
+                
                 pC.payloadSize = pC.szRow = avail = pReg.n
                 pC.aRow = pReg.z # pC->aRow = (u8*)pReg->z;
             else:
-                # MemSetTypeFlag(pDest, MEM_Null);
-                # goto op_column_out;
-                pass
+                # Translated: MemSetTypeFlag(pDest, MEM_Null);
+                pDest.flags = rffi.cast(rffi.USHORT, (pDest.flags & ~(MEM_TypeMask | MEM_Zero)) | MEM_Null)
+
+                # goto op_column_out;   <<< TRANSLATE
         else:
             assert pCrsr
             if pC.isTable == 0:
-                # assert( sqlite3BtreeCursorIsValid(pCrsr) );
+                # Translated: assert( sqlite3BtreeCursorIsValid(pCrsr) );
+                # assert pCrsr and pCrsr->eState == CURSOR_VALID  <<< FIX
+
+                # Used only in verification processes, i.e., not in production.
+                # See sqliteInt.h 301-313.
                 # VVA_ONLY(rc =) sqlite3BtreeKeySize(pCrsr, &payloadSize64);
+
                 assert rc == CConfig.SQLITE_OK
+
                 # assert( (payloadSize64 & SQLITE_MAX_U32)==(u64)payloadSize64 );
                 # pC->aRow = sqlite3BtreeKeyFetch(pCrsr, &avail);
                 pC.payloadSize = payloadSize # pC->payloadSize = (u32)payloadSize64;
