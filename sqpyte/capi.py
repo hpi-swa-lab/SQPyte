@@ -651,8 +651,12 @@ sqlite3_column_bytes = rffi.llexternal('sqlite3_column_bytes', [VDBEP, rffi.INT]
 
 sqlite3_sqlite3BtreeNext = rffi.llexternal('sqlite3BtreeNext', [BTCURSORP, rffi.INTP],
     rffi.INT, compilation_info=CConfig._compilation_info_)
+
+# XXX: applyAffinity() appears to get inlined by GCC at -O3, so we have to fake a macro wrapper. 
+# It would probably be better if we rewrote this in RPython, but that's for another day.
 sqlite3_applyAffinity = rffi.llexternal('applyAffinity', [MEMP, rffi.CHAR, CConfig.u8],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
+    lltype.Void, compilation_info=CConfig._compilation_info_, macro=True)
+
 sqlite3_sqlite3MemCompare = rffi.llexternal('sqlite3MemCompare', [MEMP, MEMP, COLLSEQP],
     rffi.INT, compilation_info=CConfig._compilation_info_)
 sqlite3_gotoAbortDueToInterrupt = rffi.llexternal('gotoAbortDueToInterrupt', [VDBEP, SQLITE3P, rffi.INT, rffi.INT],
