@@ -4,10 +4,8 @@ from rpython.rtyper.lltypesystem import rffi, lltype
 from rpython.translator.tool.cbuild import ExternalCompilationInfo
 
 
-sqlite_inst_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), \
-                               "sqlite_install")
-sqlite_src_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), \
-                              "sqlite")
+sqlite_inst_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sqlite-install")
+sqlite_src_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sqlite")
 
 class CConfig:
     _compilation_info_ = ExternalCompilationInfo(

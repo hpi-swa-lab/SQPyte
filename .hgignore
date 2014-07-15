@@ -9,7 +9,7 @@ __pycache__
 target-c*
 sqpyte/test/big-test.db
 sqpyte/test/big-tpch.db
-sqlite_install/
+sqlite-install/
 
 tpch/tpch-2.17.0/
 sqpyte/test/test.db
