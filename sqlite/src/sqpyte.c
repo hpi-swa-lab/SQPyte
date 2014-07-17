@@ -1998,6 +1998,7 @@ long impl_OP_Rowid(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp) {
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
   Mem *pOut;                 /* Output operand */
   pOut = &aMem[pOp->p2];
+  pOut->flags = MEM_Int;
 
   assert( pOp->p1>=0 && pOp->p1<p->nCursor );
   pC = p->apCsr[pOp->p1];
