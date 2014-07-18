@@ -3167,4 +3167,31 @@ long impl_OP_Return(Vdbe *p, long pc, Op *pOp) {
   return pc;
 }
 
+/* Opcode: SorterOpen P1 P2 * P4 *
+**
+** This opcode works like OP_OpenEphemeral except that it opens
+** a transient index that is specifically designed to sort large
+** tables using an external merge-sort algorithm.
+*/
+long impl_OP_SorterOpen(Vdbe *p, sqlite3 *db, long pc, Op *pOp) {
+// case OP_SorterOpen: {
+  VdbeCursor *pCx;
+  long rc;
+
+  assert( pOp->p1>=0 );
+  assert( pOp->p2>=0 );
+  pCx = allocateCursor(p, pOp->p1, pOp->p2, -1, 1);
+  if( pCx==0 ) {
+    // goto no_mem;
+    printf("In impl_OP_SorterOpen(): no_mem.\n");
+    rc = (long)gotoNoMem(p, db, (int)pc);
+    return rc;                                    
+  }
+  pCx->pKeyInfo = pOp->p4.pKeyInfo;
+  assert( pCx->pKeyInfo->db==db );
+  assert( pCx->pKeyInfo->enc==ENC(db) );
+  rc = (long)sqlite3VdbeSorterInit(db, pCx);
+  // break;
+  return rc;
+}
 

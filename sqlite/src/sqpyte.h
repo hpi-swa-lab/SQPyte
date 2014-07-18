@@ -46,6 +46,7 @@ long impl_OP_NoConflict_NotFound_Found(Vdbe *p, sqlite3 *db, long *pc, long rc, 
 long impl_OP_RowSetTest(Vdbe *p, sqlite3 *db, long *pc, long rc, Op *pOp);
 long impl_OP_Gosub(Vdbe *p, long pc, Op *pOp);
 long impl_OP_Return(Vdbe *p, long pc, Op *pOp);
+long impl_OP_SorterOpen(Vdbe *p, sqlite3 *db, long pc, Op *pOp);
 
 
 int gotoVdbeErrorHalt(Vdbe *p, sqlite3 *db, int pc, int rc);

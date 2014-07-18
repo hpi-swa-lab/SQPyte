@@ -56,7 +56,6 @@ class Sqlite3Query(object):
             errorcode = capi.sqlite3_prepare(self.db, query, length, result, unused_buffer)
             assert errorcode == 0
             self.p = rffi.cast(capi.VDBEP, result[0])
-            # self.p.bIsReader = rffi.cast(rffi.UINT, 1)
 
     def reset_query(self):
         capi.sqlite3_reset(self.p)
@@ -77,6 +76,11 @@ class Sqlite3Query(object):
         return capi.impl_OP_TableLock(self.p, self.db, rc, pOp)
 
     def python_OP_Goto(self, pc, rc, pOp):
+        # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
+        # retRc = capi.impl_OP_Goto(self.p, self.db, self.internalPc, rc, pOp)
+        # retPc = self.internalPc[0]
+        # return retPc, retRc
+
         return translated.python_OP_Goto_translated(self.p, self.db, pc, rc, pOp)
 
     def python_OP_OpenRead_OpenWrite(self, pc, pOp):
@@ -96,8 +100,7 @@ class Sqlite3Query(object):
         # retPc = self.internalPc[0]
         # return retPc, rc
 
-        retPc, rc = translated.python_OP_Next_translated(self, self.db, pc, pOp)
-        return retPc, rc
+        return translated.python_OP_Next_translated(self, self.db, pc, pOp)
 
     def python_OP_Close(self, pOp):
         capi.impl_OP_Close(self.p, pOp)
@@ -114,8 +117,7 @@ class Sqlite3Query(object):
         # retPc = self.internalPc[0]
         # return retPc, rc
 
-        retPc, retRc = translated.python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(self.p, self.db, pc, rc, pOp)
-        return retPc, retRc
+        return translated.python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(self.p, self.db, pc, rc, pOp)
 
     def python_OP_Integer(self, pOp):
         capi.impl_OP_Integer(self.p, pOp)
@@ -237,6 +239,9 @@ class Sqlite3Query(object):
     def python_OP_Return(self, pc, pOp):
         return capi.impl_OP_Return(self.p, pc, pOp)
 
+    def python_OP_SorterOpen(self, pc, pOp):
+        return capi.impl_OP_SorterOpen(self.p, self.db, pc, pOp)
+
 
     def python_sqlite3_column_text(self, iCol):
         return capi.sqlite3_column_text(self.p, iCol)
@@ -245,7 +250,7 @@ class Sqlite3Query(object):
 
 
     def debug_print(self, s):
-        return
+        # return
         if not jit.we_are_jitted():
             print s
 
@@ -393,6 +398,8 @@ class Sqlite3Query(object):
                 pc = self.python_OP_Gosub(pc, pOp)
             elif opcode == CConfig.OP_Return:
                 pc = self.python_OP_Return(pc, pOp)
+            elif opcode == CConfig.OP_SorterOpen:
+                rc = self.python_OP_SorterOpen(pc, pOp)
             else:
                 raise Exception("Unimplemented bytecode %s." % opcode)
                 # raise SQPyteException("Unimplemented bytecode %s." % opcode)
