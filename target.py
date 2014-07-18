@@ -12,25 +12,34 @@ assert os.path.isfile(testdb)
 
 jitdriver = jit.JitDriver(
     greens=['query', 'queryRes'], 
-    reds=['i', 'rc'],
+    reds=['rc'],
     )
     # get_printable_location=get_printable_location)
 
-def run(query, queryRes):
+def run(query, queryRes, printRes):
     try:
         query.reset_query()
+
+        if queryRes != "" and printRes:
+            print 'Query result:'
+
         rc = query.mainloop()
-        i = 0
-        textlen = 0
         while rc == CConfig.SQLITE_ROW:
-            jitdriver.jit_merge_point(i=i, query=query, queryRes=queryRes, rc=rc)
-            textlen = query.python_sqlite3_column_bytes(0)
+            jitdriver.jit_merge_point(query=query, queryRes=queryRes, rc=rc)
+            if printRes:
+                result = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), query.python_sqlite3_column_bytes(0))
+                i = 1
+                textlen = query.python_sqlite3_column_bytes(i)
+                while textlen > 0:
+                    result += "|" + rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(i)), textlen)
+                    i += 1
+                    textlen = query.python_sqlite3_column_bytes(i)    
+                print result
             rc = query.mainloop()
-            i += textlen
-        result = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
-        if queryRes != "":
-            print 'Expected result:\n%s' % queryRes
-        return result
+
+        if queryRes != "" and printRes:
+            print '\nExpected result:\n%s' % queryRes
+
     except SQPyteException:
         raise
 
@@ -65,12 +74,9 @@ def entry_point(argv):
     query = Sqlite3Query(db, queryStr)
     
     for i in range(2):
-        run(query, "")
+        run(query, "", False)
     t1 = time.time()
-    if queryRes != "":
-        print 'Query result:\n%s\n' % run(query, queryRes)
-    else:    
-        print run(query, queryRes)
+    run(query, queryRes, True)
     t2 = time.time()
     print "%s" % (t2 - t1)
     return 0
