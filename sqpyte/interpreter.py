@@ -25,7 +25,7 @@ jitdriver = jit.JitDriver(
 
 class SQPyteException(Exception):
     def __init__(self, msg):
-        self.msg = msg
+        print msg
 
 class Sqlite3DB(object):
     _immutable_fields_ = ['db']
@@ -250,7 +250,7 @@ class Sqlite3Query(object):
 
 
     def debug_print(self, s):
-        # return
+        return
         if not jit.we_are_jitted():
             print s
 
@@ -401,8 +401,7 @@ class Sqlite3Query(object):
             elif opcode == CConfig.OP_SorterOpen:
                 rc = self.python_OP_SorterOpen(pc, pOp)
             else:
-                raise Exception("Unimplemented bytecode %s." % opcode)
-                # raise SQPyteException("Unimplemented bytecode %s." % opcode)
+                raise SQPyteException("SQPyteException: Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))
             pc += 1
             if pc <= oldpc:

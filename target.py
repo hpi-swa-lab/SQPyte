@@ -17,33 +17,22 @@ jitdriver = jit.JitDriver(
     # get_printable_location=get_printable_location)
 
 def run(query, queryRes):
-    query.reset_query()
-    rc = query.mainloop()
-    i = 0
-    textlen = 0
-    while rc == CConfig.SQLITE_ROW:
-        jitdriver.jit_merge_point(i=i, query=query, queryRes=queryRes, rc=rc)
-        textlen = query.python_sqlite3_column_bytes(0)
+    try:
+        query.reset_query()
         rc = query.mainloop()
-        i += textlen
-    result = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
-    if queryRes != "":
-        print 'Expected result:\n%s' % queryRes
-    return result
-
-    # try:
-    #     query.reset_query()
-    #     rc = query.mainloop()
-    #     i = 0
-    #     while rc == CConfig.SQLITE_ROW:
-    #         jitdriver.jit_merge_point(i=i, query=query, rc=rc)
-    #         textlen = query.python_sqlite3_column_bytes(0)
-    #         rc = query.mainloop()
-    #         i += textlen
-    #     return i
-    # except SQPyteException, e:
-    #     print "ERROR!", e.msg
-    #     raise
+        i = 0
+        textlen = 0
+        while rc == CConfig.SQLITE_ROW:
+            jitdriver.jit_merge_point(i=i, query=query, queryRes=queryRes, rc=rc)
+            textlen = query.python_sqlite3_column_bytes(0)
+            rc = query.mainloop()
+            i += textlen
+        result = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
+        if queryRes != "":
+            print 'Expected result:\n%s' % queryRes
+        return result
+    except SQPyteException:
+        raise
 
 def entry_point(argv):
     try:
