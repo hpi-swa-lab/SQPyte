@@ -52,6 +52,7 @@ void impl_OP_Sequence(Vdbe *p, Op *pOp);
 long impl_OP_OpenPseudo(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp);
 long impl_OP_SorterSort_Sort(Vdbe *p, sqlite3 *db, long *pc, Op *pOp);
 long impl_OP_SorterData(Vdbe *p, Op *pOp);
+long impl_OP_SorterNext(Vdbe *p, sqlite3 *db, long *pc, Op *pOp);
 
 
 int gotoVdbeErrorHalt(Vdbe *p, sqlite3 *db, int pc, int rc);

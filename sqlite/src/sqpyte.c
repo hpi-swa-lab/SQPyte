@@ -3310,3 +3310,60 @@ long impl_OP_SorterData(Vdbe *p, Op *pOp) {
   // break;
   return (long) rc;
 }
+
+long impl_OP_SorterNext(Vdbe *p, sqlite3 *db, long *pc, Op *pOp) {
+// case OP_SorterNext: {  /* jump */
+  VdbeCursor *pC;
+  int res;
+  long rc;
+
+  pC = p->apCsr[pOp->p1];
+  assert( isSorter(pC) );
+  res = 0;
+  rc = (long)sqlite3VdbeSorterNext(db, pC, &res);
+  // goto next_tail;
+
+// next_tail:
+  pC->cacheStatus = CACHE_STALE;
+  VdbeBranchTaken(res==0,2);
+  if( res==0 ){
+    pC->nullRow = 0;
+    *pc = pOp->p2 - 1;
+    p->aCounter[pOp->p5]++;
+#ifdef SQLITE_TEST
+    sqlite3_search_count++;
+#endif
+  }else{
+    pC->nullRow = 1;
+  }
+  pC->rowidIsValid = 0;
+
+  // goto check_for_interrupt;
+  if( db->u1.isInterrupted ) {
+    // goto abort_due_to_interrupt;
+    printf("In impl_OP_SorterNext(): abort_due_to_interrupt.\n");
+    rc = gotoAbortDueToInterrupt(p, db, (int)*pc, rc);
+    return (long)rc;
+  }
+#ifndef SQLITE_OMIT_PROGRESS_CALLBACK
+  /* Call the progress callback if it is configured and the required number
+  ** of VDBE ops have been executed (either since this invocation of
+  ** sqlite3VdbeExec() or since last time the progress callback was called).
+  ** If the progress callback returns non-zero, exit the virtual machine with
+  ** a return code SQLITE_ABORT.
+  */
+  if( db->xProgress!=0 && nVmStep>=nProgressLimit ){
+    assert( db->nProgressOps!=0 );
+    nProgressLimit = nVmStep + db->nProgressOps - (nVmStep%db->nProgressOps);
+    if( db->xProgress(db->pProgressArg) ){
+      rc = SQLITE_INTERRUPT;
+      // goto vdbe_error_halt;
+      printf("In impl_OP_SorterNext(): vdbe_error_halt.\n");
+      rc = gotoVdbeErrorHalt(p, db, (int)*pc, rc);
+      return (long)rc;
+    }
+  }
+#endif
+  return (long)rc;
+}
+
