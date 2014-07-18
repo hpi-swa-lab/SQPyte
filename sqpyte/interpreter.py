@@ -250,6 +250,9 @@ class Sqlite3Query(object):
 
         return translated.python_OP_NextIfOpen_translated(self, self.db, pc, rc, pOp)
 
+    def python_OP_Sequence(self, pOp):
+        capi.impl_OP_Sequence(self.p, pOp)
+
 
     def python_sqlite3_column_text(self, iCol):
         return capi.sqlite3_column_text(self.p, iCol)
@@ -410,6 +413,8 @@ class Sqlite3Query(object):
                 rc = self.python_OP_SorterOpen(pc, pOp)
             elif opcode == CConfig.OP_NextIfOpen:
                 pc, rc = self.python_OP_NextIfOpen(pc, rc, pOp)
+            elif opcode == CConfig.OP_Sequence:
+                self.python_OP_Sequence(pOp)
             else:
                 raise SQPyteException("SQPyteException: Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))

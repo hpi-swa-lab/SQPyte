@@ -3206,3 +3206,25 @@ long impl_OP_NextIfOpen(Vdbe *p, sqlite3 *db, long *pc, long rc, Op *pOp) {
 // case OP_Next:          /* jump */
   return impl_OP_Next(p, db, pc, pOp);
 }
+
+/* Opcode: Sequence P1 P2 * * *
+** Synopsis: r[P2]=cursor[P1].ctr++
+**
+** Find the next available sequence number for cursor P1.
+** Write the sequence number into register P2.
+** The sequence number on the cursor is incremented after this
+** instruction.  
+*/
+void impl_OP_Sequence(Vdbe *p, Op *pOp) {
+// case OP_Sequence: {           /* out2-prerelease */
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pOut;                 /* Output operand */
+  pOut = &aMem[pOp->p2];
+  pOut->flags = MEM_Int;
+
+  assert( pOp->p1>=0 && pOp->p1<p->nCursor );
+  assert( p->apCsr[pOp->p1]!=0 );
+  pOut->u.i = p->apCsr[pOp->p1]->seqCount++;
+  // break;
+}
+
