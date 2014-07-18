@@ -262,6 +262,9 @@ class Sqlite3Query(object):
         retPc = self.internalPc[0]
         return retPc, rc        
 
+    def python_OP_SorterData(self, pOp):
+        return capi.impl_OP_SorterData(self.p, pOp)
+
 
     def python_sqlite3_column_text(self, iCol):
         return capi.sqlite3_column_text(self.p, iCol)
@@ -429,6 +432,8 @@ class Sqlite3Query(object):
             elif (opcode == CConfig.OP_SorterSort or 
                   opcode == CConfig.OP_Sort):
                 pc, rc = self.python_OP_SorterSort_Sort(pc, pOp)
+            elif opcode == CConfig.OP_SorterData:
+                rc = self.python_OP_SorterData(pOp)
             else:
                 raise SQPyteException("SQPyteException: Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))

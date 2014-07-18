@@ -3288,3 +3288,25 @@ long impl_OP_SorterSort_Sort(Vdbe *p, sqlite3 *db, long *pc, Op *pOp) {
   /* Fall through into OP_Rewind */
   return impl_OP_Rewind(p, db, pc, pOp);
 }
+
+/* Opcode: SorterData P1 P2 * * *
+** Synopsis: r[P2]=data
+**
+** Write into register P2 the current sorter data for sorter cursor P1.
+*/
+long impl_OP_SorterData(Vdbe *p, Op *pOp) {
+// case OP_SorterData: {
+  VdbeCursor *pC;
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pOut;                 /* Output operand */
+  int rc;
+
+  pOut = &aMem[pOp->p2];
+  pC = p->apCsr[pOp->p1];
+  assert( isSorter(pC) );
+  rc = sqlite3VdbeSorterRowkey(pC, pOut);
+  assert( rc!=SQLITE_OK || (pOut->flags & MEM_Blob) );
+  // break;
+  return (long) rc;
+}
