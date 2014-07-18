@@ -3228,3 +3228,40 @@ void impl_OP_Sequence(Vdbe *p, Op *pOp) {
   // break;
 }
 
+/* Opcode: OpenPseudo P1 P2 P3 * *
+** Synopsis: P3 columns in r[P2]
+**
+** Open a new cursor that points to a fake table that contains a single
+** row of data.  The content of that one row is the content of memory
+** register P2.  In other words, cursor P1 becomes an alias for the 
+** MEM_Blob content contained in register P2.
+**
+** A pseudo-table created by this opcode is used to hold a single
+** row output from the sorter so that the row can be decomposed into
+** individual columns using the OP_Column opcode.  The OP_Column opcode
+** is the only cursor opcode that works with a pseudo-table.
+**
+** P3 is the number of fields in the records that will be stored by
+** the pseudo-table.
+*/
+long impl_OP_OpenPseudo(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp) {
+// case OP_OpenPseudo: {
+  VdbeCursor *pCx;
+
+  assert( pOp->p1>=0 );
+  assert( pOp->p3>=0 );
+  pCx = allocateCursor(p, pOp->p1, pOp->p3, -1, 0);
+  if( pCx==0 ) {
+    // goto no_mem;
+    printf("In impl_OP_OpenPseudo(): no_mem.\n");
+    rc = (long)gotoNoMem(p, db, (int)pc);
+    return rc;                                    
+  }
+  pCx->nullRow = 1;
+  pCx->pseudoTableReg = pOp->p2;
+  pCx->isTable = 1;
+  assert( pOp->p5==0 );
+  // break;
+  return rc;
+}
+

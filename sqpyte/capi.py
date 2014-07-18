@@ -43,7 +43,7 @@ opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite', 'OP_Rewind',
            'OP_SorterInsert', 'OP_IdxInsert',
            'OP_NoConflict', 'OP_NotFound', 'OP_Found', 'OP_RowSetTest',
            'OP_Gosub', 'OP_Return', 'OP_SorterOpen', 'OP_NextIfOpen',
-           'OP_Sequence']
+           'OP_Sequence', 'OP_OpenPseudo']
 p4names = ['P4_INT32', 'P4_KEYINFO', 'P4_COLLSEQ']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR', 'OPFLAG_CLEARCACHE', 'OPFLAG_LENGTHARG', 'OPFLAG_TYPEOFARG']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW', 'SQLITE_BUSY', 'SQLITE_CORRUPT_BKPT']
@@ -644,6 +644,8 @@ impl_OP_NextIfOpen = rffi.llexternal('impl_OP_NextIfOpen', [VDBEP, SQLITE3P, rff
     rffi.LONG, compilation_info=CConfig._compilation_info_)
 impl_OP_Sequence = rffi.llexternal('impl_OP_Sequence', [VDBEP, VDBEOPP],
     lltype.Void, compilation_info=CConfig._compilation_info_)
+impl_OP_OpenPseudo = rffi.llexternal('impl_OP_OpenPseudo', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
+    rffi.LONG, compilation_info=CConfig._compilation_info_)
 
 
 sqlite3_reset = rffi.llexternal('sqlite3_reset', [VDBEP],
