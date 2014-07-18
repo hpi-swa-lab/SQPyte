@@ -42,7 +42,7 @@ opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite', 'OP_Rewind',
            'OP_OpenAutoindex', 'OP_OpenEphemeral', 'OP_MakeRecord',
            'OP_SorterInsert', 'OP_IdxInsert',
            'OP_NoConflict', 'OP_NotFound', 'OP_Found', 'OP_RowSetTest',
-           'OP_Gosub', 'OP_Return', 'OP_SorterOpen']
+           'OP_Gosub', 'OP_Return', 'OP_SorterOpen', 'OP_NextIfOpen']
 p4names = ['P4_INT32', 'P4_KEYINFO', 'P4_COLLSEQ']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR', 'OPFLAG_CLEARCACHE', 'OPFLAG_LENGTHARG', 'OPFLAG_TYPEOFARG']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW', 'SQLITE_BUSY', 'SQLITE_CORRUPT_BKPT']
@@ -638,6 +638,8 @@ impl_OP_Gosub = rffi.llexternal('impl_OP_Gosub', [VDBEP, rffi.LONG, VDBEOPP],
 impl_OP_Return = rffi.llexternal('impl_OP_Return', [VDBEP, rffi.LONG, VDBEOPP],
     rffi.LONG, compilation_info=CConfig._compilation_info_)
 impl_OP_SorterOpen = rffi.llexternal('impl_OP_SorterOpen', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
+    rffi.LONG, compilation_info=CConfig._compilation_info_)
+impl_OP_NextIfOpen = rffi.llexternal('impl_OP_NextIfOpen', [VDBEP, SQLITE3P, rffi.LONGP, rffi.LONG, VDBEOPP],
     rffi.LONG, compilation_info=CConfig._compilation_info_)
 
 

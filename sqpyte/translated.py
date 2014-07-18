@@ -264,6 +264,14 @@ def python_OP_Next_translated(hlquery, db, pc, pOp):
 
     return pcRet, rc
 
+def python_OP_NextIfOpen_translated(hlquery, db, pc, rc, pOp):
+    p = hlquery.p
+    p1 = rffi.cast(lltype.Signed, pOp.p1)
+    if not p.apCsr[p1]:
+        return pc, rc
+    else:
+        return python_OP_Next_translated(hlquery, db, pc, pOp)
+
 def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(p, db, pc, rc, pOp):
     aMem = p.aMem           # /* Copy of p->aMem */
     pIn1 = aMem[pOp.p1]     # /* 1st input operand */

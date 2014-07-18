@@ -3195,3 +3195,14 @@ long impl_OP_SorterOpen(Vdbe *p, sqlite3 *db, long pc, Op *pOp) {
   return rc;
 }
 
+long impl_OP_NextIfOpen(Vdbe *p, sqlite3 *db, long *pc, long rc, Op *pOp) {
+// case OP_NextIfOpen:    /* jump */
+  if( p->apCsr[pOp->p1]==0 ) {
+    // break;
+    return rc;
+  }
+  /* Fall through */
+// case OP_Prev:           jump 
+// case OP_Next:          /* jump */
+  return impl_OP_Next(p, db, pc, pOp);
+}
