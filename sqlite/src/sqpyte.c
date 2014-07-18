@@ -3265,3 +3265,26 @@ long impl_OP_OpenPseudo(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp) {
   return rc;
 }
 
+/* Opcode: Sort P1 P2 * * *
+**
+** This opcode does exactly the same thing as OP_Rewind except that
+** it increments an undocumented global variable used for testing.
+**
+** Sorting is accomplished by writing records into a sorting index,
+** then rewinding that index and playing it back from beginning to
+** end.  We use the OP_Sort opcode instead of OP_Rewind to do the
+** rewinding so that the global variable will be incremented and
+** regression tests can determine whether or not the optimizer is
+** correctly optimizing out sorts.
+*/
+long impl_OP_SorterSort_Sort(Vdbe *p, sqlite3 *db, long *pc, Op *pOp) {
+// case OP_SorterSort:    /* jump */
+// case OP_Sort: {        /* jump */
+#ifdef SQLITE_TEST
+  sqlite3_sort_count++;
+  sqlite3_search_count--;
+#endif
+  p->aCounter[SQLITE_STMTSTATUS_SORT]++;
+  /* Fall through into OP_Rewind */
+  return impl_OP_Rewind(p, db, pc, pOp);
+}
