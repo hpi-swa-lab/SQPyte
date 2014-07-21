@@ -422,6 +422,25 @@ def python_OP_IsNull(hlquery, pc, pOp):
         pc = hlquery.p_Signed(pOp, 2) - 1
     return pc
 
+
+# Opcode: Once P1 P2 * * *
+#
+# Check if OP_Once flag P1 is set. If so, jump to instruction P2. Otherwise,
+# set the flag and fall through to the next instruction.  In other words,
+# this opcode causes all following opcodes up through P2 (but not including
+# P2) to run just once and to be skipped on subsequent times through the loop.
+
+def python_OP_Once(hlquery, pc, pOp):
+    p = hlquery.p
+    p1 = hlquery.p_Signed(pOp, 1)
+    assert p1 < rffi.cast(lltype.Signed, p.nOnceFlag)
+    if rffi.cast(lltype.Signed, p.aOnceFlag[p1]):
+        pc = hlquery.p_Signed(pOp, 2) - 1
+    else:
+        p.aOnceFlag[p1] = rffi.cast(CConfig.u8, 1)
+    return pc
+
+
 def python_OP_Column_translated(hlquery, db, pc, pOp):
     p = hlquery.p
     aMem = p.aMem
