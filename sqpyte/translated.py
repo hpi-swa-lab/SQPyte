@@ -410,6 +410,13 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, db, pc, rc, pOp):
 
     return pc, rc
 
+def python_OP_IsNull(hlquery, pc, pOp):
+    pIn1 = hlquery.p.aMem[hlquery.p_Signed(pOp, 1)]
+    flags1 = rffi.cast(lltype.Unsigned, pIn1.flags)
+    mem_null = rffi.cast(lltype.Unsigned, CConfig.MEM_Null)
+    if flags1 & mem_null != 0:
+        pc = hlquery.p_Signed(pOp, 2) - 1
+    return pc
 
 def python_OP_Column_translated(hlquery, db, pc, pOp):
     p = hlquery.p

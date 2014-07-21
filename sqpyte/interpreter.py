@@ -177,7 +177,7 @@ class Sqlite3Query(object):
         return capi.impl_OP_Rowid(self.p, self.db, pc, rc, pOp)
 
     def python_OP_IsNull(self, pc, pOp):
-        return capi.impl_OP_IsNull(self.p, pc, pOp)
+        return translated.python_OP_IsNull(self, pc, pOp)
 
     def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(self, pc, rc, pOp):
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
