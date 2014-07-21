@@ -81,7 +81,7 @@ class Sqlite3Query(object):
         # retPc = self.internalPc[0]
         # return retPc, retRc
 
-        return translated.python_OP_Goto_translated(self, self.db, pc, rc, pOp)
+        return translated.python_OP_Goto_translated(self, pc, rc, pOp)
 
     def python_OP_OpenRead_OpenWrite(self, pc, pOp):
         return capi.impl_OP_OpenRead_OpenWrite(self.p, self.db, pc, pOp)
@@ -100,7 +100,7 @@ class Sqlite3Query(object):
         # retPc = self.internalPc[0]
         # return retPc, rc
 
-        return translated.python_OP_Next_translated(self, self.db, pc, pOp)
+        return translated.python_OP_Next_translated(self, pc, pOp)
 
     def python_OP_Close(self, pOp):
         capi.impl_OP_Close(self.p, pOp)
@@ -117,7 +117,7 @@ class Sqlite3Query(object):
         # retPc = self.internalPc[0]
         # return retPc, rc
 
-        return translated.python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(self, self.db, pc, rc, pOp)
+        return translated.python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(self, pc, rc, pOp)
 
     def python_OP_Integer(self, pOp):
         capi.impl_OP_Integer(self.p, pOp)
@@ -248,7 +248,7 @@ class Sqlite3Query(object):
         # retPc = self.internalPc[0]
         # return retPc, rc        
 
-        return translated.python_OP_NextIfOpen_translated(self, self.db, pc, rc, pOp)
+        return translated.python_OP_NextIfOpen_translated(self, pc, rc, pOp)
 
     def python_OP_Sequence(self, pOp):
         capi.impl_OP_Sequence(self.p, pOp)

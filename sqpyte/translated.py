@@ -57,7 +57,8 @@ def python_OP_Init_translated(hlquery, pc, pOp):
 
     return pc
 
-def python_OP_Goto_translated(hlquery, db, pc, rc, pOp):
+def python_OP_Goto_translated(hlquery, pc, rc, pOp):
+    db = hlquery.db
     p2 = hlquery.p_Signed(pOp, 2)
     pc = p2 - 1
 
@@ -184,8 +185,9 @@ def _increase_counter_hidden_from_jit(p, p5):
     aCounterValue += 1
     p.aCounter[p5] = rffi.cast(rffi.UINT, aCounterValue)
 
-def python_OP_Next_translated(hlquery, db, pc, pOp):
+def python_OP_Next_translated(hlquery, pc, pOp):
     p = hlquery.p
+    db = hlquery.db
     pcRet = pc
     p1 = hlquery.p_Signed(pOp, 1)
     p5 = hlquery.p_Unsigned(pOp, 5)
@@ -265,16 +267,18 @@ def python_OP_Next_translated(hlquery, db, pc, pOp):
 
     return pcRet, rc
 
-def python_OP_NextIfOpen_translated(hlquery, db, pc, rc, pOp):
+def python_OP_NextIfOpen_translated(hlquery, pc, rc, pOp):
     p = hlquery.p
+    db = hlquery.db
     p1 = rffi.cast(lltype.Signed, pOp.p1)
     if not p.apCsr[p1]:
         return pc, rc
     else:
-        return python_OP_Next_translated(hlquery, db, pc, pOp)
+        return python_OP_Next_translated(hlquery, pc, pOp)
 
-def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, db, pc, rc, pOp):
+def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
     p = hlquery.p
+    db = hlquery.db
     aMem = p.aMem           # /* Copy of p->aMem */
     pIn1 = aMem[hlquery.p_Signed(pOp, 1)]     # /* 1st input operand */
     pIn3 = aMem[hlquery.p_Signed(pOp, 3)]     # /* 3rd input operand */
