@@ -3514,3 +3514,22 @@ void impl_OP_CollSeq(Vdbe *p, Op *pOp) {
   }
   // break;
 }
+
+/* Opcode: NotNull P1 P2 * * *
+** Synopsis: if r[P1]!=NULL goto P2
+**
+** Jump to P2 if the value in register P1 is not NULL.  
+*/
+long impl_OP_NotNull(Vdbe *p, long pc, Op *pOp) {
+// case OP_NotNull: {            /* same as TK_NOTNULL, jump, in1 */
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn1;                 /* 1st input operand */
+  
+  pIn1 = &aMem[pOp->p1];
+  VdbeBranchTaken( (pIn1->flags & MEM_Null)==0, 2);
+  if( (pIn1->flags & MEM_Null)==0 ){
+    pc = (long)pOp->p2 - 1;
+  }
+  // break;
+  return pc;
+}
