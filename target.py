@@ -45,9 +45,23 @@ def run(query, queryRes, printRes):
 
 def entry_point(argv):
     try:
-        queryPath = argv[1]
+        flag = argv[1]
+        queryPath = argv[2]
     except IndexError:
-        print "You must supply a file with query to be run."
+        print "Usage:"
+        print "For testing: './target-c -t path_to_query_file [path_to_file_with_query_results]'"
+        print "For benchmarking: './target-c -b path_to_query_file'"
+        return 1
+
+    if flag == '-t':
+        testingFlag = True
+    elif flag == '-b':
+        testingFlag = False
+    else:
+        print "Error: Unknown flag %s." % flag
+        print "Usage:"
+        print "For testing: './target-c -t path_to_query_file [path_to_file_with_query_results]'"
+        print "For benchmarking: './target-c -b path_to_query_file'"
         return 1
 
     fp = os.open(queryPath, os.O_RDONLY, 0777)
@@ -60,8 +74,8 @@ def entry_point(argv):
     os.close(fp)
 
     queryRes = ""
-    if len(argv) > 2:
-        queryResPath = argv[2]
+    if len(argv) > 3:
+        queryResPath = argv[3]
         fp = os.open(queryResPath, os.O_RDONLY, 0777)
         while True:
             read = os.read(fp, 4096)
@@ -73,12 +87,15 @@ def entry_point(argv):
     db = Sqlite3DB(testdb).db
     query = Sqlite3Query(db, queryStr)
     
-    for i in range(2):
-        run(query, "", False)
-    t1 = time.time()
-    run(query, queryRes, True)
-    t2 = time.time()
-    print "%s" % (t2 - t1)
+    if testingFlag:
+        run(query, queryRes, True)
+    else:
+        for i in range(2):
+            run(query, "", False)
+        t1 = time.time()
+        run(query, queryRes, False)
+        t2 = time.time()
+        print "%s" % (t2 - t1)
     return 0
 
 def target(*args):
