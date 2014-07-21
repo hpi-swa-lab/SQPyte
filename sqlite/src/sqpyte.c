@@ -3634,3 +3634,39 @@ long impl_OP_EndCoroutine(Vdbe *p, Op *pOp) {
   // break;
   return pc;
 }
+
+/* Opcode: ReadCookie P1 P2 P3 * *
+**
+** Read cookie number P3 from database P1 and write it into register P2.
+** P3==1 is the schema version.  P3==2 is the database format.
+** P3==3 is the recommended pager cache size, and so forth.  P1==0 is
+** the main database file and P1==1 is the database file used to store
+** temporary tables.
+**
+** There must be a read-lock on the database (either a transaction
+** must be started or there must be an open cursor) before
+** executing this instruction.
+*/
+void impl_OP_ReadCookie(Vdbe *p, sqlite3 *db, Op *pOp) {
+// case OP_ReadCookie: {               /* out2-prerelease */
+  int iMeta;
+  int iDb;
+  int iCookie;
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pOut;                 /* Output operand */
+  pOut = &aMem[pOp->p2];
+  pOut->flags = MEM_Int;
+
+  assert( p->bIsReader );
+  iDb = pOp->p1;
+  iCookie = pOp->p3;
+  assert( pOp->p3<SQLITE_N_BTREE_META );
+  assert( iDb>=0 && iDb<db->nDb );
+  assert( db->aDb[iDb].pBt!=0 );
+  assert( (p->btreeMask & (((yDbMask)1)<<iDb))!=0 );
+
+  sqlite3BtreeGetMeta(db->aDb[iDb].pBt, iCookie, (u32 *)&iMeta);
+  pOut->u.i = iMeta;
+  // break;
+}

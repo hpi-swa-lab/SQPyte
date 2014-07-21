@@ -62,6 +62,7 @@ long impl_OP_InitCoroutine(Vdbe *p, long pc, Op *pOp);
 long impl_OP_Yield(Vdbe *p, long pc, Op *pOp);
 void impl_OP_NullRow(Vdbe *p, Op *pOp);
 long impl_OP_EndCoroutine(Vdbe *p, Op *pOp);
+void impl_OP_ReadCookie(Vdbe *p, sqlite3 *db, Op *pOp);
 
 int gotoVdbeErrorHalt(Vdbe *p, sqlite3 *db, int pc, int rc);
 int gotoAbortDueToError(Vdbe *p, sqlite3 *db, int pc, int rc);
