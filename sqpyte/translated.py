@@ -21,7 +21,7 @@ def sqlite3VdbeSorterRewind(db, pC, res):
         errorcode = capi.sqlite3_sqlite3VdbeSorterRewind(db, pC, res)
         return rffi.cast(rffi.INTP, res[0])
 
-def python_OP_Init_translated(pc, pOp):
+def python_OP_Init_translated(hlquery, pc, pOp):
     cond = rffi.cast(lltype.Bool, pOp.p2)
     p2 = rffi.cast(lltype.Signed, pOp.p2)
     if cond:
@@ -57,15 +57,15 @@ def python_OP_Init_translated(pc, pOp):
 
     return pc
 
-def python_OP_Goto_translated(p, db, pc, rc, pOp):
-    p2 = rffi.cast(lltype.Signed, pOp.p2)
+def python_OP_Goto_translated(hlquery, db, pc, rc, pOp):
+    p2 = hlquery.p_Signed(pOp, 2)
     pc = p2 - 1
 
     # Translated goto check_for_interrupt;
     if rffi.cast(lltype.Signed, db.u1.isInterrupted) != 0:
         # goto abort_due_to_interrupt;
         print 'In python_OP_Goto_translated(): abort_due_to_interrupt.'
-        rc = capi.sqlite3_gotoAbortDueToInterrupt(p, db, pc, rc)
+        rc = capi.sqlite3_gotoAbortDueToInterrupt(hlquery.p, db, pc, rc)
         return pc, rc
 
     # #ifndef SQLITE_OMIT_PROGRESS_CALLBACK
@@ -91,7 +91,8 @@ def python_OP_Goto_translated(p, db, pc, rc, pOp):
     return pc, rc
 
 
-def python_OP_OpenRead_OpenWrite_translated(p, db, pc, pOp):
+def python_OP_OpenRead_OpenWrite_translated(hlquery, db, pc, pOp):
+    p = hlquery.p
     assert pOp.p5 & (CConfig.OPFLAG_P2ISREG | CConfig.OPFLAG_BULKCSR) == pOp.p5
     assert pOp.opcode == CConfig.OP_OpenWrite or pOp.p5 == 0
     # assert(p.bIsReader)
@@ -186,12 +187,12 @@ def _increase_counter_hidden_from_jit(p, p5):
 def python_OP_Next_translated(hlquery, db, pc, pOp):
     p = hlquery.p
     pcRet = pc
-    p1 = rffi.cast(lltype.Signed, pOp.p1)
-    p5 = rffi.cast(lltype.Unsigned, pOp.p5)
-    assert p1 >= 0 and rffi.cast(lltype.Signed, pOp.p1) < rffi.cast(lltype.Signed, p.nCursor)
+    p1 = hlquery.p_Signed(pOp, 1)
+    p5 = hlquery.p_Unsigned(pOp, 5)
+    assert p1 >= 0 and p1 < rffi.cast(lltype.Signed, p.nCursor)
     assert p5 < len(p.aCounter)
     pC = p.apCsr[p1]
-    res = rffi.cast(lltype.Signed, pOp.p3)
+    res = hlquery.p_Signed(pOp, 3)
     assert pC
     assert rffi.cast(lltype.Unsigned, pC.deferredMoveto) == 0
     assert pC.pCursor
@@ -222,7 +223,7 @@ def python_OP_Next_translated(hlquery, db, pc, pOp):
 
     if rffi.cast(lltype.Signed, resRet) == 0:
         pC.nullRow = rffi.cast(rffi.UCHAR, 0)
-        pcRet = rffi.cast(lltype.Signed, pOp.p2) - 1
+        pcRet = hlquery.p_Signed(pOp, 2) - 1
 
         _increase_counter_hidden_from_jit(p, p5)
 
@@ -272,21 +273,22 @@ def python_OP_NextIfOpen_translated(hlquery, db, pc, rc, pOp):
     else:
         return python_OP_Next_translated(hlquery, db, pc, pOp)
 
-def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(p, db, pc, rc, pOp):
+def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, db, pc, rc, pOp):
+    p = hlquery.p
     aMem = p.aMem           # /* Copy of p->aMem */
-    pIn1 = aMem[pOp.p1]     # /* 1st input operand */
-    pIn3 = aMem[pOp.p3]     # /* 3rd input operand */
+    pIn1 = aMem[hlquery.p_Signed(pOp, 1)]     # /* 1st input operand */
+    pIn3 = aMem[hlquery.p_Signed(pOp, 3)]     # /* 3rd input operand */
     flags1 = rffi.cast(lltype.Unsigned, pIn1.flags)
     flags3 = rffi.cast(lltype.Unsigned, pIn3.flags)
-    opcode = rffi.cast(lltype.Unsigned, pOp.opcode)
+    opcode = hlquery.get_opcode(pOp)
     mem_int = rffi.cast(lltype.Unsigned, CConfig.MEM_Int)
     mem_real = rffi.cast(lltype.Unsigned, CConfig.MEM_Real)
     mem_null = rffi.cast(lltype.Unsigned, CConfig.MEM_Null)
     mem_cleared = rffi.cast(lltype.Unsigned, CConfig.MEM_Cleared)
     mem_zero = rffi.cast(lltype.Unsigned, CConfig.MEM_Zero)
     mem_typemask = rffi.cast(lltype.Unsigned, CConfig.MEM_TypeMask)
-    p5 = rffi.cast(lltype.Unsigned, pOp.p5)
-    
+    p5 = hlquery.p_Unsigned(pOp, 5)
+
 
     if (flags1 | flags3) & mem_null:
         # /* One or both operands are NULL */
@@ -355,7 +357,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(p, db, pc, rc, pOp):
                     rc = capi.sqlite3_gotoNoMem(p, db, pc)
                     return pc, rc
 
-            assert pOp.p4type == CConfig.P4_COLLSEQ or not pOp.p4.pColl
+            assert hlquery.p4type(pOp) == CConfig.P4_COLLSEQ or not pOp.p4.pColl
             # ExpandBlob() is used if SQLITE_OMIT_INCRBLOB is *not* defined.
             # SQLITE_OMIT_INCRBLOB doesn't appear to be defined in production.
             # See vdbeInt.h lines 475-481.
@@ -400,7 +402,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(p, db, pc, rc, pOp):
         # VdbeBranchTaken(res!=0, (pOp->p5 & SQLITE_NULLEQ)?2:3);
 
         if res != 0:
-            pc = rffi.cast(lltype.Signed, pOp.p2) - 1
+            pc = hlquery.p_Signed(pOp, 2) - 1
 
     # /* Undo any changes made by applyAffinity() to the input registers. */
     pIn1.flags = rffi.cast(rffi.USHORT, (pIn1.flags & ~mem_typemask) | (flags1 & mem_typemask))
@@ -409,7 +411,8 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(p, db, pc, rc, pOp):
     return pc, rc
 
 
-def python_OP_Column_translated(p, db, pc, pOp):
+def python_OP_Column_translated(hlquery, db, pc, pOp):
+    p = hlquery.p
     aMem = p.aMem
     encoding = db.aDb[0].pSchema.enc
     p2 = pOp.p2
