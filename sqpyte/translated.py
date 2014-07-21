@@ -465,6 +465,20 @@ def python_OP_Once(hlquery, pc, pOp):
     return pc
 
 
+def python_OP_MustBeInt(hlquery, pc, rc, pOp):
+    # not a full translation, only translate the fast path where the argument
+    # is already an int
+    pIn1 = hlquery.p.aMem[hlquery.p_Signed(pOp, 1)]
+    flags1 = rffi.cast(lltype.Unsigned, pIn1.flags)
+    mem_int = rffi.cast(lltype.Unsigned, CConfig.MEM_Int)
+    if not flags1 & mem_int:
+        hlquery.internalPc[0] = rffi.cast(rffi.LONG, pc)
+        rc = capi.impl_OP_MustBeInt(hlquery.p, hlquery.db, hlquery.internalPc, rc, pOp)
+        retPc = hlquery.internalPc[0]
+        return retPc, rc
+    MemSetTypeFlag(pIn1, mem_int)
+    return pc, rc
+
 def python_OP_Column_translated(hlquery, db, pc, pOp):
     p = hlquery.p
     aMem = p.aMem
