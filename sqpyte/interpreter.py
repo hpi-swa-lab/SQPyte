@@ -274,6 +274,9 @@ class Sqlite3Query(object):
     def python_OP_Noop_Explain(self, pOp):
         translated.python_OP_Noop_Explain_translated(pOp)
 
+    def python_OP_Compare(self, pOp):
+        capi.impl_OP_Compare(self.p, pOp)
+
 
     def python_sqlite3_column_text(self, iCol):
         return capi.sqlite3_column_text(self.p, iCol)
@@ -448,6 +451,8 @@ class Sqlite3Query(object):
             elif (opcode == CConfig.OP_Noop or 
                   opcode == CConfig.OP_Explain):
                 self.python_OP_Noop_Explain(pOp)
+            elif opcode == CConfig.OP_Compare:
+                self.python_OP_Compare(pOp)
             else:
                 raise SQPyteException("SQPyteException: Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))

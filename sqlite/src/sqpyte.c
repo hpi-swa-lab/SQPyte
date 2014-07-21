@@ -3367,3 +3367,82 @@ long impl_OP_SorterNext(Vdbe *p, sqlite3 *db, long *pc, Op *pOp) {
   return (long)rc;
 }
 
+/* Opcode: Compare P1 P2 P3 P4 P5
+** Synopsis: r[P1@P3] <-> r[P2@P3]
+**
+** Compare two vectors of registers in reg(P1)..reg(P1+P3-1) (call this
+** vector "A") and in reg(P2)..reg(P2+P3-1) ("B").  Save the result of
+** the comparison for use by the next OP_Jump instruct.
+**
+** If P5 has the OPFLAG_PERMUTE bit set, then the order of comparison is
+** determined by the most recent OP_Permutation operator.  If the
+** OPFLAG_PERMUTE bit is clear, then register are compared in sequential
+** order.
+**
+** P4 is a KeyInfo structure that defines collating sequences and sort
+** orders for the comparison.  The permutation applies to registers
+** only.  The KeyInfo elements are used sequentially.
+**
+** The comparison is a sort comparison, so NULLs compare equal,
+** NULLs are less than numbers, numbers are less than strings,
+** and strings are less than blobs.
+*/
+void impl_OP_Compare(Vdbe *p, Op *pOp) {
+// case OP_Compare: {
+  int n;
+  int i;
+  int p1;
+  int p2;
+  const KeyInfo *pKeyInfo;
+  int idx;
+  CollSeq *pColl;    /* Collating sequence to use on this term */
+  int bRev;          /* True for DESCENDING sort order */
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  int *aPermute = 0;         /* Permutation of columns for OP_Compare */
+
+  // Global as used by OP_Jump as well.
+  int iCompare = 0;          /* Result of last OP_Compare operation */
+
+  // From OP_Permutation
+  assert( pOp->p4type==P4_INTARRAY );
+  assert( pOp->p4.ai );
+  aPermute = pOp->p4.ai;
+
+  if( (pOp->p5 & OPFLAG_PERMUTE)==0 ) aPermute = 0;
+  n = pOp->p3;
+  pKeyInfo = pOp->p4.pKeyInfo;
+  assert( n>0 );
+  assert( pKeyInfo!=0 );
+  p1 = pOp->p1;
+  p2 = pOp->p2;
+#if SQLITE_DEBUG
+  if( aPermute ){
+    int k, mx = 0;
+    for(k=0; k<n; k++) if( aPermute[k]>mx ) mx = aPermute[k];
+    assert( p1>0 && p1+mx<=(p->nMem-p->nCursor)+1 );
+    assert( p2>0 && p2+mx<=(p->nMem-p->nCursor)+1 );
+  }else{
+    assert( p1>0 && p1+n<=(p->nMem-p->nCursor)+1 );
+    assert( p2>0 && p2+n<=(p->nMem-p->nCursor)+1 );
+  }
+#endif /* SQLITE_DEBUG */
+  for(i=0; i<n; i++){
+    idx = aPermute ? aPermute[i] : i;
+    assert( memIsValid(&aMem[p1+idx]) );
+    assert( memIsValid(&aMem[p2+idx]) );
+    REGISTER_TRACE(p1+idx, &aMem[p1+idx]);
+    REGISTER_TRACE(p2+idx, &aMem[p2+idx]);
+    assert( i<pKeyInfo->nField );
+    pColl = pKeyInfo->aColl[i];
+    bRev = pKeyInfo->aSortOrder[i];
+    iCompare = sqlite3MemCompare(&aMem[p1+idx], &aMem[p2+idx], pColl);
+    if( iCompare ){
+      if( bRev ) iCompare = -iCompare;
+      // break;
+      return;
+    }
+  }
+  aPermute = 0;
+  // break;
+}
