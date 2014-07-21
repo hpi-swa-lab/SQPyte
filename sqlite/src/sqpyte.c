@@ -3585,3 +3585,25 @@ long impl_OP_Yield(Vdbe *p, long pc, Op *pOp) {
   // break;
   return pc;
 }
+
+/* Opcode: NullRow P1 * * * *
+**
+** Move the cursor P1 to a null row.  Any OP_Column operations
+** that occur while the cursor is on the null row will always
+** write a NULL.
+*/
+void impl_OP_NullRow(Vdbe *p, Op *pOp) {
+// case OP_NullRow: {
+  VdbeCursor *pC;
+
+  assert( pOp->p1>=0 && pOp->p1<p->nCursor );
+  pC = p->apCsr[pOp->p1];
+  assert( pC!=0 );
+  pC->nullRow = 1;
+  pC->rowidIsValid = 0;
+  pC->cacheStatus = CACHE_STALE;
+  if( pC->pCursor ){
+    sqlite3BtreeClearCursor(pC->pCursor);
+  }
+  // break;
+}
