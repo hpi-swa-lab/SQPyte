@@ -11,7 +11,7 @@ testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sqpyte/test/t
 assert os.path.isfile(testdb)
 
 jitdriver = jit.JitDriver(
-    greens=['query', 'queryRes', 'printRes'], 
+    greens=['printRes', 'query', 'queryRes'], 
     reds=['rc'],
     )
     # get_printable_location=get_printable_location)
