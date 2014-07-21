@@ -6,6 +6,7 @@ u8 resetSchemaOnFault = 0; /* Reset schema after an error if positive */
 #ifndef SQLITE_OMIT_PROGRESS_CALLBACK
 unsigned nProgressLimit = 0;/* Invoke xProgress() when nVmStep reaches this */
 #endif
+int iCompare = 0;          /* Result of last OP_Compare operation */
 
 int gotoVdbeErrorHalt(Vdbe *p, sqlite3 *db, int pc, int rc) {
   // vdbe_error_halt:
@@ -3401,9 +3402,6 @@ void impl_OP_Compare(Vdbe *p, Op *pOp) {
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
   int *aPermute = 0;         /* Permutation of columns for OP_Compare */
 
-  // Global as used by OP_Jump as well.
-  int iCompare = 0;          /* Result of last OP_Compare operation */
-
   // From OP_Permutation
   assert( pOp->p4type==P4_INTARRAY );
   assert( pOp->p4.ai );
@@ -3445,4 +3443,25 @@ void impl_OP_Compare(Vdbe *p, Op *pOp) {
   }
   aPermute = 0;
   // break;
+}
+
+/* Opcode: Jump P1 P2 P3 * *
+**
+** Jump to the instruction at address P1, P2, or P3 depending on whether
+** in the most recent OP_Compare instruction the P1 vector was less than
+** equal to, or greater than the P2 vector, respectively.
+*/
+long impl_OP_Jump(Op *pOp) {
+// case OP_Jump: {             /* jump */
+  int pc;
+
+  if( iCompare<0 ){
+    pc = pOp->p1 - 1;  VdbeBranchTaken(0,3);
+  }else if( iCompare==0 ){
+    pc = pOp->p2 - 1;  VdbeBranchTaken(1,3);
+  }else{
+    pc = pOp->p3 - 1;  VdbeBranchTaken(2,3);
+  }
+  // break;
+  return (long)pc;
 }
