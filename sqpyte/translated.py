@@ -24,6 +24,8 @@ def sqlite3VdbeSorterRewind(db, pC, res):
 def MemSetTypeFlag(mem, flag):
     mem.flags = rffi.cast(rffi.USHORT, (mem.flags & ~(mem_typemask | mem_zero)) | mem_null)
 
+def ENC(db):
+    return db.aDb[0].pSchema.enc
 
 def python_OP_Init_translated(hlquery, pc, pOp):
     cond = rffi.cast(lltype.Bool, pOp.p2)
@@ -368,7 +370,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
             # /* Neither operand is NULL.  Do a comparison. */
             affinity = p5 & CConfig.SQLITE_AFF_MASK
             if affinity != 0:
-                encoding = db.aDb[0].pSchema.enc
+                encoding = ENC(db)
                 capi.sqlite3_applyAffinity(pIn1, rffi.cast(rffi.CHAR, affinity), encoding)
                 capi.sqlite3_applyAffinity(pIn3, rffi.cast(rffi.CHAR, affinity), encoding)
                 if rffi.cast(lltype.Unsigned, db.mallocFailed) != 0:
