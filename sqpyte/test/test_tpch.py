@@ -83,8 +83,8 @@ def test_query_17():
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
     textlen = query.python_sqlite3_column_bytes(0)
-    result = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
     print textlen
+    result = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
     print result
     assert float(result) == 3655.76571428571
 
@@ -131,8 +131,6 @@ def test_query_19():
     assert rc == CConfig.SQLITE_ROW
     textlen = query.python_sqlite3_column_bytes(0)
     result = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
-    print textlen
-    print result
     assert float(result) == 22923.028
 
 def test_query_20():
@@ -180,7 +178,5 @@ def test_query_20():
     assert rc == CConfig.SQLITE_ROW
     textlen = query.python_sqlite3_column_bytes(0)
     result = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
-    print textlen
-    print result
     assert float(result) == 22923.028
 
