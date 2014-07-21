@@ -3559,3 +3559,29 @@ long impl_OP_InitCoroutine(Vdbe *p, long pc, Op *pOp) {
   // break;
   return pc;
 }
+
+/* Opcode:  Yield P1 P2 * * *
+**
+** Swap the program counter with the value in register P1.
+**
+** If the co-routine ends with OP_Yield or OP_Return then continue
+** to the next instruction.  But if the co-routine ends with
+** OP_EndCoroutine, jump immediately to P2.
+*/
+long impl_OP_Yield(Vdbe *p, long pc, Op *pOp) {
+// case OP_Yield: {            /* in1, jump */
+  int pcDest;
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn1;                 /* 1st input operand */
+
+  pIn1 = &aMem[pOp->p1];
+  assert( VdbeMemDynamic(pIn1)==0 );
+  pIn1->flags = MEM_Int;
+  pcDest = (int)pIn1->u.i;
+  pIn1->u.i = pc;
+  REGISTER_TRACE(pOp->p1, pIn1);
+  pc = (long)pcDest;
+  // break;
+  return pc;
+}

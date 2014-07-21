@@ -59,6 +59,7 @@ long impl_OP_IfPos(Vdbe *p, long pc, Op *pOp);
 void impl_OP_CollSeq(Vdbe *p, Op *pOp);
 long impl_OP_NotNull(Vdbe *p, long pc, Op *pOp);
 long impl_OP_InitCoroutine(Vdbe *p, long pc, Op *pOp);
+long impl_OP_Yield(Vdbe *p, long pc, Op *pOp);
 
 int gotoVdbeErrorHalt(Vdbe *p, sqlite3 *db, int pc, int rc);
 int gotoAbortDueToError(Vdbe *p, sqlite3 *db, int pc, int rc);
