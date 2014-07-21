@@ -4,12 +4,6 @@ from rpython.rlib import jit
 from sqpyte.capi import CConfig
 from rpython.rtyper.lltypesystem import rffi
 
-# testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sqpyte/test/test.db")
-testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sqpyte/test/tpch.db")
-# testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sqpyte/test/big-tpch.db")
-
-assert os.path.isfile(testdb)
-
 jitdriver = jit.JitDriver(
     greens=['printRes', 'query', 'queryRes'], 
     reds=['rc'],
@@ -46,11 +40,13 @@ def run(query, queryRes, printRes):
 def entry_point(argv):
     try:
         flag = argv[1]
-        queryPath = argv[2]
+        testdb = argv[2]
+        queryPath = argv[3]
     except IndexError:
+        print "Error: Not enough arguments."
         print "Usage:"
-        print "For testing: './target-c -t path_to_query_file [path_to_file_with_query_results]'"
-        print "For benchmarking: './target-c -b path_to_query_file'"
+        print "For testing: './target-c -t path_to_db path_to_query_file [path_to_file_with_query_results]'"
+        print "For benchmarking: './target-c -b path_to_db path_to_query_file'"
         return 1
 
     if flag == '-t':
@@ -60,8 +56,8 @@ def entry_point(argv):
     else:
         print "Error: Unknown flag %s." % flag
         print "Usage:"
-        print "For testing: './target-c -t path_to_query_file [path_to_file_with_query_results]'"
-        print "For benchmarking: './target-c -b path_to_query_file'"
+        print "For testing: './target-c -t path_to_db path_to_query_file [path_to_file_with_query_results]'"
+        print "For benchmarking: './target-c -b path_to_db path_to_query_file'"
         return 1
 
     fp = os.open(queryPath, os.O_RDONLY, 0777)
@@ -74,8 +70,8 @@ def entry_point(argv):
     os.close(fp)
 
     queryRes = ""
-    if len(argv) > 3:
-        queryResPath = argv[3]
+    if len(argv) > 4:
+        queryResPath = argv[4]
         fp = os.open(queryResPath, os.O_RDONLY, 0777)
         while True:
             read = os.read(fp, 4096)
