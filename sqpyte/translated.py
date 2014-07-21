@@ -335,15 +335,25 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, db, pc, rc, pOp):
     ################################ MODIFIED BLOCK STARTS ################################
 
         if (flags1 | flags3) & (mem_int | mem_real):
-            n1 = pIn1.u.i if flags1 & mem_int else pIn1.r
-            n3 = pIn3.u.i if flags3 & mem_int else pIn3.r
-
-            if n1 > n3:
-                res = -1
-            elif n1 < n3:
-                res = 1
+            # both are ints
+            if flags1 & flags3 & mem_int:
+                if pIn1.u.i > pIn3.u.i:
+                    res = -1
+                elif pIn1.u.i < pIn3.u.i:
+                    res = 1
+                else:
+                    res = 0
             else:
-                res = 0
+                # mixed int and real comparison, convert to real
+                n1 = pIn1.u.i if flags1 & mem_int else pIn1.r
+                n3 = pIn3.u.i if flags3 & mem_int else pIn3.r
+
+                if n1 > n3:
+                    res = -1
+                elif n1 < n3:
+                    res = 1
+                else:
+                    res = 0
         else:
             flags_can_have_changed = True
 
