@@ -12,8 +12,11 @@ do
         echo -e "Query $i:\tPass"
     else
         echo -e "Query $i:\tFAIL"
-        hg revert $DIR/sqpyte/test/tpch.db
-        rm $DIR/sqpyte/test/tpch.db.orig
+        HG=$(hg st $DIR/sqpyte/test/tpch.db)
+        if [ "$HG" != "" ]; then
+            hg revert $DIR/sqpyte/test/tpch.db
+            rm $DIR/sqpyte/test/tpch.db.orig
+        fi
     fi
 done
 
