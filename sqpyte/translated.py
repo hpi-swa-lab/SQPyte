@@ -278,7 +278,6 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(p, db, pc, rc, pOp):
     pIn3 = aMem[pOp.p3]     # /* 3rd input operand */
     flags1 = rffi.cast(lltype.Unsigned, pIn1.flags)
     flags3 = rffi.cast(lltype.Unsigned, pIn3.flags)
-    encoding = db.aDb[0].pSchema.enc
     opcode = rffi.cast(lltype.Unsigned, pOp.opcode)
     mem_int = rffi.cast(lltype.Unsigned, CConfig.MEM_Int)
     mem_real = rffi.cast(lltype.Unsigned, CConfig.MEM_Real)
@@ -347,6 +346,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(p, db, pc, rc, pOp):
             # /* Neither operand is NULL.  Do a comparison. */
             affinity = p5 & CConfig.SQLITE_AFF_MASK
             if affinity != 0:
+                encoding = db.aDb[0].pSchema.enc
                 capi.sqlite3_applyAffinity(pIn1, rffi.cast(rffi.CHAR, affinity), encoding)
                 capi.sqlite3_applyAffinity(pIn3, rffi.cast(rffi.CHAR, affinity), encoding)
                 if rffi.cast(lltype.Unsigned, db.mallocFailed) != 0:
