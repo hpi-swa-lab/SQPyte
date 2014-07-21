@@ -22,7 +22,9 @@ def sqlite3VdbeSorterRewind(db, pC, res):
         return rffi.cast(rffi.INTP, res[0])
 
 def MemSetTypeFlag(mem, flag):
-    mem.flags = rffi.cast(rffi.USHORT, (mem.flags & ~(mem_typemask | mem_zero)) | mem_null)
+    mem_zero = rffi.cast(lltype.Unsigned, CConfig.MEM_Zero)
+    mem_typemask = rffi.cast(lltype.Unsigned, CConfig.MEM_TypeMask)
+    mem.flags = rffi.cast(rffi.USHORT, (mem.flags & ~(mem_typemask | mem_zero)) | flag)
 
 def ENC(db):
     return db.aDb[0].pSchema.enc
