@@ -204,7 +204,7 @@ class Sqlite3Query(object):
         capi.impl_OP_Seek(self.p, pOp)
 
     def python_OP_Once(self, pc, pOp):
-        return capi.impl_OP_Once(self.p, pc, pOp)
+        return translated.python_OP_Once(self, pc, pOp)
 
     def python_OP_SCopy(self, pOp):
         capi.impl_OP_SCopy(self.p, pOp)

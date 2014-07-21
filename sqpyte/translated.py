@@ -287,6 +287,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, db, pc, rc, pOp):
     mem_cleared = rffi.cast(lltype.Unsigned, CConfig.MEM_Cleared)
     mem_zero = rffi.cast(lltype.Unsigned, CConfig.MEM_Zero)
     mem_typemask = rffi.cast(lltype.Unsigned, CConfig.MEM_TypeMask)
+    flags_can_have_changed = False
     p5 = hlquery.p_Unsigned(pOp, 5)
 
 
@@ -334,16 +335,28 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, db, pc, rc, pOp):
     ################################ MODIFIED BLOCK STARTS ################################
 
         if (flags1 | flags3) & (mem_int | mem_real):
-            n1 = pIn1.u.i if flags1 & mem_int else pIn1.r
-            n3 = pIn3.u.i if flags3 & mem_int else pIn3.r
-
-            if n1 > n3:
-                res = -1
-            elif n1 < n3:
-                res = 1
+            # both are ints
+            if flags1 & flags3 & mem_int:
+                if pIn1.u.i > pIn3.u.i:
+                    res = -1
+                elif pIn1.u.i < pIn3.u.i:
+                    res = 1
+                else:
+                    res = 0
             else:
-                res = 0
+                # mixed int and real comparison, convert to real
+                n1 = pIn1.u.i if flags1 & mem_int else pIn1.r
+                n3 = pIn3.u.i if flags3 & mem_int else pIn3.r
+
+                if n1 > n3:
+                    res = -1
+                elif n1 < n3:
+                    res = 1
+                else:
+                    res = 0
         else:
+            flags_can_have_changed = True
+
             # Call C functions
             # /* Neither operand is NULL.  Do a comparison. */
             affinity = p5 & CConfig.SQLITE_AFF_MASK
@@ -404,9 +417,10 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, db, pc, rc, pOp):
         if res != 0:
             pc = hlquery.p_Signed(pOp, 2) - 1
 
-    # /* Undo any changes made by applyAffinity() to the input registers. */
-    pIn1.flags = rffi.cast(rffi.USHORT, (pIn1.flags & ~mem_typemask) | (flags1 & mem_typemask))
-    pIn3.flags = rffi.cast(rffi.USHORT, (pIn3.flags & ~mem_typemask) | (flags3 & mem_typemask))
+    if flags_can_have_changed:
+        # /* Undo any changes made by applyAffinity() to the input registers. */
+        pIn1.flags = rffi.cast(rffi.USHORT, (pIn1.flags & ~mem_typemask) | (flags1 & mem_typemask))
+        pIn3.flags = rffi.cast(rffi.USHORT, (pIn3.flags & ~mem_typemask) | (flags3 & mem_typemask))
 
     return pc, rc
 
@@ -421,6 +435,25 @@ def python_OP_IsNull(hlquery, pc, pOp):
     if flags1 & mem_null != 0:
         pc = hlquery.p_Signed(pOp, 2) - 1
     return pc
+
+
+# Opcode: Once P1 P2 * * *
+#
+# Check if OP_Once flag P1 is set. If so, jump to instruction P2. Otherwise,
+# set the flag and fall through to the next instruction.  In other words,
+# this opcode causes all following opcodes up through P2 (but not including
+# P2) to run just once and to be skipped on subsequent times through the loop.
+
+def python_OP_Once(hlquery, pc, pOp):
+    p = hlquery.p
+    p1 = hlquery.p_Signed(pOp, 1)
+    assert p1 < rffi.cast(lltype.Signed, p.nOnceFlag)
+    if rffi.cast(lltype.Signed, p.aOnceFlag[p1]):
+        pc = hlquery.p_Signed(pOp, 2) - 1
+    else:
+        p.aOnceFlag[p1] = rffi.cast(CConfig.u8, 1)
+    return pc
+
 
 def python_OP_Column_translated(hlquery, db, pc, pOp):
     p = hlquery.p
