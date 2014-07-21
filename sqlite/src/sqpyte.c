@@ -3607,3 +3607,30 @@ void impl_OP_NullRow(Vdbe *p, Op *pOp) {
   }
   // break;
 }
+
+/* Opcode:  EndCoroutine P1 * * * *
+**
+** The instruction at the address in register P1 is an OP_Yield.
+** Jump to the P2 parameter of that OP_Yield.
+** After the jump, register P1 becomes undefined.
+*/
+long impl_OP_EndCoroutine(Vdbe *p, Op *pOp) {
+// case OP_EndCoroutine: {           /* in1 */
+  VdbeOp *pCaller;
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn1;                 /* 1st input operand */
+  Op *aOp = p->aOp;          /* Copy of p->aOp */
+  long pc;
+
+  pIn1 = &aMem[pOp->p1];
+  assert( pIn1->flags==MEM_Int );
+  assert( pIn1->u.i>=0 && pIn1->u.i<p->nOp );
+  pCaller = &aOp[pIn1->u.i];
+  assert( pCaller->opcode==OP_Yield );
+  assert( pCaller->p2>=0 && pCaller->p2<p->nOp );
+  pc = pCaller->p2 - 1;
+  pIn1->flags = MEM_Undefined;
+  // break;
+  return pc;
+}
