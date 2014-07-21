@@ -3951,3 +3951,50 @@ long impl_OP_Insert_InsertInt(Vdbe *p, sqlite3 *db, Op *pOp) {
   // break;
   return (long)rc;
 }
+
+/* Opcode: SetCookie P1 P2 P3 * *
+**
+** Write the content of register P3 (interpreted as an integer)
+** into cookie number P2 of database P1.  P2==1 is the schema version.  
+** P2==2 is the database format. P2==3 is the recommended pager cache 
+** size, and so forth.  P1==0 is the main database file and P1==1 is the 
+** database file used to store temporary tables.
+**
+** A transaction must be started before executing this opcode.
+*/
+long impl_OP_SetCookie(Vdbe *p, sqlite3 *db, Op *pOp) {
+// case OP_SetCookie: {       /* in3 */
+  Db *pDb;
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn3;                 /* 3rd input operand */
+  long rc;
+
+  assert( pOp->p2<SQLITE_N_BTREE_META );
+  assert( pOp->p1>=0 && pOp->p1<db->nDb );
+  assert( (p->btreeMask & (((yDbMask)1)<<pOp->p1))!=0 );
+  assert( p->readOnly==0 );
+  pDb = &db->aDb[pOp->p1];
+  assert( pDb->pBt!=0 );
+  assert( sqlite3SchemaMutexHeld(db, pOp->p1, 0) );
+  pIn3 = &aMem[pOp->p3];
+  sqlite3VdbeMemIntegerify(pIn3);
+  /* See note about index shifting on OP_ReadCookie */
+  rc = (long)sqlite3BtreeUpdateMeta(pDb->pBt, pOp->p2, (int)pIn3->u.i);
+  if( pOp->p2==BTREE_SCHEMA_VERSION ){
+    /* When the schema cookie changes, record the new cookie internally */
+    pDb->pSchema->schema_cookie = (int)pIn3->u.i;
+    db->flags |= SQLITE_InternChanges;
+  }else if( pOp->p2==BTREE_FILE_FORMAT ){
+    /* Record changes in the file format */
+    pDb->pSchema->file_format = (u8)pIn3->u.i;
+  }
+  if( pOp->p1==1 ){
+    /* Invalidate all prepared statements whenever the TEMP database
+    ** schema is changed.  Ticket #1644 */
+    sqlite3ExpirePreparedStatements(db);
+    p->expired = 0;
+  }
+  // break;
+  return rc;
+}

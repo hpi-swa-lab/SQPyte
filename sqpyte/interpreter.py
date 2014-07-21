@@ -310,6 +310,9 @@ class Sqlite3Query(object):
     def python_OP_Insert_InsertInt(self, pOp):
         return capi.impl_OP_Insert_InsertInt(self.p, self.db, pOp)
 
+    def python_OP_SetCookie(self, pOp):
+        return capi.impl_OP_SetCookie(self.p, self.db, pOp)
+
 
     def python_sqlite3_column_text(self, iCol):
         return capi.sqlite3_column_text(self.p, iCol)
@@ -509,6 +512,8 @@ class Sqlite3Query(object):
             elif (opcode == CConfig.OP_Insert or 
                   opcode == CConfig.OP_InsertInt):
                 rc = self.python_OP_Insert_InsertInt(pOp)
+            elif opcode == CConfig.OP_SetCookie:
+                rc = self.python_OP_SetCookie(pOp)
             else:
                 raise SQPyteException("SQPyteException: Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))
