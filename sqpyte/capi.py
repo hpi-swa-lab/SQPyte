@@ -7,6 +7,12 @@ from rpython.translator.tool.cbuild import ExternalCompilationInfo
 sqlite_inst_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sqlite-install")
 sqlite_src_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sqlite")
 
+lib_dir = os.path.join(sqlite_inst_dir, "lib")
+if os.environ.has_key("LD_LIBRARY_PATH"):
+    os.environ["LD_LIBRARY_PATH"] = "%s:%s" % (lib_dir, os.environ["LD_LIBRARY_PATH"])
+else:
+    os.environ["LD_LIBRARY_PATH"] = lib_dir
+
 class CConfig:
     _compilation_info_ = ExternalCompilationInfo(
         includes = ['sqlite3.h', 'stdint.h', 'sqliteInt.h', 'btreeInt.h', 'sqpyte.h'],
