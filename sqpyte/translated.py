@@ -408,6 +408,9 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(p, db, pc, rc, pOp):
 
     return pc, rc
 
+def python_OP_Noop_Explain_translated(pOp):
+    opcode = rffi.cast(lltype.Unsigned, pOp.opcode)
+    assert opcode == CConfig.OP_Noop or opcode == CConfig.OP_Explain
 
 def python_OP_Column_translated(p, db, pc, pOp):
     aMem = p.aMem
