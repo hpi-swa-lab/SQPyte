@@ -282,8 +282,8 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
     aMem = p.aMem           # /* Copy of p->aMem */
     pIn1 = aMem[hlquery.p_Signed(pOp, 1)]     # /* 1st input operand */
     pIn3 = aMem[hlquery.p_Signed(pOp, 3)]     # /* 3rd input operand */
-    flags1 = rffi.cast(lltype.Unsigned, pIn1.flags)
-    flags3 = rffi.cast(lltype.Unsigned, pIn3.flags)
+    flags1 = jit.promote(rffi.cast(lltype.Unsigned, pIn1.flags))
+    flags3 = jit.promote(rffi.cast(lltype.Unsigned, pIn3.flags))
     opcode = hlquery.get_opcode(pOp)
     mem_int = rffi.cast(lltype.Unsigned, CConfig.MEM_Int)
     mem_real = rffi.cast(lltype.Unsigned, CConfig.MEM_Real)
