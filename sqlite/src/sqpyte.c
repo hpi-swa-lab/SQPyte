@@ -3833,3 +3833,121 @@ long impl_OP_NewRowid(Vdbe *p, sqlite3 *db, long pc, long rcIn, Op *pOp) {
   // break;
   return (long)rc;
 }
+
+/* Opcode: Insert P1 P2 P3 P4 P5
+** Synopsis: intkey=r[P3] data=r[P2]
+**
+** Write an entry into the table of cursor P1.  A new entry is
+** created if it doesn't already exist or the data for an existing
+** entry is overwritten.  The data is the value MEM_Blob stored in register
+** number P2. The key is stored in register P3. The key must
+** be a MEM_Int.
+**
+** If the OPFLAG_NCHANGE flag of P5 is set, then the row change count is
+** incremented (otherwise not).  If the OPFLAG_LASTROWID flag of P5 is set,
+** then rowid is stored for subsequent return by the
+** sqlite3_last_insert_rowid() function (otherwise it is unmodified).
+**
+** If the OPFLAG_USESEEKRESULT flag of P5 is set and if the result of
+** the last seek operation (OP_NotExists) was a success, then this
+** operation will not attempt to find the appropriate row before doing
+** the insert but will instead overwrite the row that the cursor is
+** currently pointing to.  Presumably, the prior OP_NotExists opcode
+** has already positioned the cursor correctly.  This is an optimization
+** that boosts performance by avoiding redundant seeks.
+**
+** If the OPFLAG_ISUPDATE flag is set, then this opcode is part of an
+** UPDATE operation.  Otherwise (if the flag is clear) then this opcode
+** is part of an INSERT operation.  The difference is only important to
+** the update hook.
+**
+** Parameter P4 may point to a string containing the table-name, or
+** may be NULL. If it is not NULL, then the update-hook 
+** (sqlite3.xUpdateCallback) is invoked following a successful insert.
+**
+** (WARNING/TODO: If P1 is a pseudo-cursor and P2 is dynamically
+** allocated, then ownership of P2 is transferred to the pseudo-cursor
+** and register P2 becomes ephemeral.  If the cursor is changed, the
+** value of register P2 will then change.  Make sure this does not
+** cause any problems.)
+**
+** This instruction only works on tables.  The equivalent instruction
+** for indices is OP_IdxInsert.
+*/
+/* Opcode: InsertInt P1 P2 P3 P4 P5
+** Synopsis:  intkey=P3 data=r[P2]
+**
+** This works exactly like OP_Insert except that the key is the
+** integer value P3, not the value of the integer stored in register P3.
+*/
+long impl_OP_Insert_InsertInt(Vdbe *p, sqlite3 *db, Op *pOp) {
+// case OP_Insert: 
+// case OP_InsertInt: {
+  Mem *pData;       /* MEM cell holding data for the record to be inserted */
+  Mem *pKey;        /* MEM cell holding key  for the record */
+  i64 iKey;         /* The integer ROWID or key for the record to be inserted */
+  VdbeCursor *pC;   /* Cursor to table into which insert is written */
+  int nZero;        /* Number of zero-bytes to append */
+  int seekResult;   /* Result of prior seek or 0 if no USESEEKRESULT flag */
+  const char *zDb;  /* database name - used by the update hook */
+  const char *zTbl; /* Table name - used by the opdate hook */
+  int op;           /* Opcode for update hook: SQLITE_UPDATE or SQLITE_INSERT */
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  int rc;
+
+  pData = &aMem[pOp->p2];
+  assert( pOp->p1>=0 && pOp->p1<p->nCursor );
+  assert( memIsValid(pData) );
+  pC = p->apCsr[pOp->p1];
+  assert( pC!=0 );
+  assert( pC->pCursor!=0 );
+  assert( pC->pseudoTableReg==0 );
+  assert( pC->isTable );
+  REGISTER_TRACE(pOp->p2, pData);
+
+  if( pOp->opcode==OP_Insert ){
+    pKey = &aMem[pOp->p3];
+    assert( pKey->flags & MEM_Int );
+    assert( memIsValid(pKey) );
+    REGISTER_TRACE(pOp->p3, pKey);
+    iKey = pKey->u.i;
+  }else{
+    assert( pOp->opcode==OP_InsertInt );
+    iKey = pOp->p3;
+  }
+
+  if( pOp->p5 & OPFLAG_NCHANGE ) p->nChange++;
+  if( pOp->p5 & OPFLAG_LASTROWID ) db->lastRowid = lastRowid = iKey;
+  if( pData->flags & MEM_Null ){
+    pData->z = 0;
+    pData->n = 0;
+  }else{
+    assert( pData->flags & (MEM_Blob|MEM_Str) );
+  }
+  seekResult = ((pOp->p5 & OPFLAG_USESEEKRESULT) ? pC->seekResult : 0);
+  if( pData->flags & MEM_Zero ){
+    nZero = pData->u.nZero;
+  }else{
+    nZero = 0;
+  }
+  rc = sqlite3BtreeInsert(pC->pCursor, 0, iKey,
+                          pData->z, pData->n, nZero,
+                          (pOp->p5 & OPFLAG_APPEND)!=0, seekResult
+  );
+  pC->rowidIsValid = 0;
+  pC->deferredMoveto = 0;
+  pC->cacheStatus = CACHE_STALE;
+
+  /* Invoke the update-hook if required. */
+  if( rc==SQLITE_OK && db->xUpdateCallback && pOp->p4.z ){
+    zDb = db->aDb[pC->iDb].zName;
+    zTbl = pOp->p4.z;
+    op = ((pOp->p5 & OPFLAG_ISUPDATE) ? SQLITE_UPDATE : SQLITE_INSERT);
+    assert( pC->isTable );
+    db->xUpdateCallback(db->pUpdateArg, op, zDb, zTbl, iKey);
+    assert( pC->iDb>=0 );
+  }
+  // break;
+  return (long)rc;
+}
