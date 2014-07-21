@@ -287,6 +287,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, db, pc, rc, pOp):
     mem_cleared = rffi.cast(lltype.Unsigned, CConfig.MEM_Cleared)
     mem_zero = rffi.cast(lltype.Unsigned, CConfig.MEM_Zero)
     mem_typemask = rffi.cast(lltype.Unsigned, CConfig.MEM_TypeMask)
+    flags_can_have_changed = False
     p5 = hlquery.p_Unsigned(pOp, 5)
 
 
@@ -344,6 +345,8 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, db, pc, rc, pOp):
             else:
                 res = 0
         else:
+            flags_can_have_changed = True
+
             # Call C functions
             # /* Neither operand is NULL.  Do a comparison. */
             affinity = p5 & CConfig.SQLITE_AFF_MASK
@@ -404,9 +407,10 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, db, pc, rc, pOp):
         if res != 0:
             pc = hlquery.p_Signed(pOp, 2) - 1
 
-    # /* Undo any changes made by applyAffinity() to the input registers. */
-    pIn1.flags = rffi.cast(rffi.USHORT, (pIn1.flags & ~mem_typemask) | (flags1 & mem_typemask))
-    pIn3.flags = rffi.cast(rffi.USHORT, (pIn3.flags & ~mem_typemask) | (flags3 & mem_typemask))
+    if flags_can_have_changed:
+        # /* Undo any changes made by applyAffinity() to the input registers. */
+        pIn1.flags = rffi.cast(rffi.USHORT, (pIn1.flags & ~mem_typemask) | (flags1 & mem_typemask))
+        pIn3.flags = rffi.cast(rffi.USHORT, (pIn3.flags & ~mem_typemask) | (flags3 & mem_typemask))
 
     return pc, rc
 
