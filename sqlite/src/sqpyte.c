@@ -3524,12 +3524,38 @@ long impl_OP_NotNull(Vdbe *p, long pc, Op *pOp) {
 // case OP_NotNull: {            /* same as TK_NOTNULL, jump, in1 */
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
   Mem *pIn1;                 /* 1st input operand */
-  
+
   pIn1 = &aMem[pOp->p1];
   VdbeBranchTaken( (pIn1->flags & MEM_Null)==0, 2);
   if( (pIn1->flags & MEM_Null)==0 ){
     pc = (long)pOp->p2 - 1;
   }
+  // break;
+  return pc;
+}
+
+/* Opcode: InitCoroutine P1 P2 P3 * *
+**
+** Set up register P1 so that it will OP_Yield to the co-routine
+** located at address P3.
+**
+** If P2!=0 then the co-routine implementation immediately follows
+** this opcode.  So jump over the co-routine implementation to
+** address P2.
+*/
+long impl_OP_InitCoroutine(Vdbe *p, long pc, Op *pOp) {
+// case OP_InitCoroutine: {     /* jump */
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pOut;                 /* Output operand */
+
+  assert( pOp->p1>0 &&  pOp->p1<=(p->nMem-p->nCursor) );
+  assert( pOp->p2>=0 && pOp->p2<p->nOp );
+  assert( pOp->p3>=0 && pOp->p3<p->nOp );
+  pOut = &aMem[pOp->p1];
+  assert( !VdbeMemDynamic(pOut) );
+  pOut->u.i = pOp->p3 - 1;
+  pOut->flags = MEM_Int;
+  if( pOp->p2 ) pc = pOp->p2 - 1;
   // break;
   return pc;
 }

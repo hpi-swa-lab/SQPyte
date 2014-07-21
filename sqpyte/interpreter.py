@@ -289,6 +289,9 @@ class Sqlite3Query(object):
     def python_OP_NotNull(self, pc, pOp):
         return capi.impl_OP_NotNull(self.p, pc, pOp)
 
+    def python_OP_InitCoroutine(self, pc, pOp):
+        return capi.impl_OP_InitCoroutine(self.p, pc, pOp)
+
 
     def python_sqlite3_column_text(self, iCol):
         return capi.sqlite3_column_text(self.p, iCol)
@@ -473,6 +476,8 @@ class Sqlite3Query(object):
                 self.python_OP_CollSeq(pOp)
             elif opcode == CConfig.OP_NotNull:
                 pc = self.python_OP_NotNull(pc, pOp)
+            elif opcode == CConfig.OP_InitCoroutine:
+                pc = self.python_OP_InitCoroutine(pc, pOp)
             else:
                 raise SQPyteException("SQPyteException: Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))
