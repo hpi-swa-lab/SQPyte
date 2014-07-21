@@ -1,3 +1,4 @@
+
 #include <assert.h>
 
 i64 lastRowid;
@@ -3669,4 +3670,166 @@ void impl_OP_ReadCookie(Vdbe *p, sqlite3 *db, Op *pOp) {
   sqlite3BtreeGetMeta(db->aDb[iDb].pBt, iCookie, (u32 *)&iMeta);
   pOut->u.i = iMeta;
   // break;
+}
+
+/* Opcode: NewRowid P1 P2 P3 * *
+** Synopsis: r[P2]=rowid
+**
+** Get a new integer record number (a.k.a "rowid") used as the key to a table.
+** The record number is not previously used as a key in the database
+** table that cursor P1 points to.  The new record number is written
+** written to register P2.
+**
+** If P3>0 then P3 is a register in the root frame of this VDBE that holds 
+** the largest previously generated record number. No new record numbers are
+** allowed to be less than this value. When this value reaches its maximum, 
+** an SQLITE_FULL error is generated. The P3 register is updated with the '
+** generated record number. This P3 mechanism is used to help implement the
+** AUTOINCREMENT feature.
+*/
+long impl_OP_NewRowid(Vdbe *p, sqlite3 *db, long pc, long rcIn, Op *pOp) {
+// case OP_NewRowid: {           /* out2-prerelease */
+  i64 v;                 /* The new rowid */
+  VdbeCursor *pC;        /* Cursor of table to get the new rowid */
+  int res;               /* Result of an sqlite3BtreeLast() */
+  int cnt;               /* Counter to limit the number of searches */
+  Mem *pMem;             /* Register holding largest rowid for AUTOINCREMENT */
+  VdbeFrame *pFrame;     /* Root frame of VDBE */
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pOut;                 /* Output operand */
+  pOut = &aMem[pOp->p2];
+  pOut->flags = MEM_Int;
+  int rc = (int)rcIn;
+
+  v = 0;
+  res = 0;
+  assert( pOp->p1>=0 && pOp->p1<p->nCursor );
+  pC = p->apCsr[pOp->p1];
+  assert( pC!=0 );
+  if( NEVER(pC->pCursor==0) ){
+    /* The zero initialization above is all that is needed */
+  }else{
+    /* The next rowid or record number (different terms for the same
+    ** thing) is obtained in a two-step algorithm.
+    **
+    ** First we attempt to find the largest existing rowid and add one
+    ** to that.  But if the largest existing rowid is already the maximum
+    ** positive integer, we have to fall through to the second
+    ** probabilistic algorithm
+    **
+    ** The second algorithm is to select a rowid at random and see if
+    ** it already exists in the table.  If it does not exist, we have
+    ** succeeded.  If the random rowid does exist, we select a new one
+    ** and try again, up to 100 times.
+    */
+    assert( pC->isTable );
+
+#ifdef SQLITE_32BIT_ROWID
+#   define MAX_ROWID 0x7fffffff
+#else
+    /* Some compilers complain about constants of the form 0x7fffffffffffffff.
+    ** Others complain about 0x7ffffffffffffffffLL.  The following macro seems
+    ** to provide the constant while making all compilers happy.
+    */
+#   define MAX_ROWID  (i64)( (((u64)0x7fffffff)<<32) | (u64)0xffffffff )
+#endif
+
+    if( !pC->useRandomRowid ){
+      rc = sqlite3BtreeLast(pC->pCursor, &res);
+      if( rc!=SQLITE_OK ){
+        // goto abort_due_to_error;
+        printf("In impl_OP_NewRowid():1: abort_due_to_error.\n");
+        rc = gotoAbortDueToError(p, db, (int)pc, rc);
+        return (long)rc;
+      }
+      if( res ){
+        v = 1;   /* IMP: R-61914-48074 */
+      }else{
+        assert( sqlite3BtreeCursorIsValid(pC->pCursor) );
+        rc = sqlite3BtreeKeySize(pC->pCursor, &v);
+        assert( rc==SQLITE_OK );   /* Cannot fail following BtreeLast() */
+        if( v>=MAX_ROWID ){
+          pC->useRandomRowid = 1;
+        }else{
+          v++;   /* IMP: R-29538-34987 */
+        }
+      }
+    }
+
+#ifndef SQLITE_OMIT_AUTOINCREMENT
+    if( pOp->p3 ){
+      /* Assert that P3 is a valid memory cell. */
+      assert( pOp->p3>0 );
+      if( p->pFrame ){
+        for(pFrame=p->pFrame; pFrame->pParent; pFrame=pFrame->pParent);
+        /* Assert that P3 is a valid memory cell. */
+        assert( pOp->p3<=pFrame->nMem );
+        pMem = &pFrame->aMem[pOp->p3];
+      }else{
+        /* Assert that P3 is a valid memory cell. */
+        assert( pOp->p3<=(p->nMem-p->nCursor) );
+        pMem = &aMem[pOp->p3];
+        memAboutToChange(p, pMem);
+      }
+      assert( memIsValid(pMem) );
+
+      REGISTER_TRACE(pOp->p3, pMem);
+      sqlite3VdbeMemIntegerify(pMem);
+      assert( (pMem->flags & MEM_Int)!=0 );  /* mem(P3) holds an integer */
+      if( pMem->u.i==MAX_ROWID || pC->useRandomRowid ){
+        rc = SQLITE_FULL;   /* IMP: R-12275-61338 */
+        // goto abort_due_to_error;
+        printf("In impl_OP_NewRowid():2: abort_due_to_error.\n");
+        rc = gotoAbortDueToError(p, db, (int)pc, rc);
+        return (long)rc;
+      }
+      if( v<pMem->u.i+1 ){
+        v = pMem->u.i + 1;
+      }
+      pMem->u.i = v;
+    }
+#endif
+    if( pC->useRandomRowid ){
+      /* IMPLEMENTATION-OF: R-07677-41881 If the largest ROWID is equal to the
+      ** largest possible integer (9223372036854775807) then the database
+      ** engine starts picking positive candidate ROWIDs at random until
+      ** it finds one that is not previously used. */
+      assert( pOp->p3==0 );  /* We cannot be in random rowid mode if this is
+                             ** an AUTOINCREMENT table. */
+      /* on the first attempt, simply do one more than previous */
+      v = lastRowid;
+      v &= (MAX_ROWID>>1); /* ensure doesn't go negative */
+      v++; /* ensure non-zero */
+      cnt = 0;
+      while(   ((rc = sqlite3BtreeMovetoUnpacked(pC->pCursor, 0, (u64)v,
+                                                 0, &res))==SQLITE_OK)
+            && (res==0)
+            && (++cnt<100)){
+        /* collision - try another random rowid */
+        sqlite3_randomness(sizeof(v), &v);
+        if( cnt<5 ){
+          /* try "small" random rowids for the initial attempts */
+          v &= 0xffffff;
+        }else{
+          v &= (MAX_ROWID>>1); /* ensure doesn't go negative */
+        }
+        v++; /* ensure non-zero */
+      }
+      if( rc==SQLITE_OK && res==0 ){
+        rc = SQLITE_FULL;   /* IMP: R-38219-53002 */
+        // goto abort_due_to_error;
+        printf("In impl_OP_NewRowid():3: abort_due_to_error.\n");
+        rc = gotoAbortDueToError(p, db, (int)pc, rc);
+        return (long)rc;        
+      }
+      assert( v>0 );  /* EV: R-40812-03570 */
+    }
+    pC->rowidIsValid = 0;
+    pC->deferredMoveto = 0;
+    pC->cacheStatus = CACHE_STALE;
+  }
+  pOut->u.i = v;
+  // break;
+  return (long)rc;
 }
