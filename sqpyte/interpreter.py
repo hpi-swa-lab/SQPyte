@@ -61,7 +61,7 @@ class Sqlite3Query(object):
         capi.sqlite3_reset(self.p)
 
     def python_OP_Init(self, pc, pOp):
-        return translated.python_OP_Init_translated(pc, pOp)
+        return translated.python_OP_Init_translated(self, pc, pOp)
 
     def python_OP_Rewind(self, pc, pOp):
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
@@ -81,15 +81,15 @@ class Sqlite3Query(object):
         # retPc = self.internalPc[0]
         # return retPc, retRc
 
-        return translated.python_OP_Goto_translated(self.p, self.db, pc, rc, pOp)
+        return translated.python_OP_Goto_translated(self, self.db, pc, rc, pOp)
 
     def python_OP_OpenRead_OpenWrite(self, pc, pOp):
         return capi.impl_OP_OpenRead_OpenWrite(self.p, self.db, pc, pOp)
-        # translated.python_OP_OpenRead_OpenWrite_translated(self.p, self.db, pc, pOp)
+        # translated.python_OP_OpenRead_OpenWrite_translated(self, self.db, pc, pOp)
 
     def python_OP_Column(self, pc, pOp):
         return capi.impl_OP_Column(self.p, self.db, pc, pOp)
-        # return translated.python_OP_Column_translated(self.p, self.db, pc, pOp)
+        # return translated.python_OP_Column_translated(self, self.db, pc, pOp)
 
     def python_OP_ResultRow(self, pc, pOp):
         return capi.impl_OP_ResultRow(self.p, self.db, pc, pOp)
@@ -117,7 +117,7 @@ class Sqlite3Query(object):
         # retPc = self.internalPc[0]
         # return retPc, rc
 
-        return translated.python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(self.p, self.db, pc, rc, pOp)
+        return translated.python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(self, self.db, pc, rc, pOp)
 
     def python_OP_Integer(self, pOp):
         capi.impl_OP_Integer(self.p, pOp)
@@ -177,7 +177,7 @@ class Sqlite3Query(object):
         return capi.impl_OP_Rowid(self.p, self.db, pc, rc, pOp)
 
     def python_OP_IsNull(self, pc, pOp):
-        return capi.impl_OP_IsNull(self.p, pc, pOp)
+        return translated.python_OP_IsNull(self, pc, pOp)
 
     def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(self, pc, rc, pOp):
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
@@ -339,6 +339,34 @@ class Sqlite3Query(object):
     @jit.elidable
     def get_aOp(self):
         return self.p.aOp
+
+    @jit.elidable
+    def p_Signed(self, pOp, i):
+        if i == 1:
+            return rffi.cast(lltype.Signed, pOp.p1)
+        if i == 2:
+            return rffi.cast(lltype.Signed, pOp.p2)
+        if i == 3:
+            return rffi.cast(lltype.Signed, pOp.p3)
+        if i == 5:
+            return rffi.cast(lltype.Signed, pOp.p5)
+        assert 0
+
+    @jit.elidable
+    def p_Unsigned(self, pOp, i):
+        if i == 1:
+            return rffi.cast(lltype.Unsigned, pOp.p1)
+        if i == 2:
+            return rffi.cast(lltype.Unsigned, pOp.p2)
+        if i == 3:
+            return rffi.cast(lltype.Unsigned, pOp.p3)
+        if i == 5:
+            return rffi.cast(lltype.Unsigned, pOp.p5)
+        assert 0
+
+    @jit.elidable
+    def p4type(self, pOp):
+        return pOp.p4type
 
     def mainloop(self):
         ops = self.get_aOp()
