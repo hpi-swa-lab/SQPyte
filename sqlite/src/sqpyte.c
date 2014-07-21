@@ -3465,3 +3465,26 @@ long impl_OP_Jump(Op *pOp) {
   // break;
   return (long)pc;
 }
+
+/* Opcode: IfPos P1 P2 * * *
+** Synopsis: if r[P1]>0 goto P2
+**
+** If the value of register P1 is 1 or greater, jump to P2.
+**
+** It is illegal to use this instruction on a register that does
+** not contain an integer.  An assertion fault will result if you try.
+*/
+long impl_OP_IfPos(Vdbe *p, long pc, Op *pOp) {
+// case OP_IfPos: {        /* jump, in1 */
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn1;                 /* 1st input operand */
+
+  pIn1 = &aMem[pOp->p1];
+  assert( pIn1->flags&MEM_Int );
+  VdbeBranchTaken( pIn1->u.i>0, 2);
+  if( pIn1->u.i>0 ){
+     pc = (long)pOp->p2 - 1;
+  }
+  // break;
+  return pc;
+}

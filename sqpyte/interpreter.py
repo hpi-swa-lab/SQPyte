@@ -280,6 +280,9 @@ class Sqlite3Query(object):
     def python_OP_Jump(self, pOp):
         return capi.impl_OP_Jump(pOp)
 
+    def python_OP_IfPos(self, pc, pOp):
+        return capi.impl_OP_IfPos(self.p, pc, pOp)
+
 
     def python_sqlite3_column_text(self, iCol):
         return capi.sqlite3_column_text(self.p, iCol)
@@ -458,6 +461,8 @@ class Sqlite3Query(object):
                 self.python_OP_Compare(pOp)
             elif opcode == CConfig.OP_Jump:
                 pc = self.python_OP_Jump(pOp)
+            elif opcode == CConfig.OP_IfPos:
+                pc = self.python_OP_IfPos(pc, pOp)
             else:
                 raise SQPyteException("SQPyteException: Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))
