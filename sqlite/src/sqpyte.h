@@ -66,6 +66,7 @@ void impl_OP_ReadCookie(Vdbe *p, sqlite3 *db, Op *pOp);
 long impl_OP_NewRowid(Vdbe *p, sqlite3 *db, long pc, long rcIn, Op *pOp);
 long impl_OP_Insert_InsertInt(Vdbe *p, sqlite3 *db, Op *pOp);
 long impl_OP_SetCookie(Vdbe *p, sqlite3 *db, Op *pOp);
+long impl_OP_ParseSchema(Vdbe *p, sqlite3 *db, long pc, long rcIn, Op *pOp);
 
 int gotoVdbeErrorHalt(Vdbe *p, sqlite3 *db, int pc, int rc);
 int gotoAbortDueToError(Vdbe *p, sqlite3 *db, int pc, int rc);

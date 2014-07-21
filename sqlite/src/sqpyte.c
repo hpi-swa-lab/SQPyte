@@ -3998,3 +3998,64 @@ long impl_OP_SetCookie(Vdbe *p, sqlite3 *db, Op *pOp) {
   // break;
   return rc;
 }
+
+/* Opcode: ParseSchema P1 * * P4 *
+**
+** Read and parse all entries from the SQLITE_MASTER table of database P1
+** that match the WHERE clause P4. 
+**
+** This opcode invokes the parser to create a new virtual machine,
+** then runs the new virtual machine.  It is thus a re-entrant opcode.
+*/
+long impl_OP_ParseSchema(Vdbe *p, sqlite3 *db, long pc, long rcIn, Op *pOp) {
+// case OP_ParseSchema: {
+  int iDb;
+  const char *zMaster;
+  char *zSql;
+  InitData initData;
+  int rc = (int)rcIn;
+
+  /* Any prepared statement that invokes this opcode will hold mutexes
+  ** on every btree.  This is a prerequisite for invoking 
+  ** sqlite3InitCallback().
+  */
+#ifdef SQLITE_DEBUG
+  for(iDb=0; iDb<db->nDb; iDb++){
+    assert( iDb==1 || sqlite3BtreeHoldsMutex(db->aDb[iDb].pBt) );
+  }
+#endif
+
+  iDb = pOp->p1;
+  assert( iDb>=0 && iDb<db->nDb );
+  assert( DbHasProperty(db, iDb, DB_SchemaLoaded) );
+  /* Used to be a conditional */ {
+    zMaster = SCHEMA_TABLE(iDb);
+    initData.db = db;
+    initData.iDb = pOp->p1;
+    initData.pzErrMsg = &p->zErrMsg;
+    zSql = sqlite3MPrintf(db,
+       "SELECT name, rootpage, sql FROM '%q'.%s WHERE %s ORDER BY rowid",
+       db->aDb[iDb].zName, zMaster, pOp->p4.z);
+    if( zSql==0 ){
+      rc = SQLITE_NOMEM;
+    }else{
+      assert( db->init.busy==0 );
+      db->init.busy = 1;
+      initData.rc = SQLITE_OK;
+      assert( !db->mallocFailed );
+      rc = sqlite3_exec(db, zSql, sqlite3InitCallback, &initData, 0);
+      if( rc==SQLITE_OK ) rc = initData.rc;
+      sqlite3DbFree(db, zSql);
+      db->init.busy = 0;
+    }
+  }
+  if( rc ) sqlite3ResetAllSchemasOfConnection(db);
+  if( rc==SQLITE_NOMEM ){
+    // goto no_mem;
+    printf("In impl_OP_ParseSchema(): no_mem.\n");
+    rc = gotoNoMem(p, db, (long)pc);
+    return (long)rc;
+  }
+  // break;  
+  return (long)rc;
+}
