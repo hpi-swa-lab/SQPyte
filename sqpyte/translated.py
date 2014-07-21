@@ -21,6 +21,10 @@ def sqlite3VdbeSorterRewind(db, pC, res):
         errorcode = capi.sqlite3_sqlite3VdbeSorterRewind(db, pC, res)
         return rffi.cast(rffi.INTP, res[0])
 
+def MemSetTypeFlag(mem, flag):
+    mem.flags = rffi.cast(rffi.USHORT, (mem.flags & ~(mem_typemask | mem_zero)) | mem_null)
+
+
 def python_OP_Init_translated(hlquery, pc, pOp):
     cond = rffi.cast(lltype.Bool, pOp.p2)
     p2 = rffi.cast(lltype.Signed, pOp.p2)
@@ -319,8 +323,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
             if p5 & CConfig.SQLITE_STOREP2:
                 pOut = aMem[pOp.p2]
 
-                # Translated: MemSetTypeFlag(pOut, MEM_Null);
-                pOut.flags = rffi.cast(rffi.USHORT, (pOut.flags & ~(mem_typemask | mem_zero)) | mem_null)
+                MemSetTypeFlag(pOut, mem_null)
 
                 # Used only for debugging, i.e., not in production.
                 # See vdbe.c lines 451-455.
@@ -404,8 +407,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
         # See vdbe.c lines 24-37.
         #   memAboutToChange(p, pOut);
 
-        # Translated: MemSetTypeFlag(pOut, MEM_Int);
-        pOut.flags = rffi.cast(rffi.USHORT, (pOut.flags & ~(mem_typemask | mem_zero)) | mem_int)
+        MemSetTypeFlag(pOut, mem_int)
 
         pOut.u.i = res
 
