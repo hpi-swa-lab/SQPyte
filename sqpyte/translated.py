@@ -3,6 +3,7 @@ from rpython.rtyper.lltypesystem import rffi
 from capi import CConfig
 from rpython.rtyper.lltypesystem import lltype
 import capi
+import sys
 
 def allocateCursor(vdbe_struct, p1, nField, iDb, isBtreeCursor):
     return capi.sqlite3_allocateCursor(vdbe_struct, p1, nField, iDb, isBtreeCursor) 
@@ -21,10 +22,90 @@ def sqlite3VdbeSorterRewind(db, pC, res):
         errorcode = capi.sqlite3_sqlite3VdbeSorterRewind(db, pC, res)
         return rffi.cast(rffi.INTP, res[0])
 
+def applyAffinity(mem, affinity, enc):
+    """
+     Processing is determine by the affinity parameter:
+
+     SQLITE_AFF_INTEGER:
+     SQLITE_AFF_REAL:
+     SQLITE_AFF_NUMERIC:
+        Try to convert pRec to an integer representation or a
+        floating-point representation if an integer representation
+        is not possible.  Note that the integer representation is
+        always preferred, even if the affinity is REAL, because
+        an integer representation is more space efficient on disk.
+
+     SQLITE_AFF_TEXT:
+        Convert pRec to a text representation.
+
+     SQLITE_AFF_NONE:
+        No-op.  pRec is unchanged.
+    """
+    flags = mem.flags
+
+    return _applyAffinity_flag_read(mem, flag, affinity, enc)
+
+def _applyAffinity_flag_read(mem, flag, affinity, enc):
+    assert isinstance(affinity, int)
+    if affinity == CConfig.SQLITE_AFF_TEXT:
+        # Only attempt the conversion to TEXT if there is an integer or real
+        # representation (blob and NULL do not get converted) but no string
+        # representation.
+
+        if not (flags & CConfig.MEM_Str) and flags & (CConfig.MEM_Real|CConfig.MEM_Int):
+            capi.sqlite3_sqlite3VdbeMemStringify(mem, enc)
+        mem.flags = rffi.cast(CConfig.u16, mem.flags & ~(CConfig.MEM_Real|CConfig.MEM_Int))
+    elif affinity != CConfig.SQLITE_AFF_NONE:
+        assert affinity in (CConfig.SQLITE_AFF_INTEGER,
+                            CConfig.SQLITE_AFF_REAL,
+                            CConfig.SQLITE_AFF_NUMERIC)
+        applyNumericAffinity(mem)
+        if mem.flags & CConfig.MEM_Real:
+            sqlite3VdbeIntegerAffinity(mem)
+
+def sqlite3VdbeIntegerAffinity(mem):
+    """
+    The MEM structure is already a MEM_Real.  Try to also make it a
+    MEM_Int if we can.
+    """
+    assert mem.flags & CConfig.MEM_Real
+    assert not mem.flags & CConfig.MEM_RowSet
+    # assert( mem->db==0 || sqlite3_mutex_held(mem->db->mutex) );
+    # assert( EIGHT_BYTE_ALIGNMENT(mem) );
+    floatval = mem.r
+    intval = int(floatval)
+    # Only mark the value as an integer if
+    #
+    #    (1) the round-trip conversion real->int->real is a no-op, and
+    #    (2) The integer is neither the largest nor the smallest
+    #        possible integer (ticket #3922)
+    #
+    # The second and third terms in the following conditional enforces
+    # the second condition under the assumption that addition overflow causes
+    # values to wrap around.
+    if floatval == float(intval) and intval < sys.maxint and intval > (-sys.maxint - 1):
+        mem.flags = rffi.cast(CConfig.u16, mem.flags | CConfig.MEM_Int)
+
+
+
+def applyNumericAffinity(mem):
+    """
+    Try to convert a value into a numeric representation if we can
+    do so without loss of information.  In other words, if the string
+    looks like a number, convert it into a number.  If it does not
+    look like a number, leave it alone.
+    """
+    if mem.flags & (CConfig.MEM_Real|CConfig.MEM_Int):
+        return
+    if not mem.flags & CConfig.MEM_Str:
+        return
+    # use the C function as a slow path for now
+    return capi.sqlite3_applyNumericAffinity(mem)
+
+
+
 def MemSetTypeFlag(mem, flag):
-    mem_zero = rffi.cast(lltype.Unsigned, CConfig.MEM_Zero)
-    mem_typemask = rffi.cast(lltype.Unsigned, CConfig.MEM_TypeMask)
-    mem.flags = rffi.cast(rffi.USHORT, (mem.flags & ~(mem_typemask | mem_zero)) | flag)
+    mem.flags = rffi.cast(CConfig.u16, (mem.flags & ~(CConfig.MEM_TypeMask | CConfig.MEM_Zero)) | flag)
 
 def ENC(db):
     return db.aDb[0].pSchema.enc
@@ -293,17 +374,11 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
     flags1 = jit.promote(rffi.cast(lltype.Unsigned, pIn1.flags))
     flags3 = jit.promote(rffi.cast(lltype.Unsigned, pIn3.flags))
     opcode = hlquery.get_opcode(pOp)
-    mem_int = rffi.cast(lltype.Unsigned, CConfig.MEM_Int)
-    mem_real = rffi.cast(lltype.Unsigned, CConfig.MEM_Real)
-    mem_null = rffi.cast(lltype.Unsigned, CConfig.MEM_Null)
-    mem_cleared = rffi.cast(lltype.Unsigned, CConfig.MEM_Cleared)
-    mem_zero = rffi.cast(lltype.Unsigned, CConfig.MEM_Zero)
-    mem_typemask = rffi.cast(lltype.Unsigned, CConfig.MEM_TypeMask)
     flags_can_have_changed = False
     p5 = hlquery.p_Unsigned(pOp, 5)
 
 
-    if (flags1 | flags3) & mem_null:
+    if (flags1 | flags3) & CConfig.MEM_Null:
         # /* One or both operands are NULL */
         if p5 & CConfig.SQLITE_NULLEQ:
             # /* If SQLITE_NULLEQ is set (which will only happen if the operator is
@@ -311,11 +386,11 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
             #  ** or not both operands are null.
             #  */
             assert opcode == CConfig.OP_Eq or opcode == CConfig.OP_Ne
-            assert flags1 & mem_cleared == 0
+            assert flags1 & CConfig.MEM_Cleared == 0
             assert p5 & CConfig.SQLITE_JUMPIFNULL == 0
-            if (flags1 & mem_null != 0
-                and flags3 & mem_null != 0
-                and flags3 & mem_cleared == 0):
+            if (flags1 & CConfig.MEM_Null != 0
+                and flags3 & CConfig.MEM_Null != 0
+                and flags3 & CConfig.MEM_Cleared == 0):
                 res = 0     # /* Results are equal */
             else:
                 res = 1     # /* Results are not equal */
@@ -327,7 +402,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
             if p5 & CConfig.SQLITE_STOREP2:
                 pOut = aMem[pOp.p2]
 
-                MemSetTypeFlag(pOut, mem_null)
+                MemSetTypeFlag(pOut, CConfig.MEM_Null)
 
                 # Used only for debugging, i.e., not in production.
                 # See vdbe.c lines 451-455.
@@ -345,9 +420,9 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
 
     ################################ MODIFIED BLOCK STARTS ################################
 
-        if (flags1 | flags3) & (mem_int | mem_real):
+        if (flags1 | flags3) & (CConfig.MEM_Int | CConfig.MEM_Real):
             # both are ints
-            if flags1 & flags3 & mem_int:
+            if flags1 & flags3 & CConfig.MEM_Int:
                 if pIn1.u.i > pIn3.u.i:
                     res = -1
                 elif pIn1.u.i < pIn3.u.i:
@@ -356,8 +431,8 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
                     res = 0
             else:
                 # mixed int and real comparison, convert to real
-                n1 = pIn1.u.i if flags1 & mem_int else pIn1.r
-                n3 = pIn3.u.i if flags3 & mem_int else pIn3.r
+                n1 = pIn1.u.i if flags1 & CConfig.MEM_Int else pIn1.r
+                n3 = pIn3.u.i if flags3 & CConfig.MEM_Int else pIn3.r
 
                 if n1 > n3:
                     res = -1
@@ -370,11 +445,11 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
 
             # Call C functions
             # /* Neither operand is NULL.  Do a comparison. */
-            affinity = p5 & CConfig.SQLITE_AFF_MASK
+            affinity = rffi.cast(lltype.Signed, p5 & CConfig.SQLITE_AFF_MASK)
             if affinity != 0:
                 encoding = ENC(db)
-                capi.sqlite3_applyAffinity(pIn1, rffi.cast(rffi.CHAR, affinity), encoding)
-                capi.sqlite3_applyAffinity(pIn3, rffi.cast(rffi.CHAR, affinity), encoding)
+                _applyAffinity_flag_read(pIn1, flags1, affinity, encoding)
+                _applyAffinity_flag_read(pIn3, flags3, affinity, encoding)
                 if rffi.cast(lltype.Unsigned, db.mallocFailed) != 0:
                     # goto no_mem;
                     print 'In python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(): no_mem.'
@@ -411,7 +486,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
         # See vdbe.c lines 24-37.
         #   memAboutToChange(p, pOut);
 
-        MemSetTypeFlag(pOut, mem_int)
+        MemSetTypeFlag(pOut, CConfig.MEM_Int)
 
         pOut.u.i = res
 
@@ -429,8 +504,8 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
 
     if flags_can_have_changed:
         # /* Undo any changes made by applyAffinity() to the input registers. */
-        pIn1.flags = rffi.cast(rffi.USHORT, (pIn1.flags & ~mem_typemask) | (flags1 & mem_typemask))
-        pIn3.flags = rffi.cast(rffi.USHORT, (pIn3.flags & ~mem_typemask) | (flags3 & mem_typemask))
+        pIn1.flags = rffi.cast(CConfig.u16, (pIn1.flags & ~CConfig.MEM_TypeMask) | (flags1 & CConfig.MEM_TypeMask))
+        pIn3.flags = rffi.cast(CConfig.u16, (pIn3.flags & ~CConfig.MEM_TypeMask) | (flags3 & CConfig.MEM_TypeMask))
 
     return pc, rc
 
@@ -441,8 +516,7 @@ def python_OP_Noop_Explain_translated(pOp):
 def python_OP_IsNull(hlquery, pc, pOp):
     pIn1 = hlquery.p.aMem[hlquery.p_Signed(pOp, 1)]
     flags1 = rffi.cast(lltype.Unsigned, pIn1.flags)
-    mem_null = rffi.cast(lltype.Unsigned, CConfig.MEM_Null)
-    if flags1 & mem_null != 0:
+    if flags1 & CConfig.MEM_Null != 0:
         pc = hlquery.p_Signed(pOp, 2) - 1
     return pc
 
