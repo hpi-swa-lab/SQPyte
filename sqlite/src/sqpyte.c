@@ -4090,3 +4090,60 @@ long impl_OP_RowSetAdd(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp) {
   // break;
   return rc;
 }
+
+/* Opcode: RowSetRead P1 P2 P3 * *
+** Synopsis:  r[P3]=rowset(P1)
+**
+** Extract the smallest value from boolean index P1 and put that value into
+** register P3.  Or, if boolean index P1 is initially empty, leave P3
+** unchanged and jump to instruction P2.
+*/
+long impl_OP_RowSetRead(Vdbe *p, sqlite3 *db, long *pc, long rc, Op *pOp) {
+// case OP_RowSetRead: {       /* jump, in1, out3 */
+  i64 val;
+
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn1;                 /* 1st input operand */
+
+  pIn1 = &aMem[pOp->p1];
+  if( (pIn1->flags & MEM_RowSet)==0 
+   || sqlite3RowSetNext(pIn1->u.pRowSet, &val)==0
+  ){
+    /* The boolean index is empty */
+    sqlite3VdbeMemSetNull(pIn1);
+    *pc = pOp->p2 - 1;
+    VdbeBranchTaken(1,2);
+  }else{
+    /* A value was pulled from the index */
+    sqlite3VdbeMemSetInt64(&aMem[pOp->p3], val);
+    VdbeBranchTaken(0,2);
+  }
+
+  // goto check_for_interrupt;
+  if( db->u1.isInterrupted ) {
+    // goto abort_due_to_interrupt;
+    printf("In impl_OP_RowSetRead(): abort_due_to_interrupt.\n");
+    rc = (long)gotoAbortDueToInterrupt(p, db, (int)*pc, rc);
+    return rc;
+  }
+#ifndef SQLITE_OMIT_PROGRESS_CALLBACK
+  /* Call the progress callback if it is configured and the required number
+  ** of VDBE ops have been executed (either since this invocation of
+  ** sqlite3VdbeExec() or since last time the progress callback was called).
+  ** If the progress callback returns non-zero, exit the virtual machine with
+  ** a return code SQLITE_ABORT.
+  */
+  if( db->xProgress!=0 && nVmStep>=nProgressLimit ){
+    assert( db->nProgressOps!=0 );
+    nProgressLimit = nVmStep + db->nProgressOps - (nVmStep%db->nProgressOps);
+    if( db->xProgress(db->pProgressArg) ){
+      rc = SQLITE_INTERRUPT;
+      // goto vdbe_error_halt;
+      printf("In impl_OP_RowSetRead(): vdbe_error_halt.\n");
+      rc = (long)gotoVdbeErrorHalt(p, db, (int)*pc, rc);
+      return rc;
+    }
+  }
+#endif
+  return rc;
+}
