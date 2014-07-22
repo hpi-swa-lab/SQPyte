@@ -402,7 +402,7 @@ long impl_OP_OpenRead_OpenWrite(Vdbe *p, sqlite3 *db, long pc, Op *pOp) {
       rc = SQLITE_CORRUPT_BKPT;
       // goto abort_due_to_error;
       printf("In impl_OP_OpenRead_OpenWrite(): abort_due_to_error.\n");
-      rc = gotoAbortDueToError(p, db, (long)pc, rc);
+      rc = gotoAbortDueToError(p, db, (int)pc, rc);
       return (long)rc;
     }
   }
@@ -421,7 +421,7 @@ long impl_OP_OpenRead_OpenWrite(Vdbe *p, sqlite3 *db, long pc, Op *pOp) {
   if( pCur==0 ) {
     // goto no_mem;
     printf("In impl_OP_OpenRead_OpenWrite(): no_mem.\n");
-    rc = gotoNoMem(p, db, (long)pc);
+    rc = gotoNoMem(p, db, (int)pc);
     return (long)rc;
   }
   pCur->nullRow = 1;
@@ -4053,9 +4053,40 @@ long impl_OP_ParseSchema(Vdbe *p, sqlite3 *db, long pc, long rcIn, Op *pOp) {
   if( rc==SQLITE_NOMEM ){
     // goto no_mem;
     printf("In impl_OP_ParseSchema(): no_mem.\n");
-    rc = gotoNoMem(p, db, (long)pc);
+    rc = gotoNoMem(p, db, (int)pc);
     return (long)rc;
   }
   // break;  
   return (long)rc;
+}
+
+/* Opcode: RowSetAdd P1 P2 * * *
+** Synopsis:  rowset(P1)=r[P2]
+**
+** Insert the integer value held by register P2 into a boolean index
+** held in register P1.
+**
+** An assertion fails if P2 is not an integer.
+*/
+long impl_OP_RowSetAdd(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp) {
+// case OP_RowSetAdd: {       /* in1, in2 */
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+  Mem *pIn1;                 /* 1st input operand */
+  Mem *pIn2;
+
+  pIn1 = &aMem[pOp->p1];
+  pIn2 = &aMem[pOp->p2];
+  assert( (pIn2->flags & MEM_Int)!=0 );
+  if( (pIn1->flags & MEM_RowSet)==0 ){
+    sqlite3VdbeMemSetRowSet(pIn1);
+    if( (pIn1->flags & MEM_RowSet)==0 ) {
+      // goto no_mem;
+      printf("In impl_OP_RowSetAdd(): no_mem.\n");
+      rc = (long)gotoNoMem(p, db, (int)pc);
+      return rc;      
+    }
+  }
+  sqlite3RowSetInsert(pIn1->u.pRowSet, pIn2->u.i);
+  // break;
+  return rc;
 }
