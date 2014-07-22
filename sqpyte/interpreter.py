@@ -162,7 +162,7 @@ class Sqlite3Query(object):
         capi.impl_OP_Real(self.p, pOp)
 
     def python_OP_RealAffinity(self, pOp):
-        capi.impl_OP_RealAffinity(self.p, pOp)
+        translated.python_OP_RealAffinity(self, pOp)
 
     def python_OP_Add_Subtract_Multiply_Divide_Remainder(self, pOp):
         capi.impl_OP_Add_Subtract_Multiply_Divide_Remainder(self.p, pOp)
@@ -207,7 +207,6 @@ class Sqlite3Query(object):
         capi.impl_OP_SCopy(self.p, pOp)
 
     def python_OP_Affinity(self, pOp):
-        #capi.impl_OP_Affinity(self.p, self.db, pOp)
         translated.python_OP_Affinity(self, pOp)
 
     def python_OP_OpenAutoindex_OpenEphemeral(self, pc, pOp):
@@ -369,6 +368,9 @@ class Sqlite3Query(object):
     @jit.elidable
     def p4_z(self, pOp):
         return rffi.charp2str(pOp.p4.z)
+
+    def mem_of_p(self, pOp, i):
+        return self.p.aMem[self.p_Signed(pOp, i)]
 
     def mainloop(self):
         ops = self.get_aOp()

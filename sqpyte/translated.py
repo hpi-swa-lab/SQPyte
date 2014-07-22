@@ -573,3 +573,22 @@ def python_OP_Affinity(hlquery, pOp):
     for i in range(length):
         applyAffinity(hlquery.p.aMem[index], ord(zAffinity[i]), encoding)
         index += 1
+
+
+# Opcode: RealAffinity P1 * * * *
+#
+# If register P1 holds an integer convert it to a real value.
+#
+# This opcode is used when extracting information from a column that
+# has REAL affinity.  Such column values may still be stored as
+# integers, for space efficiency, but after extraction we want them
+# to have only a real value.
+
+def python_OP_RealAffinity(hlquery, pOp):
+    pIn1 = hlquery.mem_of_p(pOp, 1)
+    flags = rffi.cast(lltype.Unsigned, pIn1.flags)
+    if flags & CConfig.MEM_Int and not flags & CConfig.MEM_Real:
+        # only relevant parts of sqlite3VdbeMemRealify
+        pIn1.r = float(pIn1.u.i)
+        MemSetTypeFlag(pIn1, CConfig.MEM_Real)
+
