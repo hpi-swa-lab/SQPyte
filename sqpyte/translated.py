@@ -422,9 +422,11 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
         if (flags1 | flags3) & (CConfig.MEM_Int | CConfig.MEM_Real):
             # both are ints
             if flags1 & flags3 & CConfig.MEM_Int:
-                if pIn1.u.i > pIn3.u.i:
+                i1 = pIn1.u.i
+                i3 = pIn3.u.i
+                if i1 > i3:
                     res = -1
-                elif pIn1.u.i < pIn3.u.i:
+                elif i1 < i3:
                     res = 1
                 else:
                     res = 0
