@@ -284,7 +284,7 @@ class Sqlite3Query(object):
         capi.impl_OP_CollSeq(self.p, pOp)
 
     def python_OP_NotNull(self, pc, pOp):
-        return capi.impl_OP_NotNull(self.p, pc, pOp)
+        return translated.python_OP_NotNull(self, pc, pOp)
 
     def python_OP_InitCoroutine(self, pc, pOp):
         return capi.impl_OP_InitCoroutine(self.p, pc, pOp)

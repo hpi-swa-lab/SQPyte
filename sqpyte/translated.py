@@ -513,10 +513,29 @@ def python_OP_Noop_Explain_translated(pOp):
     opcode = rffi.cast(lltype.Unsigned, pOp.opcode)
     assert opcode == CConfig.OP_Noop or opcode == CConfig.OP_Explain
 
+
+# Opcode: IsNull P1 P2 * * *
+# Synopsis:  if r[P1]==NULL goto P2
+#
+# Jump to P2 if the value in register P1 is NULL.
+
 def python_OP_IsNull(hlquery, pc, pOp):
-    pIn1 = hlquery.p.aMem[hlquery.p_Signed(pOp, 1)]
+    pIn1 = hlquery.mem_of_p(pOp, 1)
     flags1 = rffi.cast(lltype.Unsigned, pIn1.flags)
     if flags1 & CConfig.MEM_Null != 0:
+        pc = hlquery.p_Signed(pOp, 2) - 1
+    return pc
+
+
+# Opcode: NotNull P1 P2 * * *
+# Synopsis: if r[P1]!=NULL goto P2
+#
+# Jump to P2 if the value in register P1 is not NULL.  
+
+def python_OP_NotNull(hlquery, pc, pOp):
+    pIn1 = hlquery.mem_of_p(pOp, 1)
+    flags1 = rffi.cast(lltype.Unsigned, pIn1.flags)
+    if flags1 & CConfig.MEM_Null == 0:
         pc = hlquery.p_Signed(pOp, 2) - 1
     return pc
 
