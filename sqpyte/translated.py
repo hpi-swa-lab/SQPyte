@@ -3,6 +3,7 @@ from rpython.rtyper.lltypesystem import rffi
 from capi import CConfig
 from rpython.rtyper.lltypesystem import lltype
 import capi
+import sys
 
 def allocateCursor(vdbe_struct, p1, nField, iDb, isBtreeCursor):
     return capi.sqlite3_allocateCursor(vdbe_struct, p1, nField, iDb, isBtreeCursor) 
@@ -20,6 +21,94 @@ def sqlite3VdbeSorterRewind(db, pC, res):
     with lltype.scoped_alloc(rffi.INTP.TO, 1) as res:
         errorcode = capi.sqlite3_sqlite3VdbeSorterRewind(db, pC, res)
         return rffi.cast(rffi.INTP, res[0])
+
+def applyAffinity(mem, affinity, enc):
+    """
+     Processing is determine by the affinity parameter:
+
+     SQLITE_AFF_INTEGER:
+     SQLITE_AFF_REAL:
+     SQLITE_AFF_NUMERIC:
+        Try to convert pRec to an integer representation or a
+        floating-point representation if an integer representation
+        is not possible.  Note that the integer representation is
+        always preferred, even if the affinity is REAL, because
+        an integer representation is more space efficient on disk.
+
+     SQLITE_AFF_TEXT:
+        Convert pRec to a text representation.
+
+     SQLITE_AFF_NONE:
+        No-op.  pRec is unchanged.
+    """
+    flags = rffi.cast(lltype.Unsigned, mem.flags)
+
+    return _applyAffinity_flags_read(mem, flags, affinity, enc)
+
+def _applyAffinity_flags_read(mem, flags, affinity, enc):
+    assert isinstance(affinity, int)
+    if affinity == CConfig.SQLITE_AFF_TEXT:
+        # Only attempt the conversion to TEXT if there is an integer or real
+        # representation (blob and NULL do not get converted) but no string
+        # representation.
+
+        if not (flags & CConfig.MEM_Str) and flags & (CConfig.MEM_Real|CConfig.MEM_Int):
+            capi.sqlite3_sqlite3VdbeMemStringify(mem, enc)
+        mem.flags = rffi.cast(CConfig.u16, mem.flags & ~(CConfig.MEM_Real|CConfig.MEM_Int))
+    elif affinity != CConfig.SQLITE_AFF_NONE:
+        assert affinity in (CConfig.SQLITE_AFF_INTEGER,
+                            CConfig.SQLITE_AFF_REAL,
+                            CConfig.SQLITE_AFF_NUMERIC)
+        applyNumericAffinity(mem)
+        if mem.flags & CConfig.MEM_Real:
+            sqlite3VdbeIntegerAffinity(mem)
+
+def sqlite3VdbeIntegerAffinity(mem):
+    """
+    The MEM structure is already a MEM_Real.  Try to also make it a
+    MEM_Int if we can.
+    """
+    assert mem.flags & CConfig.MEM_Real
+    assert not mem.flags & CConfig.MEM_RowSet
+    # assert( mem->db==0 || sqlite3_mutex_held(mem->db->mutex) );
+    # assert( EIGHT_BYTE_ALIGNMENT(mem) );
+    floatval = mem.r
+    intval = int(floatval)
+    # Only mark the value as an integer if
+    #
+    #    (1) the round-trip conversion real->int->real is a no-op, and
+    #    (2) The integer is neither the largest nor the smallest
+    #        possible integer (ticket #3922)
+    #
+    # The second and third terms in the following conditional enforces
+    # the second condition under the assumption that addition overflow causes
+    # values to wrap around.
+    if floatval == float(intval) and intval < sys.maxint and intval > (-sys.maxint - 1):
+        mem.flags = rffi.cast(CConfig.u16, mem.flags | CConfig.MEM_Int)
+
+
+
+def applyNumericAffinity(mem):
+    """
+    Try to convert a value into a numeric representation if we can
+    do so without loss of information.  In other words, if the string
+    looks like a number, convert it into a number.  If it does not
+    look like a number, leave it alone.
+    """
+    if mem.flags & (CConfig.MEM_Real|CConfig.MEM_Int):
+        return
+    if not mem.flags & CConfig.MEM_Str:
+        return
+    # use the C function as a slow path for now
+    return capi.sqlite3_applyNumericAffinity(mem)
+
+
+
+def MemSetTypeFlag(mem, flag):
+    mem.flags = rffi.cast(CConfig.u16, (mem.flags & ~(CConfig.MEM_TypeMask | CConfig.MEM_Zero)) | flag)
+
+def ENC(db):
+    return db.aDb[0].pSchema.enc
 
 def python_OP_Init_translated(hlquery, pc, pOp):
     cond = rffi.cast(lltype.Bool, pOp.p2)
@@ -282,20 +371,14 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
     aMem = p.aMem           # /* Copy of p->aMem */
     pIn1 = aMem[hlquery.p_Signed(pOp, 1)]     # /* 1st input operand */
     pIn3 = aMem[hlquery.p_Signed(pOp, 3)]     # /* 3rd input operand */
-    flags1 = rffi.cast(lltype.Unsigned, pIn1.flags)
-    flags3 = rffi.cast(lltype.Unsigned, pIn3.flags)
+    flags1 = jit.promote(rffi.cast(lltype.Unsigned, pIn1.flags))
+    flags3 = jit.promote(rffi.cast(lltype.Unsigned, pIn3.flags))
     opcode = hlquery.get_opcode(pOp)
-    mem_int = rffi.cast(lltype.Unsigned, CConfig.MEM_Int)
-    mem_real = rffi.cast(lltype.Unsigned, CConfig.MEM_Real)
-    mem_null = rffi.cast(lltype.Unsigned, CConfig.MEM_Null)
-    mem_cleared = rffi.cast(lltype.Unsigned, CConfig.MEM_Cleared)
-    mem_zero = rffi.cast(lltype.Unsigned, CConfig.MEM_Zero)
-    mem_typemask = rffi.cast(lltype.Unsigned, CConfig.MEM_TypeMask)
     flags_can_have_changed = False
     p5 = hlquery.p_Unsigned(pOp, 5)
 
 
-    if (flags1 | flags3) & mem_null:
+    if (flags1 | flags3) & CConfig.MEM_Null:
         # /* One or both operands are NULL */
         if p5 & CConfig.SQLITE_NULLEQ:
             # /* If SQLITE_NULLEQ is set (which will only happen if the operator is
@@ -303,11 +386,11 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
             #  ** or not both operands are null.
             #  */
             assert opcode == CConfig.OP_Eq or opcode == CConfig.OP_Ne
-            assert flags1 & mem_cleared == 0
+            assert flags1 & CConfig.MEM_Cleared == 0
             assert p5 & CConfig.SQLITE_JUMPIFNULL == 0
-            if (flags1 & mem_null != 0
-                and flags3 & mem_null != 0
-                and flags3 & mem_cleared == 0):
+            if (flags1 & CConfig.MEM_Null != 0
+                and flags3 & CConfig.MEM_Null != 0
+                and flags3 & CConfig.MEM_Cleared == 0):
                 res = 0     # /* Results are equal */
             else:
                 res = 1     # /* Results are not equal */
@@ -319,8 +402,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
             if p5 & CConfig.SQLITE_STOREP2:
                 pOut = aMem[pOp.p2]
 
-                # Translated: MemSetTypeFlag(pOut, MEM_Null);
-                pOut.flags = rffi.cast(rffi.USHORT, (pOut.flags & ~(mem_typemask | mem_zero)) | mem_null)
+                MemSetTypeFlag(pOut, CConfig.MEM_Null)
 
                 # Used only for debugging, i.e., not in production.
                 # See vdbe.c lines 451-455.
@@ -338,9 +420,9 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
 
     ################################ MODIFIED BLOCK STARTS ################################
 
-        if (flags1 | flags3) & (mem_int | mem_real):
+        if (flags1 | flags3) & (CConfig.MEM_Int | CConfig.MEM_Real):
             # both are ints
-            if flags1 & flags3 & mem_int:
+            if flags1 & flags3 & CConfig.MEM_Int:
                 if pIn1.u.i > pIn3.u.i:
                     res = -1
                 elif pIn1.u.i < pIn3.u.i:
@@ -349,8 +431,8 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
                     res = 0
             else:
                 # mixed int and real comparison, convert to real
-                n1 = pIn1.u.i if flags1 & mem_int else pIn1.r
-                n3 = pIn3.u.i if flags3 & mem_int else pIn3.r
+                n1 = pIn1.u.i if flags1 & CConfig.MEM_Int else pIn1.r
+                n3 = pIn3.u.i if flags3 & CConfig.MEM_Int else pIn3.r
 
                 if n1 > n3:
                     res = -1
@@ -363,11 +445,11 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
 
             # Call C functions
             # /* Neither operand is NULL.  Do a comparison. */
-            affinity = p5 & CConfig.SQLITE_AFF_MASK
+            affinity = rffi.cast(lltype.Signed, p5 & CConfig.SQLITE_AFF_MASK)
             if affinity != 0:
-                encoding = db.aDb[0].pSchema.enc
-                capi.sqlite3_applyAffinity(pIn1, rffi.cast(rffi.CHAR, affinity), encoding)
-                capi.sqlite3_applyAffinity(pIn3, rffi.cast(rffi.CHAR, affinity), encoding)
+                encoding = ENC(db)
+                _applyAffinity_flags_read(pIn1, flags1, affinity, encoding)
+                _applyAffinity_flags_read(pIn3, flags3, affinity, encoding)
                 if rffi.cast(lltype.Unsigned, db.mallocFailed) != 0:
                     # goto no_mem;
                     print 'In python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(): no_mem.'
@@ -404,8 +486,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
         # See vdbe.c lines 24-37.
         #   memAboutToChange(p, pOut);
 
-        # Translated: MemSetTypeFlag(pOut, MEM_Int);
-        pOut.flags = rffi.cast(rffi.USHORT, (pOut.flags & ~(mem_typemask | mem_zero)) | mem_int)
+        MemSetTypeFlag(pOut, CConfig.MEM_Int)
 
         pOut.u.i = res
 
@@ -423,8 +504,8 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
 
     if flags_can_have_changed:
         # /* Undo any changes made by applyAffinity() to the input registers. */
-        pIn1.flags = rffi.cast(rffi.USHORT, (pIn1.flags & ~mem_typemask) | (flags1 & mem_typemask))
-        pIn3.flags = rffi.cast(rffi.USHORT, (pIn3.flags & ~mem_typemask) | (flags3 & mem_typemask))
+        pIn1.flags = rffi.cast(CConfig.u16, (pIn1.flags & ~CConfig.MEM_TypeMask) | (flags1 & CConfig.MEM_TypeMask))
+        pIn3.flags = rffi.cast(CConfig.u16, (pIn3.flags & ~CConfig.MEM_TypeMask) | (flags3 & CConfig.MEM_TypeMask))
 
     return pc, rc
 
@@ -432,11 +513,29 @@ def python_OP_Noop_Explain_translated(pOp):
     opcode = rffi.cast(lltype.Unsigned, pOp.opcode)
     assert opcode == CConfig.OP_Noop or opcode == CConfig.OP_Explain
 
+
+# Opcode: IsNull P1 P2 * * *
+# Synopsis:  if r[P1]==NULL goto P2
+#
+# Jump to P2 if the value in register P1 is NULL.
+
 def python_OP_IsNull(hlquery, pc, pOp):
-    pIn1 = hlquery.p.aMem[hlquery.p_Signed(pOp, 1)]
+    pIn1 = hlquery.mem_of_p(pOp, 1)
     flags1 = rffi.cast(lltype.Unsigned, pIn1.flags)
-    mem_null = rffi.cast(lltype.Unsigned, CConfig.MEM_Null)
-    if flags1 & mem_null != 0:
+    if flags1 & CConfig.MEM_Null != 0:
+        pc = hlquery.p_Signed(pOp, 2) - 1
+    return pc
+
+
+# Opcode: NotNull P1 P2 * * *
+# Synopsis: if r[P1]!=NULL goto P2
+#
+# Jump to P2 if the value in register P1 is not NULL.  
+
+def python_OP_NotNull(hlquery, pc, pOp):
+    pIn1 = hlquery.mem_of_p(pOp, 1)
+    flags1 = rffi.cast(lltype.Unsigned, pIn1.flags)
+    if flags1 & CConfig.MEM_Null == 0:
         pc = hlquery.p_Signed(pOp, 2) - 1
     return pc
 
@@ -459,493 +558,56 @@ def python_OP_Once(hlquery, pc, pOp):
     return pc
 
 
-def python_OP_Column_translated(hlquery, db, pc, pOp):
-    p = hlquery.p
-    aMem = p.aMem
-    encoding = db.aDb[0].pSchema.enc
-    p2 = pOp.p2
-    assert pOp.p3 > 0 and pOp.p3 <= (p.nMem - p.nCursor)
-    pDest = aMem[pOp.p3]
-
-    # Used only for debugging, i.e., not in production.
-    # See vdbe.c lines 24-37.
-    # memAboutToChange(p, pDest);
-
-    assert pOp.p1 >= 0 and pOp.p1 < p.nCursor
-    pC = p.apCsr[pOp.p1]
-    assert pC
-    assert p2 < pC.nField
-    aType = pC.aType
-    # aOffset = aType + pC.nField   # <<< FIX
-    aOffset = aType[pC.nField]
-
-    # #ifndef SQLITE_OMIT_VIRTUALTABLE
-    #   assert( pC->pVtabCursor==0 ); /* OP_Column never called on virtual table */
-    # #endif
-
-    pCrsr = pC.pCursor
-    assert pCrsr != 0 or pC.pseudoTableReg > 0
-    assert pCrsr != 0 or pC.nullRow
-
-    # /* If the cursor cache is stale, bring it up-to-date */
-    # rc = sqlite3VdbeCursorMoveto(pC);  <<< CALL INTO C
-
-    if rc != 0:
-        # goto abort_due_to_error;  <<< CALL INTO C
-        print "In python_OP_Column_translated(): abort_due_to_error."
-        assert False
-
-    if pC.cacheStatus != p.cacheCtr or (pOp.p5 & CConfig.OPFLAG_CLEARCACHE) != 0:
-        if pC.nullRow != 0:
-            if pCrsr == 0:
-                assert pC.pseudoTableReg > 0
-                pReg = aMem[pC.pseudoTableReg]
-                assert pReg.flags & MEM_Blob
-
-                # Used only for debugging, i.e., not in production.
-                # See vdbeInt.c lines 228-234.                
-                # assert( memIsValid(pReg) );
-                
-                pC.payloadSize = pC.szRow = avail = pReg.n
-                pC.aRow = pReg.z # pC->aRow = (u8*)pReg->z;
-            else:
-                # Translated: MemSetTypeFlag(pDest, MEM_Null);
-                pDest.flags = rffi.cast(rffi.USHORT, (pDest.flags & ~(MEM_TypeMask | MEM_Zero)) | MEM_Null)
-
-                # goto op_column_out;   <<< TRANSLATE
-        else:
-            assert pCrsr
-            if pC.isTable == 0:
-                # Translated: assert( sqlite3BtreeCursorIsValid(pCrsr) );
-                # assert pCrsr and pCrsr->eState == CURSOR_VALID  <<< FIX
-
-                # Used only in verification processes, i.e., not in production.
-                # See sqliteInt.h 301-313.
-                # VVA_ONLY(rc =) sqlite3BtreeKeySize(pCrsr, &payloadSize64);
-
-                assert rc == CConfig.SQLITE_OK
-
-                # assert( (payloadSize64 & SQLITE_MAX_U32)==(u64)payloadSize64 );
-                # pC->aRow = sqlite3BtreeKeyFetch(pCrsr, &avail);
-                pC.payloadSize = payloadSize # pC->payloadSize = (u32)payloadSize64;
-            else:
-                # assert( sqlite3BtreeCursorIsValid(pCrsr) );
-                # VVA_ONLY(rc =) sqlite3BtreeDataSize(pCrsr, &pC->payloadSize);
-                assert rc == CConfig.SQLITE_OK
-                # pC->aRow = sqlite3BtreeDataFetch(pCrsr, &avail);
-            assert avail <= 65536
-            if pC.payloadSize <= avail:
-                pC.szRow = pC.payloadSize
-            else:
-                pC.szRow = avail
-            if pC.payloadSize > db.aLimit[CConfig.SQLITE_LIMIT_LENGTH]:
-                # goto too_big;
-                print "In python_OP_Column_translated(): too_big."
-                assert False
-                pass
-
-        pass
-        if pC.cacheStatus != p.cacheCtr or (pOp.p5 & CConfig.OPFLAG_CLEARCACHE) != 0:
-            pC.cacheStatus = p.cacheCtr
-            # pC->iHdrOffset = getVarint32(pC->aRow, offset);
-            pC.nHdrParsed = 0
-            aOffset[0] = offset
-            if avail < offset:
-                pC.aRow = 0
-                pC.szRow = 0
-            if offset > 98307 or offset > pC.payloadSize:
-                rc = CConfig.SQLITE_CORRUPT_BKPT
-                # UPDATE_MAX_BLOBSIZE(pDest);
-                # REGISTER_TRACE(pOp->p3, pDest);
-                return rc
-
-    # end of if pC.cacheStatus != p.cacheCtr or (pOp.p5 & CConfig.OPFLAG_CLEARCACHE) != 0
-
-    if pC.nHdrParsed <= p2:
-        if pC.iHdrOffset < aOffset[0]:
-            if pC.aRow == 0:
-                # memset(&sMem, 0, sizeof(sMem));
-                # rc = sqlite3VdbeMemFromBtree(pCrsr, 0, aOffset[0], !pC->isTable, &sMem);
-                if rc != CConfig.SQLITE_OK:
-                    # UPDATE_MAX_BLOBSIZE(pDest);
-                    # REGISTER_TRACE(pOp->p3, pDest);
-                    return rc
-                zData = sMem.z # zData = (u8*)sMem.z;
-            else:
-                zData = pC.aRow
-
-            i = pC.nHdrParsed
-            offset = aOffset[i]
-            zHdr = zData + pC.iHdrOffset
-            zEndHdr = zData + aOffset[0]
-            assert i <= p2 and zHdr < zEndHdr
-
-            while i <= p2 and zHdr < zEndHdr:
-                if zHdr[0] < 128: # if( zHdr[0]<0x80 ){
-                    t = zHdr[0]
-                    zHdr += 1
-                else:
-                    # zHdr += sqlite3GetVarint32(zHdr, &t);
-                    pass
-                aType[i] = t
-                # szField = sqlite3VdbeSerialTypeLen(t);
-                offset += szField
-                if offset < szField:
-                    zHdr = zEndHdr[1] # zHdr = &zEndHdr[1];  /* Forces SQLITE_CORRUPT return below */
-                    break
-                i += 1
-                aOffset[i] = offset
-
-            pC.nHdrParsed = i
-            pC.iHdrOffset = zHdr - zData # pC->iHdrOffset = (u32)(zHdr - zData);
-            if pC.aRow == 0:
-                # sqlite3VdbeMemRelease(&sMem);
-                # sMem.flags = CConfig.
-                pass
-
-            if zHdr > zEndHdr or offset > pC.payloadSize or (zHdr == zEndHdr and offset != pC.payloadSize):
-                rc = CConfig.SQLITE_CORRUPT_BKPT
-                # UPDATE_MAX_BLOBSIZE(pDest);
-                # REGISTER_TRACE(pOp->p3, pDest);
-                return rc
-
-        # end of if pC.iHdrOffset < aOffset[0]
-
-        if pC.nHdrParsed <= p2:
-            if pOp.p4type == CConfig.P4_MEM:
-                # sqlite3VdbeMemShallowCopy(pDest, pOp->p4.pMem, MEM_Static);
-                pass
-            else:
-                # MemSetTypeFlag(pDest, MEM_Null);
-                pass
-            pass
-            # // Translated Deephemeralize(pDest);
-            # if( ((pDest)->flags&MEM_Ephem)!=0 && sqlite3VdbeMemMakeWriteable(pDest) ) {
-            #     // goto no_mem;
-            #     printf("In impl_OP_Column(): no_mem.\n");
-            #     assert(0);
-            # }
-
-    # end of if pC.nHdrParsed <= p2
-
-    assert p2 < pC.nHdrParsed
-    assert rc == CConfig.SQLITE_OK
-    # assert( sqlite3VdbeCheckMemInvariants(pDest) );  
-    if pC.szRow >= aOffset[p2 + 1]:
-        # VdbeMemRelease(pDest);
-        # sqlite3VdbeSerialGet(pC->aRow+aOffset[p2], aType[p2], pDest);
-        pass
-    else:
-        t = aType[p2]
-        if (pOp.p5 & (CConfig.OPFLAG_LENGTHARG | CConfig.OPFLAG_TYPEOFARG)) != 0 and \
-           ((t >= 12 and t & 1 == 0) or (pOp.p5 & CConfig.OPFLAG_TYPEOFARG) != 0):
-        # if( ((pOp->p5 & (OPFLAG_LENGTHARG|OPFLAG_TYPEOFARG))!=0
-        #       && ((t>=12 && (t&1)==0) || (pOp->p5 & OPFLAG_TYPEOFARG)!=0))
-        #  || (len = sqlite3VdbeSerialTypeLen(t))==0
-            zData = payloadSize64 if t <= 13 else 0 # zData = t<=13 ? (u8*)&payloadSize64 : 0;
-            sMem.zMalloc = 0
-        else:
-            # memset(&sMem, 0, sizeof(sMem));
-            # sqlite3VdbeMemMove(&sMem, pDest);
-            # rc = sqlite3VdbeMemFromBtree(pCrsr, aOffset[p2], len, !pC->isTable, &sMem);
-            if rc != CConfig.SQLITE_OK:
-                # // Translated Deephemeralize(pDest);
-                # if( ((pDest)->flags&MEM_Ephem)!=0 && sqlite3VdbeMemMakeWriteable(pDest) ) {
-                #     // goto no_mem;
-                #     printf("In impl_OP_Column(): no_mem.\n");
-                #     assert(0);
-                # }
-                pass
-            zData = sMem.z # zData = (u8*)sMem.z;
-        # sqlite3VdbeSerialGet(zData, t, pDest);
-        if sMem.zMalloc:
-            assert sMem.z == sMem.zMalloc
-            # assert( VdbeMemDynamic(pDest)==0 );
-            # assert( (pDest->flags & (MEM_Blob|MEM_Str))==0 || pDest->z==sMem.z );
-            # pDest->flags &= ~(MEM_Ephem|MEM_Static);
-            # pDest->flags |= MEM_Term;
-            pDest.z = sMem.z
-            pDest.zMalloc = sMem.zMalloc
-    pDest.enc = encoding
-
-    # // Translated Deephemeralize(pDest);
-    # if( ((pDest)->flags&MEM_Ephem)!=0 && sqlite3VdbeMemMakeWriteable(pDest) ) {
-    #     // goto no_mem;
-    #     printf("In impl_OP_Column(): no_mem.\n");
-    #     assert(0);
-    # }
-
-    # UPDATE_MAX_BLOBSIZE(pDest);
-    # REGISTER_TRACE(pOp->p3, pDest);
-
-    return rc
+def python_OP_MustBeInt(hlquery, pc, rc, pOp):
+    # not a full translation, only translate the fast path where the argument
+    # is already an int
+    pIn1 = hlquery.p.aMem[hlquery.p_Signed(pOp, 1)]
+    flags1 = rffi.cast(lltype.Unsigned, pIn1.flags)
+    mem_int = rffi.cast(lltype.Unsigned, CConfig.MEM_Int)
+    if not flags1 & mem_int:
+        hlquery.internalPc[0] = rffi.cast(rffi.LONG, pc)
+        rc = capi.impl_OP_MustBeInt(hlquery.p, hlquery.db, hlquery.internalPc, rc, pOp)
+        retPc = hlquery.internalPc[0]
+        return retPc, rc
+    MemSetTypeFlag(pIn1, mem_int)
+    return pc, rc
 
 
+# Opcode: Affinity P1 P2 * P4 *
+# Synopsis: affinity(r[P1@P2])
+#
+# Apply affinities to a range of P2 registers starting with P1.
+#
+# P4 is a string that is P2 characters long. The nth character of the
+# string indicates the column affinity that should be used for the nth
+# memory cell in the range.
 
-# int impl_OP_Column(Vdbe *p, sqlite3 *db, int pc, Op *pOp) {
-#   i64 payloadSize64; /* Number of bytes in the record */
-#   int p2;            /* column number to retrieve */
-#   VdbeCursor *pC;    /* The VDBE cursor */
-#   BtCursor *pCrsr;   /* The BTree cursor */
-#   u32 *aType;        /* aType[i] holds the numeric type of the i-th column */
-#   u32 *aOffset;      /* aOffset[i] is offset to start of data for i-th column */
-#   int len;           /* The length of the serialized data for the column */
-#   int i;             /* Loop counter */
-#   Mem *pDest;        /* Where to write the extracted value */
-#   Mem sMem;          /* For storing the record being decoded */
-#   const u8 *zData;   /* Part of the record being decoded */
-#   const u8 *zHdr;    /* Next unparsed byte of the header */
-#   const u8 *zEndHdr; /* Pointer to first byte after the header */
-#   u32 offset;        /* Offset into the data */
-#   u32 szField;       /* Number of bytes in the content of a field */
-#   u32 avail;         /* Number of bytes of available data */
-#   u32 t;             /* A type code from the record header */
-#   Mem *pReg;         /* PseudoTable input register */
-#   int rc;
-#   Mem *aMem = p->aMem;
-#   u8 encoding = ENC(db);     /* The database encoding */
+@jit.unroll_safe
+def python_OP_Affinity(hlquery, pOp):
+    zAffinity = hlquery.p4_z(pOp) # The affinity to be applied
+    encoding = ENC(hlquery.db)
+    index = hlquery.p_Signed(pOp, 1)
+    length =  hlquery.p_Signed(pOp, 2)
+    assert len(zAffinity) == length
+    for i in range(length):
+        applyAffinity(hlquery.p.aMem[index], ord(zAffinity[i]), encoding)
+        index += 1
 
-#   p2 = pOp->p2;
-#   assert( pOp->p3>0 && pOp->p3<=(p->nMem-p->nCursor) );
-#   pDest = &aMem[pOp->p3];
-#   memAboutToChange(p, pDest);
-#   assert( pOp->p1>=0 && pOp->p1<p->nCursor );
-#   pC = p->apCsr[pOp->p1];
-#   assert( pC!=0 );
-#   assert( p2<pC->nField );
-#   aType = pC->aType;
-#   aOffset = aType + pC->nField;
-# #ifndef SQLITE_OMIT_VIRTUALTABLE
-#   assert( pC->pVtabCursor==0 ); /* OP_Column never called on virtual table */
-# #endif
-#   pCrsr = pC->pCursor;
-#   assert( pCrsr!=0 || pC->pseudoTableReg>0 ); /* pCrsr NULL on PseudoTables */
-#   assert( pCrsr!=0 || pC->nullRow );          /* pC->nullRow on PseudoTables */
 
-#   /* If the cursor cache is stale, bring it up-to-date */
-#   rc = sqlite3VdbeCursorMoveto(pC);
-#   if( rc ) {
-#     // goto abort_due_to_error;
-#       printf("In impl_OP_Column(): abort_due_to_error.\n");
-#       assert(0);
-#   }
-#   if( pC->cacheStatus!=p->cacheCtr || (pOp->p5&OPFLAG_CLEARCACHE)!=0 ){
-#     if( pC->nullRow ){
-#       if( pCrsr==0 ){
-#         assert( pC->pseudoTableReg>0 );
-#         pReg = &aMem[pC->pseudoTableReg];
-#         assert( pReg->flags & MEM_Blob );
-#         assert( memIsValid(pReg) );
-#         pC->payloadSize = pC->szRow = avail = pReg->n;
-#         pC->aRow = (u8*)pReg->z;
-#       }else{
-#         MemSetTypeFlag(pDest, MEM_Null);
-#         goto op_column_out;
-#       }
-#     }else{
-#       assert( pCrsr );
-#       if( pC->isTable==0 ){
-#         assert( sqlite3BtreeCursorIsValid(pCrsr) );
-#         VVA_ONLY(rc =) sqlite3BtreeKeySize(pCrsr, &payloadSize64);
-#         assert( rc==SQLITE_OK ); /* True because of CursorMoveto() call above */
-#         /* sqlite3BtreeParseCellPtr() uses getVarint32() to extract the
-#         ** payload size, so it is impossible for payloadSize64 to be
-#         ** larger than 32 bits. */
-#         assert( (payloadSize64 & SQLITE_MAX_U32)==(u64)payloadSize64 );
-#         pC->aRow = sqlite3BtreeKeyFetch(pCrsr, &avail);
-#         pC->payloadSize = (u32)payloadSize64;
-#       }else{
-#         assert( sqlite3BtreeCursorIsValid(pCrsr) );
-#         VVA_ONLY(rc =) sqlite3BtreeDataSize(pCrsr, &pC->payloadSize);
-#         assert( rc==SQLITE_OK );   /* DataSize() cannot fail */
-#         pC->aRow = sqlite3BtreeDataFetch(pCrsr, &avail);
-#       }
-#       assert( avail<=65536 );  /* Maximum page size is 64KiB */
-#       if( pC->payloadSize <= (u32)avail ){
-#         pC->szRow = pC->payloadSize;
-#       }else{
-#         pC->szRow = avail;
-#       }
-#       if( pC->payloadSize > (u32)db->aLimit[SQLITE_LIMIT_LENGTH] ){
-#         // goto too_big;
-#         printf("In impl_OP_Column(): too_big.\n");
-#         assert(0);
-#       }
-#     }
-#     pC->cacheStatus = p->cacheCtr;
-#     pC->iHdrOffset = getVarint32(pC->aRow, offset);
-#     pC->nHdrParsed = 0;
-#     aOffset[0] = offset;
-#     if( avail<offset ){
-#       /* pC->aRow does not have to hold the entire row, but it does at least
-#       ** need to cover the header of the record.  If pC->aRow does not contain
-#       ** the complete header, then set it to zero, forcing the header to be
-#       ** dynamically allocated. */
-#       pC->aRow = 0;
-#       pC->szRow = 0;
-#     }
+# Opcode: RealAffinity P1 * * * *
+#
+# If register P1 holds an integer convert it to a real value.
+#
+# This opcode is used when extracting information from a column that
+# has REAL affinity.  Such column values may still be stored as
+# integers, for space efficiency, but after extraction we want them
+# to have only a real value.
 
-#     /* Make sure a corrupt database has not given us an oversize header.
-#     ** Do this now to avoid an oversize memory allocation.
-#     **
-#     ** Type entries can be between 1 and 5 bytes each.  But 4 and 5 byte
-#     ** types use so much data space that there can only be 4096 and 32 of
-#     ** them, respectively.  So the maximum header length results from a
-#     ** 3-byte type for each of the maximum of 32768 columns plus three
-#     ** extra bytes for the header length itself.  32768*3 + 3 = 98307.
-#     */
-#     if( offset > 98307 || offset > pC->payloadSize ){
-#       rc = SQLITE_CORRUPT_BKPT;
-#       goto op_column_error;
-#     }
-#   }
-
-#   /* Make sure at least the first p2+1 entries of the header have been
-#   ** parsed and valid information is in aOffset[] and aType[].
-#   */
-#   if( pC->nHdrParsed<=p2 ){
-#     /* If there is more header available for parsing in the record, try
-#     ** to extract additional fields up through the p2+1-th field 
-#     */
-#     if( pC->iHdrOffset<aOffset[0] ){
-#       /* Make sure zData points to enough of the record to cover the header. */
-#       if( pC->aRow==0 ){
-#         memset(&sMem, 0, sizeof(sMem));
-#         rc = sqlite3VdbeMemFromBtree(pCrsr, 0, aOffset[0], 
-#                                      !pC->isTable, &sMem);
-#         if( rc!=SQLITE_OK ){
-#           goto op_column_error;
-#         }
-#         zData = (u8*)sMem.z;
-#       }else{
-#         zData = pC->aRow;
-#       }
-  
-#       /* Fill in aType[i] and aOffset[i] values through the p2-th field. */
-#       i = pC->nHdrParsed;
-#       offset = aOffset[i];
-#       zHdr = zData + pC->iHdrOffset;
-#       zEndHdr = zData + aOffset[0];
-#       assert( i<=p2 && zHdr<zEndHdr );
-#       do{
-#         if( zHdr[0]<0x80 ){
-#           t = zHdr[0];
-#           zHdr++;
-#         }else{
-#           zHdr += sqlite3GetVarint32(zHdr, &t);
-#         }
-#         aType[i] = t;
-#         szField = sqlite3VdbeSerialTypeLen(t);
-#         offset += szField;
-#         if( offset<szField ){  /* True if offset overflows */
-#           zHdr = &zEndHdr[1];  /* Forces SQLITE_CORRUPT return below */
-#           break;
-#         }
-#         i++;
-#         aOffset[i] = offset;
-#       }while( i<=p2 && zHdr<zEndHdr );
-#       pC->nHdrParsed = i;
-#       pC->iHdrOffset = (u32)(zHdr - zData);
-#       if( pC->aRow==0 ){
-#         sqlite3VdbeMemRelease(&sMem);
-#         sMem.flags = MEM_Null;
-#       }
-  
-#       /* If we have read more header data than was contained in the header,
-#       ** or if the end of the last field appears to be past the end of the
-#       ** record, or if the end of the last field appears to be before the end
-#       ** of the record (when all fields present), then we must be dealing 
-#       ** with a corrupt database.
-#       */
-#       if( (zHdr > zEndHdr)
-#        || (offset > pC->payloadSize)
-#        || (zHdr==zEndHdr && offset!=pC->payloadSize)
-#       ){
-#         rc = SQLITE_CORRUPT_BKPT;
-#         goto op_column_error;
-#       }
-#     }
-
-#     /* If after trying to extra new entries from the header, nHdrParsed is
-#     ** still not up to p2, that means that the record has fewer than p2
-#     ** columns.  So the result will be either the default value or a NULL.
-#     */
-#     if( pC->nHdrParsed<=p2 ){
-#       if( pOp->p4type==P4_MEM ){
-#         sqlite3VdbeMemShallowCopy(pDest, pOp->p4.pMem, MEM_Static);
-#       }else{
-#         MemSetTypeFlag(pDest, MEM_Null);
-#       }
-#       goto op_column_out;
-#     }
-#   }
-
-#   /* Extract the content for the p2+1-th column.  Control can only
-#   ** reach this point if aOffset[p2], aOffset[p2+1], and aType[p2] are
-#   ** all valid.
-#   */
-#   assert( p2<pC->nHdrParsed );
-#   assert( rc==SQLITE_OK );
-#   assert( sqlite3VdbeCheckMemInvariants(pDest) );
-#   if( pC->szRow>=aOffset[p2+1] ){
-#     /* This is the common case where the desired content fits on the original
-#     ** page - where the content is not on an overflow page */
-#     VdbeMemRelease(pDest);
-#     sqlite3VdbeSerialGet(pC->aRow+aOffset[p2], aType[p2], pDest);
-#   }else{
-#     /* This branch happens only when content is on overflow pages */
-#     t = aType[p2];
-#     if( ((pOp->p5 & (OPFLAG_LENGTHARG|OPFLAG_TYPEOFARG))!=0
-#           && ((t>=12 && (t&1)==0) || (pOp->p5 & OPFLAG_TYPEOFARG)!=0))
-#      || (len = sqlite3VdbeSerialTypeLen(t))==0
-#     ){
-#       /* Content is irrelevant for the typeof() function and for
-#       ** the length(X) function if X is a blob.  So we might as well use
-#       ** bogus content rather than reading content from disk.  NULL works
-#       ** for text and blob and whatever is in the payloadSize64 variable
-#       ** will work for everything else.  Content is also irrelevant if
-#       ** the content length is 0. */
-#       zData = t<=13 ? (u8*)&payloadSize64 : 0;
-#       sMem.zMalloc = 0;
-#     }else{
-#       memset(&sMem, 0, sizeof(sMem));
-#       sqlite3VdbeMemMove(&sMem, pDest);
-#       rc = sqlite3VdbeMemFromBtree(pCrsr, aOffset[p2], len, !pC->isTable,
-#                                    &sMem);
-#       if( rc!=SQLITE_OK ){
-#         goto op_column_error;
-#       }
-#       zData = (u8*)sMem.z;
-#     }
-#     sqlite3VdbeSerialGet(zData, t, pDest);
-#     /* If we dynamically allocated space to hold the data (in the
-#     ** sqlite3VdbeMemFromBtree() call above) then transfer control of that
-#     ** dynamically allocated space over to the pDest structure.
-#     ** This prevents a memory copy. */
-#     if( sMem.zMalloc ){
-#       assert( sMem.z==sMem.zMalloc );
-#       assert( VdbeMemDynamic(pDest)==0 );
-#       assert( (pDest->flags & (MEM_Blob|MEM_Str))==0 || pDest->z==sMem.z );
-#       pDest->flags &= ~(MEM_Ephem|MEM_Static);
-#       pDest->flags |= MEM_Term;
-#       pDest->z = sMem.z;
-#       pDest->zMalloc = sMem.zMalloc;
-#     }
-#   }
-#   pDest->enc = encoding;
-
-# op_column_out:
-#   // Translated Deephemeralize(pDest);
-#   if( ((pDest)->flags&MEM_Ephem)!=0 && sqlite3VdbeMemMakeWriteable(pDest) ) {
-#     // goto no_mem;
-#     printf("In impl_OP_Column(): no_mem.\n");
-#     assert(0);
-#   }
-
-# op_column_error:
-#   UPDATE_MAX_BLOBSIZE(pDest);
-#   REGISTER_TRACE(pOp->p3, pDest);
-
-#   return rc;
-# }
+def python_OP_RealAffinity(hlquery, pOp):
+    pIn1 = hlquery.mem_of_p(pOp, 1)
+    flags = rffi.cast(lltype.Unsigned, pIn1.flags)
+    if flags & CConfig.MEM_Int and not flags & CConfig.MEM_Real:
+        # only relevant parts of sqlite3VdbeMemRealify
+        pIn1.r = float(pIn1.u.i)
+        MemSetTypeFlag(pIn1, CConfig.MEM_Real)
 

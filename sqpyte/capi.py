@@ -60,11 +60,12 @@ p4names = ['P4_INT32', 'P4_KEYINFO', 'P4_COLLSEQ']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR', 'OPFLAG_CLEARCACHE', 'OPFLAG_LENGTHARG', 'OPFLAG_TYPEOFARG']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW', 'SQLITE_BUSY', 'SQLITE_CORRUPT_BKPT']
 sqlite_codes = ['SQLITE_NULLEQ', 'SQLITE_JUMPIFNULL', 'SQLITE_STOREP2', 'SQLITE_AFF_MASK']
+affinity_codes = ['SQLITE_AFF_TEXT', 'SQLITE_AFF_NONE', 'SQLITE_AFF_INTEGER', 'SQLITE_AFF_REAL', 'SQLITE_AFF_NUMERIC']
 btree_values = ['BTCURSOR_MAX_DEPTH', 'BTREE_BULKLOAD']
 other_constants = ['SQLITE_MAX_VARIABLE_NUMBER', 'CACHE_STALE']
-memValues = ['MEM_Null', 'MEM_Real', 'MEM_Cleared', 'MEM_TypeMask', 'MEM_Zero', 'MEM_Int']
+memValues = ['MEM_Null', 'MEM_Real', 'MEM_Cleared', 'MEM_TypeMask', 'MEM_Zero', 'MEM_Int', 'MEM_Str', 'MEM_RowSet']
 
-for name in p4names + opnames + p5flags + result_codes + sqlite_codes + btree_values + other_constants + memValues:
+for name in p4names + opnames + p5flags + result_codes + sqlite_codes + btree_values + other_constants + memValues + affinity_codes:
     setattr(CConfig, name, platform.DefinedConstantInteger(name))
 
 
@@ -72,6 +73,9 @@ CConfig.__dict__.update(platform.configure(CConfig))
 
 for name in p4names:
     setattr(CConfig, name, chr(256 + getattr(CConfig, name)))
+
+for name in memValues:
+    setattr(CConfig, name, rffi.cast(lltype.Unsigned, getattr(CConfig, name)))
 
 opnames_dict = {}
 for name in opnames:
@@ -713,12 +717,12 @@ sqlite3_column_bytes = rffi.llexternal('sqlite3_column_bytes', [VDBEP, rffi.INT]
 sqlite3_sqlite3BtreeNext = rffi.llexternal('sqlite3BtreeNext', [BTCURSORP, rffi.INTP],
     rffi.INT, compilation_info=CConfig._compilation_info_)
 
-# XXX: applyAffinity() appears to get inlined by GCC at -O3, so we have to fake a macro wrapper. 
-# It would probably be better if we rewrote this in RPython, but that's for another day.
-sqlite3_applyAffinity = rffi.llexternal('applyAffinity', [MEMP, rffi.CHAR, CConfig.u8],
+sqlite3_applyNumericAffinity = rffi.llexternal('applyNumericAffinity', [MEMP],
     lltype.Void, compilation_info=CConfig._compilation_info_, macro=True)
 
 sqlite3_sqlite3MemCompare = rffi.llexternal('sqlite3MemCompare', [MEMP, MEMP, COLLSEQP],
+    rffi.INT, compilation_info=CConfig._compilation_info_)
+sqlite3_sqlite3VdbeMemStringify = rffi.llexternal('sqlite3VdbeMemStringify', [MEMP, rffi.INT],
     rffi.INT, compilation_info=CConfig._compilation_info_)
 sqlite3_gotoAbortDueToInterrupt = rffi.llexternal('gotoAbortDueToInterrupt', [VDBEP, SQLITE3P, rffi.INT, rffi.INT],
     rffi.INT, compilation_info=CConfig._compilation_info_)

@@ -223,7 +223,7 @@ VdbeCursor *allocateCursor(
 ** looks like a number, convert it into a number.  If it does not
 ** look like a number, leave it alone.
 */
-static void applyNumericAffinity(Mem *pRec){
+void applyNumericAffinity(Mem *pRec){
   if( (pRec->flags & (MEM_Real|MEM_Int))==0 ){
     double rValue;
     i64 iValue;
