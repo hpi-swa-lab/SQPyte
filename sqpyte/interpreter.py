@@ -328,6 +328,9 @@ class Sqlite3Query(object):
     def python_OP_Delete(self, pc, pOp):
         return capi.impl_OP_Delete(self.p, self.db, pc, pOp)
 
+    def python_OP_DropTable(self, pOp):
+        return capi.impl_OP_DropTable(self.db, pOp)
+
 
     def python_sqlite3_column_text(self, iCol):
         return capi.sqlite3_column_text(self.p, iCol)
@@ -565,6 +568,8 @@ class Sqlite3Query(object):
                 pc, rc = self.python_OP_RowSetRead(pc, rc, pOp)
             elif opcode == CConfig.OP_Delete:
                 rc = self.python_OP_Delete(pc, pOp)
+            elif opcode == CConfig.OP_DropTable:
+                self.python_OP_DropTable(pOp)
             else:
                 raise SQPyteException("SQPyteException: Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))

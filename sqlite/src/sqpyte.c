@@ -4210,3 +4210,16 @@ long impl_OP_Delete(Vdbe *p, sqlite3 *db, long pc, Op *pOp) {
   // break;
   return (long)rc;
 }
+
+/* Opcode: DropTable P1 * * P4 *
+**
+** Remove the internal (in-memory) data structures that describe
+** the table named P4 in database P1.  This is called after a table
+** is dropped in order to keep the internal representation of the
+** schema consistent with what is on disk.
+*/
+void impl_OP_DropTable(sqlite3 *db, Op *pOp) {
+// case OP_DropTable: {
+  sqlite3UnlinkAndDeleteTable(db, pOp->p1, pOp->p4.z);
+  // break;
+}
