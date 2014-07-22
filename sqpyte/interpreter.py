@@ -384,8 +384,16 @@ class Sqlite3Query(object):
     def p4_z(self, pOp):
         return rffi.charp2str(pOp.p4.z)
 
+    def p2as_pc(self, pOp):
+        return self.p_Signed(pOp, 2) - 1
+
     def mem_of_p(self, pOp, i):
         return self.p.aMem[self.p_Signed(pOp, i)]
+
+    def mem_and_flags_of_p(self, pOp, i):
+        mem = self.mem_and_flags_of_p(pOp, i)
+        flags = rffi.cast(lltype.Unsigned, mem.flags)
+        return mem, flags
 
     def mainloop(self):
         ops = self.get_aOp()

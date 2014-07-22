@@ -148,8 +148,7 @@ def python_OP_Init_translated(hlquery, pc, pOp):
 
 def python_OP_Goto_translated(hlquery, pc, rc, pOp):
     db = hlquery.db
-    p2 = hlquery.p_Signed(pOp, 2)
-    pc = p2 - 1
+    pc = hlquery.p2as_pc(pOp)
 
     # Translated goto check_for_interrupt;
     if rffi.cast(lltype.Signed, db.u1.isInterrupted) != 0:
@@ -314,7 +313,7 @@ def python_OP_Next_translated(hlquery, pc, pOp):
 
     if rffi.cast(lltype.Signed, resRet) == 0:
         pC.nullRow = rffi.cast(rffi.UCHAR, 0)
-        pcRet = hlquery.p_Signed(pOp, 2) - 1
+        pcRet = hlquery.p2as_pc(pOp)
 
         _increase_counter_hidden_from_jit(p, p5)
 
@@ -369,10 +368,10 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
     p = hlquery.p
     db = hlquery.db
     aMem = p.aMem           # /* Copy of p->aMem */
-    pIn1 = aMem[hlquery.p_Signed(pOp, 1)]     # /* 1st input operand */
-    pIn3 = aMem[hlquery.p_Signed(pOp, 3)]     # /* 3rd input operand */
-    flags1 = jit.promote(rffi.cast(lltype.Unsigned, pIn1.flags))
-    flags3 = jit.promote(rffi.cast(lltype.Unsigned, pIn3.flags))
+    pIn1, flags1 = hlquery.mem_and_flags_of_p(pOp, 1)    # 1st input operand
+    pIn3, flags3 = hlquery.mem_and_flags_of_p(pOp, 3)    # 3st input operand
+    flags1 = jit.promote(flags1)
+    flags3 = jit.promote(flags3)
     opcode = hlquery.get_opcode(pOp)
     flags_can_have_changed = False
     p5 = hlquery.p_Unsigned(pOp, 5)
@@ -500,7 +499,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
         # VdbeBranchTaken(res!=0, (pOp->p5 & SQLITE_NULLEQ)?2:3);
 
         if res != 0:
-            pc = hlquery.p_Signed(pOp, 2) - 1
+            pc = hlquery.p2as_pc(pOp)
 
     if flags_can_have_changed:
         # /* Undo any changes made by applyAffinity() to the input registers. */
@@ -520,10 +519,9 @@ def python_OP_Noop_Explain_translated(pOp):
 # Jump to P2 if the value in register P1 is NULL.
 
 def python_OP_IsNull(hlquery, pc, pOp):
-    pIn1 = hlquery.mem_of_p(pOp, 1)
-    flags1 = rffi.cast(lltype.Unsigned, pIn1.flags)
+    pIn1, flags1 = hlquery.mem_and_flags_of_p(pOp, 1)
     if flags1 & CConfig.MEM_Null != 0:
-        pc = hlquery.p_Signed(pOp, 2) - 1
+        pc = hlquery.p2as_pc(pOp)
     return pc
 
 
@@ -533,10 +531,9 @@ def python_OP_IsNull(hlquery, pc, pOp):
 # Jump to P2 if the value in register P1 is not NULL.  
 
 def python_OP_NotNull(hlquery, pc, pOp):
-    pIn1 = hlquery.mem_of_p(pOp, 1)
-    flags1 = rffi.cast(lltype.Unsigned, pIn1.flags)
+    pIn1, flags1 = hlquery.mem_and_flags_of_p(pOp, 1)
     if flags1 & CConfig.MEM_Null == 0:
-        pc = hlquery.p_Signed(pOp, 2) - 1
+        pc = hlquery.p2as_pc(pOp)
     return pc
 
 
@@ -552,7 +549,7 @@ def python_OP_Once(hlquery, pc, pOp):
     p1 = hlquery.p_Signed(pOp, 1)
     assert p1 < rffi.cast(lltype.Signed, p.nOnceFlag)
     if rffi.cast(lltype.Signed, p.aOnceFlag[p1]):
-        pc = hlquery.p_Signed(pOp, 2) - 1
+        pc = hlquery.p2as_pc(pOp)
     else:
         p.aOnceFlag[p1] = rffi.cast(CConfig.u8, 1)
     return pc
@@ -561,15 +558,13 @@ def python_OP_Once(hlquery, pc, pOp):
 def python_OP_MustBeInt(hlquery, pc, rc, pOp):
     # not a full translation, only translate the fast path where the argument
     # is already an int
-    pIn1 = hlquery.p.aMem[hlquery.p_Signed(pOp, 1)]
-    flags1 = rffi.cast(lltype.Unsigned, pIn1.flags)
-    mem_int = rffi.cast(lltype.Unsigned, CConfig.MEM_Int)
-    if not flags1 & mem_int:
+    pIn1, flags1 = hlquery.mem_and_flags_of_p(pOp, 1)
+    if not flags1 & CConfig.MEM_Int:
         hlquery.internalPc[0] = rffi.cast(rffi.LONG, pc)
         rc = capi.impl_OP_MustBeInt(hlquery.p, hlquery.db, hlquery.internalPc, rc, pOp)
         retPc = hlquery.internalPc[0]
         return retPc, rc
-    MemSetTypeFlag(pIn1, mem_int)
+    MemSetTypeFlag(pIn1, CConfig.MEM_Int)
     return pc, rc
 
 
@@ -604,8 +599,7 @@ def python_OP_Affinity(hlquery, pOp):
 # to have only a real value.
 
 def python_OP_RealAffinity(hlquery, pOp):
-    pIn1 = hlquery.mem_of_p(pOp, 1)
-    flags = rffi.cast(lltype.Unsigned, pIn1.flags)
+    pIn1, flags = hlquery.mem_and_flags_of_p(pOp, 1)
     if flags & CConfig.MEM_Int and not flags & CConfig.MEM_Real:
         # only relevant parts of sqlite3VdbeMemRealify
         pIn1.r = float(pIn1.u.i)
