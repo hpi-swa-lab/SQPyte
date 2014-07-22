@@ -41,7 +41,7 @@ def applyAffinity(mem, affinity, enc):
      SQLITE_AFF_NONE:
         No-op.  pRec is unchanged.
     """
-    flags = mem.flags
+    flags = rffi.cast(lltype.Unsigned, mem.flags)
 
     return _applyAffinity_flags_read(mem, flags, affinity, enc)
 
@@ -553,3 +553,23 @@ def python_OP_MustBeInt(hlquery, pc, rc, pOp):
     MemSetTypeFlag(pIn1, mem_int)
     return pc, rc
 
+
+# Opcode: Affinity P1 P2 * P4 *
+# Synopsis: affinity(r[P1@P2])
+#
+# Apply affinities to a range of P2 registers starting with P1.
+#
+# P4 is a string that is P2 characters long. The nth character of the
+# string indicates the column affinity that should be used for the nth
+# memory cell in the range.
+
+@jit.unroll_safe
+def python_OP_Affinity(hlquery, pOp):
+    zAffinity = hlquery.p4_z(pOp) # The affinity to be applied
+    encoding = ENC(hlquery.db)
+    index = hlquery.p_Signed(pOp, 1)
+    length =  hlquery.p_Signed(pOp, 2)
+    assert len(zAffinity) == length
+    for i in range(length):
+        applyAffinity(hlquery.p.aMem[index], ord(zAffinity[i]), encoding)
+        index += 1

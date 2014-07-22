@@ -207,7 +207,8 @@ class Sqlite3Query(object):
         capi.impl_OP_SCopy(self.p, pOp)
 
     def python_OP_Affinity(self, pOp):
-        capi.impl_OP_Affinity(self.p, self.db, pOp)
+        #capi.impl_OP_Affinity(self.p, self.db, pOp)
+        translated.python_OP_Affinity(self, pOp)
 
     def python_OP_OpenAutoindex_OpenEphemeral(self, pc, pOp):
         return capi.impl_OP_OpenAutoindex_OpenEphemeral(self.p, self.db, pc, pOp)
@@ -364,6 +365,10 @@ class Sqlite3Query(object):
     @jit.elidable
     def p4type(self, pOp):
         return pOp.p4type
+
+    @jit.elidable
+    def p4_z(self, pOp):
+        return rffi.charp2str(pOp.p4.z)
 
     def mainloop(self):
         ops = self.get_aOp()

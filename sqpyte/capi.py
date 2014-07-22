@@ -709,7 +709,7 @@ sqlite3_sqlite3BtreeNext = rffi.llexternal('sqlite3BtreeNext', [BTCURSORP, rffi.
     rffi.INT, compilation_info=CConfig._compilation_info_)
 
 sqlite3_applyNumericAffinity = rffi.llexternal('applyNumericAffinity', [MEMP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
+    lltype.Void, compilation_info=CConfig._compilation_info_, macro=True)
 
 sqlite3_sqlite3MemCompare = rffi.llexternal('sqlite3MemCompare', [MEMP, MEMP, COLLSEQP],
     rffi.INT, compilation_info=CConfig._compilation_info_)
