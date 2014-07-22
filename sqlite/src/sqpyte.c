@@ -4147,3 +4147,66 @@ long impl_OP_RowSetRead(Vdbe *p, sqlite3 *db, long *pc, long rc, Op *pOp) {
 #endif
   return rc;
 }
+
+/* Opcode: Delete P1 P2 * P4 *
+**
+** Delete the record at which the P1 cursor is currently pointing.
+**
+** The cursor will be left pointing at either the next or the previous
+** record in the table. If it is left pointing at the next record, then
+** the next Next instruction will be a no-op.  Hence it is OK to delete
+** a record from within an Next loop.
+**
+** If the OPFLAG_NCHANGE flag of P2 is set, then the row change count is
+** incremented (otherwise not).
+**
+** P1 must not be pseudo-table.  It has to be a real table with
+** multiple rows.
+**
+** If P4 is not NULL, then it is the name of the table that P1 is
+** pointing to.  The update hook will be invoked, if it exists.
+** If P4 is not NULL then the P1 cursor must have been positioned
+** using OP_NotFound prior to invoking this opcode.
+*/
+long impl_OP_Delete(Vdbe *p, sqlite3 *db, long pc, Op *pOp) {
+// case OP_Delete: {
+  i64 iKey;
+  VdbeCursor *pC;
+
+  int rc;
+
+  assert( pOp->p1>=0 && pOp->p1<p->nCursor );
+  pC = p->apCsr[pOp->p1];
+  assert( pC!=0 );
+  assert( pC->pCursor!=0 );  /* Only valid for real tables, no pseudotables */
+  iKey = pC->lastRowid;      /* Only used for the update hook */
+
+  /* The OP_Delete opcode always follows an OP_NotExists or OP_Last or
+  ** OP_Column on the same table without any intervening operations that
+  ** might move or invalidate the cursor.  Hence cursor pC is always pointing
+  ** to the row to be deleted and the sqlite3VdbeCursorMoveto() operation
+  ** below is always a no-op and cannot fail.  We will run it anyhow, though,
+  ** to guard against future changes to the code generator.
+  **/
+  assert( pC->deferredMoveto==0 );
+  rc = sqlite3VdbeCursorMoveto(pC);
+  if( NEVER(rc!=SQLITE_OK) ) {
+    // goto abort_due_to_error;
+    printf("In impl_OP_Delete(): abort_due_to_error.\n");
+    rc = gotoAbortDueToError(p, db, (int)pc, rc);
+    return (long)rc;    
+  }
+
+  rc = sqlite3BtreeDelete(pC->pCursor);
+  pC->cacheStatus = CACHE_STALE;
+
+  /* Invoke the update-hook if required. */
+  if( rc==SQLITE_OK && db->xUpdateCallback && pOp->p4.z && pC->isTable ){
+    db->xUpdateCallback(db->pUpdateArg, SQLITE_DELETE,
+                        db->aDb[pC->iDb].zName, pOp->p4.z, iKey);
+    assert( pC->iDb>=0 );
+  }
+  if( pOp->p2 & OPFLAG_NCHANGE ) p->nChange++;
+  // break;
+  return (long)rc;
+}

@@ -323,7 +323,10 @@ class Sqlite3Query(object):
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         retRc = capi.impl_OP_RowSetRead(self.p, self.db, self.internalPc, rc, pOp)
         retPc = self.internalPc[0]
-        return retPc, retRc        
+        return retPc, retRc   
+
+    def python_OP_Delete(self, pc, pOp):
+        return capi.impl_OP_Delete(self.p, self.db, pc, pOp)
 
 
     def python_sqlite3_column_text(self, iCol):
@@ -560,6 +563,8 @@ class Sqlite3Query(object):
                 rc = self.python_OP_RowSetAdd(pc, rc, pOp)
             elif opcode == CConfig.OP_RowSetRead:
                 pc, rc = self.python_OP_RowSetRead(pc, rc, pOp)
+            elif opcode == CConfig.OP_Delete:
+                rc = self.python_OP_Delete(pc, pOp)
             else:
                 raise SQPyteException("SQPyteException: Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))

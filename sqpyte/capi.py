@@ -54,7 +54,8 @@ opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite', 'OP_Rewind',
            'OP_Compare', 'OP_Jump', 'OP_IfPos', 'OP_CollSeq', 'OP_NotNull',
            'OP_InitCoroutine', 'OP_Yield', 'OP_NullRow', 'OP_EndCoroutine',
            'OP_ReadCookie', 'OP_NewRowid', 'OP_Insert', 'OP_InsertInt',
-           'OP_SetCookie', 'OP_ParseSchema', 'OP_RowSetAdd', 'OP_RowSetRead']
+           'OP_SetCookie', 'OP_ParseSchema', 'OP_RowSetAdd', 'OP_RowSetRead',
+           'OP_Delete']
 p4names = ['P4_INT32', 'P4_KEYINFO', 'P4_COLLSEQ']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR', 'OPFLAG_CLEARCACHE', 'OPFLAG_LENGTHARG', 'OPFLAG_TYPEOFARG']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW', 'SQLITE_BUSY', 'SQLITE_CORRUPT_BKPT']
@@ -694,6 +695,8 @@ impl_OP_ParseSchema = rffi.llexternal('impl_OP_ParseSchema', [VDBEP, SQLITE3P, r
 impl_OP_RowSetAdd = rffi.llexternal('impl_OP_RowSetAdd', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
     rffi.LONG, compilation_info=CConfig._compilation_info_)
 impl_OP_RowSetRead = rffi.llexternal('impl_OP_RowSetRead', [VDBEP, SQLITE3P, rffi.LONGP, rffi.LONG, VDBEOPP],
+    rffi.LONG, compilation_info=CConfig._compilation_info_)
+impl_OP_Delete = rffi.llexternal('impl_OP_Delete', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
     rffi.LONG, compilation_info=CConfig._compilation_info_)
 
 
