@@ -43,9 +43,9 @@ def applyAffinity(mem, affinity, enc):
     """
     flags = mem.flags
 
-    return _applyAffinity_flag_read(mem, flag, affinity, enc)
+    return _applyAffinity_flags_read(mem, flags, affinity, enc)
 
-def _applyAffinity_flag_read(mem, flag, affinity, enc):
+def _applyAffinity_flags_read(mem, flags, affinity, enc):
     assert isinstance(affinity, int)
     if affinity == CConfig.SQLITE_AFF_TEXT:
         # Only attempt the conversion to TEXT if there is an integer or real
@@ -448,8 +448,8 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
             affinity = rffi.cast(lltype.Signed, p5 & CConfig.SQLITE_AFF_MASK)
             if affinity != 0:
                 encoding = ENC(db)
-                _applyAffinity_flag_read(pIn1, flags1, affinity, encoding)
-                _applyAffinity_flag_read(pIn3, flags3, affinity, encoding)
+                _applyAffinity_flags_read(pIn1, flags1, affinity, encoding)
+                _applyAffinity_flags_read(pIn3, flags3, affinity, encoding)
                 if rffi.cast(lltype.Unsigned, db.mallocFailed) != 0:
                     # goto no_mem;
                     print 'In python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(): no_mem.'
