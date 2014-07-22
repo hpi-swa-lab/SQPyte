@@ -391,7 +391,7 @@ class Sqlite3Query(object):
         return self.p.aMem[self.p_Signed(pOp, i)]
 
     def mem_and_flags_of_p(self, pOp, i):
-        mem = self.mem_and_flags_of_p(pOp, i)
+        mem = self.mem_of_p(pOp, i)
         flags = rffi.cast(lltype.Unsigned, mem.flags)
         return mem, flags
 
