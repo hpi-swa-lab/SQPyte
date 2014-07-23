@@ -527,6 +527,97 @@ u32 _column_helper1(Vdbe *p, VdbeCursor *pC) {
 }
 
 
+u32 _column_helper2(Vdbe *p, VdbeCursor *pC, u32 *aOffset, u32 avail) {
+  u32 offset;        /* Offset into the data */
+  pC->cacheStatus = p->cacheCtr;
+  pC->iHdrOffset = getVarint32(pC->aRow, offset);
+  pC->nHdrParsed = 0;
+  aOffset[0] = offset;
+  if( avail<offset ){
+    /* pC->aRow does not have to hold the entire row, but it does at least
+    ** need to cover the header of the record.  If pC->aRow does not contain
+    ** the complete header, then set it to zero, forcing the header to be
+    ** dynamically allocated. */
+    pC->aRow = 0;
+    pC->szRow = 0;
+  }
+  return offset;
+}
+
+long _column_helper3(Vdbe *p, VdbeCursor *pC, u32 *aOffset, int p2) {
+  /* If there is more header available for parsing in the record, try
+  ** to extract additional fields up through the p2+1-th field 
+  */
+  long rc = SQLITE_OK;
+  int i;                  /* Loop counter */
+  u32 offset;             /* Offset into the data */
+  u32 *aType = pC->aType; /* aType[i] holds the numeric type of the i-th column */
+  const u8 *zData;        /* Part of the record being decoded */
+  const u8 *zHdr;         /* Next unparsed byte of the header */
+  const u8 *zEndHdr;      /* Pointer to first byte after the header */
+  u32 szField;            /* Number of bytes in the content of a field */
+  u32 t;                  /* A type code from the record header */
+  BtCursor *pCrsr = pC->pCursor;
+  Mem sMem;               /* For storing the record being decoded */
+  if( pC->iHdrOffset<aOffset[0] ){
+    /* Make sure zData points to enough of the record to cover the header. */
+    if( pC->aRow==0 ){
+      memset(&sMem, 0, sizeof(sMem));
+      rc = sqlite3VdbeMemFromBtree(pCrsr, 0, aOffset[0], 
+                                   !pC->isTable, &sMem);
+      if( rc!=SQLITE_OK ){
+        return rc;
+      }
+      zData = (u8*)sMem.z;
+    }else{
+      zData = pC->aRow;
+    }
+
+    /* Fill in aType[i] and aOffset[i] values through the p2-th field. */
+    i = pC->nHdrParsed;
+    offset = aOffset[i];
+    zHdr = zData + pC->iHdrOffset;
+    zEndHdr = zData + aOffset[0];
+    assert( i<=p2 && zHdr<zEndHdr );
+    do{
+      if( zHdr[0]<0x80 ){
+        t = zHdr[0];
+        zHdr++;
+      }else{
+        zHdr += sqlite3GetVarint32(zHdr, &t);
+      }
+      aType[i] = t;
+      szField = sqlite3VdbeSerialTypeLen(t);
+      offset += szField;
+      if( offset<szField ){  /* True if offset overflows */
+        zHdr = &zEndHdr[1];  /* Forces SQLITE_CORRUPT return below */
+        break;
+      }
+      i++;
+      aOffset[i] = offset;
+    }while( i<=p2 && zHdr<zEndHdr );
+    pC->nHdrParsed = i;
+    pC->iHdrOffset = (u32)(zHdr - zData);
+    if( pC->aRow==0 ){
+      sqlite3VdbeMemRelease(&sMem);
+      sMem.flags = MEM_Null;
+    }
+
+    /* If we have read more header data than was contained in the header,
+    ** or if the end of the last field appears to be past the end of the
+    ** record, or if the end of the last field appears to be before the end
+    ** of the record (when all fields present), then we must be dealing 
+    ** with a corrupt database.
+    */
+    if( (zHdr > zEndHdr)
+     || (offset > pC->payloadSize)
+     || (zHdr==zEndHdr && offset!=pC->payloadSize)
+    ){
+      return SQLITE_CORRUPT_BKPT;
+    }
+  }
+  return rc;
+}
 
 
 /* Opcode: Column P1 P2 P3 P4 P5
@@ -562,14 +653,10 @@ long impl_OP_Column(Vdbe *p, sqlite3 *db, long pc, Op *pOp) {
   u32 *aType;        /* aType[i] holds the numeric type of the i-th column */
   u32 *aOffset;      /* aOffset[i] is offset to start of data for i-th column */
   int len;           /* The length of the serialized data for the column */
-  int i;             /* Loop counter */
   Mem *pDest;        /* Where to write the extracted value */
   Mem sMem;          /* For storing the record being decoded */
   const u8 *zData;   /* Part of the record being decoded */
-  const u8 *zHdr;    /* Next unparsed byte of the header */
-  const u8 *zEndHdr; /* Pointer to first byte after the header */
   u32 offset;        /* Offset into the data */
-  u32 szField;       /* Number of bytes in the content of a field */
   u32 avail;         /* Number of bytes of available data */
   u32 t;             /* A type code from the record header */
   int rc;
@@ -613,20 +700,7 @@ long impl_OP_Column(Vdbe *p, sqlite3 *db, long pc, Op *pOp) {
       rc = gotoTooBig(p, db, (int)pc);
       return (long)rc;
     }
-    // start
-    //_column_helper2()
-    pC->cacheStatus = p->cacheCtr;
-    pC->iHdrOffset = getVarint32(pC->aRow, offset);
-    pC->nHdrParsed = 0;
-    aOffset[0] = offset;
-    if( avail<offset ){
-      /* pC->aRow does not have to hold the entire row, but it does at least
-      ** need to cover the header of the record.  If pC->aRow does not contain
-      ** the complete header, then set it to zero, forcing the header to be
-      ** dynamically allocated. */
-      pC->aRow = 0;
-      pC->szRow = 0;
-    }
+    offset = _column_helper2(p, pC, aOffset, avail);
 
     /* Make sure a corrupt database has not given us an oversize header.
     ** Do this now to avoid an oversize memory allocation.
@@ -641,73 +715,15 @@ long impl_OP_Column(Vdbe *p, sqlite3 *db, long pc, Op *pOp) {
       rc = SQLITE_CORRUPT_BKPT;
       goto op_column_error;
     }
-    // end
   }
 
   /* Make sure at least the first p2+1 entries of the header have been
   ** parsed and valid information is in aOffset[] and aType[].
   */
   if( pC->nHdrParsed<=p2 ){
-    /* If there is more header available for parsing in the record, try
-    ** to extract additional fields up through the p2+1-th field 
-    */
-    if( pC->iHdrOffset<aOffset[0] ){
-      /* Make sure zData points to enough of the record to cover the header. */
-      if( pC->aRow==0 ){
-        memset(&sMem, 0, sizeof(sMem));
-        rc = sqlite3VdbeMemFromBtree(pCrsr, 0, aOffset[0], 
-                                     !pC->isTable, &sMem);
-        if( rc!=SQLITE_OK ){
-          goto op_column_error;
-        }
-        zData = (u8*)sMem.z;
-      }else{
-        zData = pC->aRow;
-      }
-  
-      /* Fill in aType[i] and aOffset[i] values through the p2-th field. */
-      i = pC->nHdrParsed;
-      offset = aOffset[i];
-      zHdr = zData + pC->iHdrOffset;
-      zEndHdr = zData + aOffset[0];
-      assert( i<=p2 && zHdr<zEndHdr );
-      do{
-        if( zHdr[0]<0x80 ){
-          t = zHdr[0];
-          zHdr++;
-        }else{
-          zHdr += sqlite3GetVarint32(zHdr, &t);
-        }
-        aType[i] = t;
-        szField = sqlite3VdbeSerialTypeLen(t);
-        offset += szField;
-        if( offset<szField ){  /* True if offset overflows */
-          zHdr = &zEndHdr[1];  /* Forces SQLITE_CORRUPT return below */
-          break;
-        }
-        i++;
-        aOffset[i] = offset;
-      }while( i<=p2 && zHdr<zEndHdr );
-      pC->nHdrParsed = i;
-      pC->iHdrOffset = (u32)(zHdr - zData);
-      if( pC->aRow==0 ){
-        sqlite3VdbeMemRelease(&sMem);
-        sMem.flags = MEM_Null;
-      }
-  
-      /* If we have read more header data than was contained in the header,
-      ** or if the end of the last field appears to be past the end of the
-      ** record, or if the end of the last field appears to be before the end
-      ** of the record (when all fields present), then we must be dealing 
-      ** with a corrupt database.
-      */
-      if( (zHdr > zEndHdr)
-       || (offset > pC->payloadSize)
-       || (zHdr==zEndHdr && offset!=pC->payloadSize)
-      ){
-        rc = SQLITE_CORRUPT_BKPT;
-        goto op_column_error;
-      }
+    rc = _column_helper3(p, pC, aOffset, p2);
+    if( rc!=SQLITE_OK ){
+      goto op_column_error;
     }
 
     /* If after trying to extra new entries from the header, nHdrParsed is
