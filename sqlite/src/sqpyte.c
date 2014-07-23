@@ -482,6 +482,53 @@ long impl_OP_Rewind(Vdbe *p, sqlite3 *db, long *pc, Op *pOp) {
   return (long)rc;
 }
 
+/* helpers for Column */
+
+u32 _column_helper1(Vdbe *p, VdbeCursor *pC) {
+  BtCursor *pCrsr = pC->pCursor;   /* The BTree cursor */
+  Mem *aMem = p->aMem;
+  Mem *pReg;         /* PseudoTable input register */
+  u32 avail;         /* Number of bytes of available data */
+  i64 payloadSize64; /* Number of bytes in the record */
+  if( pC->nullRow ){
+    assert (pCrsr == 0);
+    assert( pC->pseudoTableReg>0 );
+    pReg = &aMem[pC->pseudoTableReg];
+    assert( pReg->flags & MEM_Blob );
+    assert( memIsValid(pReg) );
+    pC->payloadSize = pC->szRow = avail = pReg->n;
+    pC->aRow = (u8*)pReg->z;
+  }else{
+    assert( pCrsr );
+    if( pC->isTable==0 ){
+      assert( sqlite3BtreeCursorIsValid(pCrsr) );
+      sqlite3BtreeKeySize(pCrsr, &payloadSize64);
+      /* assert( rc==SQLITE_OK ); */ /* True because of CursorMoveto() call above */
+      /* sqlite3BtreeParseCellPtr() uses getVarint32() to extract the
+      ** payload size, so it is impossible for payloadSize64 to be
+      ** larger than 32 bits. */
+      assert( (payloadSize64 & SQLITE_MAX_U32)==(u64)payloadSize64 );
+      pC->aRow = sqlite3BtreeKeyFetch(pCrsr, &avail);
+      pC->payloadSize = (u32)payloadSize64;
+    }else{
+      assert( sqlite3BtreeCursorIsValid(pCrsr) );
+      sqlite3BtreeDataSize(pCrsr, &pC->payloadSize);
+      /* assert( rc==SQLITE_OK );  */ /* DataSize() cannot fail */
+      pC->aRow = sqlite3BtreeDataFetch(pCrsr, &avail);
+    }
+    assert( avail<=65536 );  /* Maximum page size is 64KiB */
+    if( pC->payloadSize <= (u32)avail ){
+      pC->szRow = pC->payloadSize;
+    }else{
+      pC->szRow = avail;
+    }
+  }
+  return avail;
+}
+
+
+
+
 /* Opcode: Column P1 P2 P3 P4 P5
 ** Synopsis:  r[P3]=PX
 **
@@ -525,7 +572,6 @@ long impl_OP_Column(Vdbe *p, sqlite3 *db, long pc, Op *pOp) {
   u32 szField;       /* Number of bytes in the content of a field */
   u32 avail;         /* Number of bytes of available data */
   u32 t;             /* A type code from the record header */
-  Mem *pReg;         /* PseudoTable input register */
   int rc;
   Mem *aMem = p->aMem;
   u8 encoding = ENC(db);     /* The database encoding */
@@ -556,49 +602,19 @@ long impl_OP_Column(Vdbe *p, sqlite3 *db, long pc, Op *pOp) {
     return (long)rc;
   }
   if( pC->cacheStatus!=p->cacheCtr || (pOp->p5&OPFLAG_CLEARCACHE)!=0 ){
-    if( pC->nullRow ){
-      if( pCrsr==0 ){
-        assert( pC->pseudoTableReg>0 );
-        pReg = &aMem[pC->pseudoTableReg];
-        assert( pReg->flags & MEM_Blob );
-        assert( memIsValid(pReg) );
-        pC->payloadSize = pC->szRow = avail = pReg->n;
-        pC->aRow = (u8*)pReg->z;
-      }else{
-        MemSetTypeFlag(pDest, MEM_Null);
-        goto op_column_out;
-      }
-    }else{
-      assert( pCrsr );
-      if( pC->isTable==0 ){
-        assert( sqlite3BtreeCursorIsValid(pCrsr) );
-        VVA_ONLY(rc =) sqlite3BtreeKeySize(pCrsr, &payloadSize64);
-        assert( rc==SQLITE_OK ); /* True because of CursorMoveto() call above */
-        /* sqlite3BtreeParseCellPtr() uses getVarint32() to extract the
-        ** payload size, so it is impossible for payloadSize64 to be
-        ** larger than 32 bits. */
-        assert( (payloadSize64 & SQLITE_MAX_U32)==(u64)payloadSize64 );
-        pC->aRow = sqlite3BtreeKeyFetch(pCrsr, &avail);
-        pC->payloadSize = (u32)payloadSize64;
-      }else{
-        assert( sqlite3BtreeCursorIsValid(pCrsr) );
-        VVA_ONLY(rc =) sqlite3BtreeDataSize(pCrsr, &pC->payloadSize);
-        assert( rc==SQLITE_OK );   /* DataSize() cannot fail */
-        pC->aRow = sqlite3BtreeDataFetch(pCrsr, &avail);
-      }
-      assert( avail<=65536 );  /* Maximum page size is 64KiB */
-      if( pC->payloadSize <= (u32)avail ){
-        pC->szRow = pC->payloadSize;
-      }else{
-        pC->szRow = avail;
-      }
-      if( pC->payloadSize > (u32)db->aLimit[SQLITE_LIMIT_LENGTH] ){
-        // goto too_big;
-        printf("In impl_OP_Column(): too_big.\n");
-        rc = gotoTooBig(p, db, (int)pc);
-        return (long)rc;
-      }
+    if( pC->nullRow && pCrsr != 0){
+      MemSetTypeFlag(pDest, MEM_Null);
+      goto op_column_out;
     }
+    avail = _column_helper1(p, pC);
+    if( !pC->nullRow && pC->payloadSize > (u32)db->aLimit[SQLITE_LIMIT_LENGTH] ){
+      // goto too_big;
+      printf("In impl_OP_Column(): too_big.\n");
+      rc = gotoTooBig(p, db, (int)pc);
+      return (long)rc;
+    }
+    // start
+    //_column_helper2()
     pC->cacheStatus = p->cacheCtr;
     pC->iHdrOffset = getVarint32(pC->aRow, offset);
     pC->nHdrParsed = 0;
@@ -625,6 +641,7 @@ long impl_OP_Column(Vdbe *p, sqlite3 *db, long pc, Op *pOp) {
       rc = SQLITE_CORRUPT_BKPT;
       goto op_column_error;
     }
+    // end
   }
 
   /* Make sure at least the first p2+1 entries of the header have been
@@ -776,6 +793,11 @@ op_column_error:
 
   return (long)rc;
 }
+
+
+
+
+
 
 /* Opcode: ResultRow P1 P2 * * *
 ** Synopsis:  output=r[P1@P2]
