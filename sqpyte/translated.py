@@ -607,3 +607,63 @@ def python_OP_RealAffinity(hlquery, pOp):
         pIn1.r = float(pIn1.u.i)
         MemSetTypeFlag(pIn1, CConfig.MEM_Real)
 
+
+# Opcode: If P1 P2 P3 * *
+#
+# Jump to P2 if the value in register P1 is true.  The value
+# is considered true if it is numeric and non-zero.  If the value
+# in P1 is NULL then take the jump if P3 is non-zero.
+#
+# Opcode: IfNot P1 P2 P3 * *
+#
+# Jump to P2 if the value in register P1 is False.  The value
+# is considered false if it has a numeric value of zero.  If the value
+# in P1 is NULL then take the jump if P3 is zero.
+
+def python_OP_If_IfNot(hlquery, pc, pOp):
+    p = hlquery.p
+    aMem = p.aMem           # /* Copy of p->aMem */
+    pIn1, flags1 = hlquery.mem_and_flags_of_p(pOp, 1)    # 1st input operand
+    opcode = hlquery.get_opcode(pOp)
+
+    if flags1 & CConfig.MEM_Null:
+        c = pOp.p3
+    else:
+        # SQLITE_OMIT_FLOATING_POINT is not defined.
+        # #ifdef SQLITE_OMIT_FLOATING_POINT
+        #     c = sqlite3VdbeIntValue(pIn1)!=0;
+        # #else
+        c = sqlite3VdbeRealValue(pIn1) != 0.0
+        # #endif
+        if opcode == CConfig.OP_IfNot:
+            c = not c
+    # VdbeBranchTaken() is used for test suite validation only and 
+    # does not appear an production builds.
+    # See vdbe.c lines 110-136.
+    # VdbeBranchTaken(c!=0, 2);
+    if rffi.cast(lltype.Unsigned, c):
+        pc = rffi.cast(lltype.Signed, pOp.p2) - 1
+
+    return pc
+
+
+# Return the best representation of pMem that we can get into a
+# double.  If pMem is already a double or an integer, return its
+# value.  If it is a string or blob, try to convert it to a double.
+# If it is a NULL, return 0.0.
+
+def sqlite3VdbeRealValue(pMem):
+    # assert( pMem->db==0 || sqlite3_mutex_held(pMem->db->mutex) );
+    # assert( EIGHT_BYTE_ALIGNMENT(pMem) );
+    if pMem.flags & CConfig.MEM_Real:
+        return pMem.r
+    elif pMem.flags & CConfig.MEM_Int:
+        return pMem.u.i
+    elif pMem.flags & (CConfig.MEM_Str | CConfig.MEM_Blob):
+        val = lltype.malloc(rffi.DOUBLEP.TO, 1, flavor='raw')
+        val[0] = 0.0
+        capi.sqlite3AtoF(pMem.z, val, pMem.n, pMem.enc)
+        return val[0]
+    else:
+        return 0.0
+

@@ -168,7 +168,8 @@ class Sqlite3Query(object):
         capi.impl_OP_Add_Subtract_Multiply_Divide_Remainder(self.p, pOp)
 
     def python_OP_If_IfNot(self, pc, pOp):
-        return capi.impl_OP_If_IfNot(self.p, pc, pOp)
+        return translated.python_OP_If_IfNot(self, pc, pOp)
+        # return capi.impl_OP_If_IfNot(self.p, pc, pOp)
 
     def python_OP_Rowid(self, pc, rc, pOp):
         return capi.impl_OP_Rowid(self.p, self.db, pc, rc, pOp)
