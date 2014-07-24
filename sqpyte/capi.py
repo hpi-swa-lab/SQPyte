@@ -722,6 +722,10 @@ sqlite3_applyNumericAffinity = rffi.llexternal('applyNumericAffinity', [MEMP],
 
 sqlite3AtoF = rffi.llexternal('sqlite3AtoF', [rffi.CCHARP, rffi.DOUBLEP, rffi.INT, CConfig.u8],
     rffi.INT, compilation_info=CConfig._compilation_info_)
+sqlite3Atoi64 = rffi.llexternal('sqlite3Atoi64', [rffi.CCHARP, rffi.LONGLONGP, rffi.INT, CConfig.u8],
+    rffi.INT, compilation_info=CConfig._compilation_info_)
+sqlite3VdbeMemSetNull = rffi.llexternal('sqlite3VdbeMemSetNull', [MEMP],
+    lltype.Void, compilation_info=CConfig._compilation_info_)
 
 
 sqlite3_sqlite3MemCompare = rffi.llexternal('sqlite3MemCompare', [MEMP, MEMP, COLLSEQP],
