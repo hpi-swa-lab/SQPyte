@@ -135,6 +135,11 @@ class Sqlite3Query(object):
         return capi.impl_OP_Copy(self.p, self.db, pc, rc, pOp)
 
     def python_OP_MustBeInt(self, pc, rc, pOp):
+        # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
+        # rc = capi.impl_OP_MustBeInt(self.p, self.db, self.internalPc, rc, pOp)
+        # retPc = self.internalPc[0]
+        # return retPc, rc
+
         return translated.python_OP_MustBeInt(self, pc, rc, pOp)
 
     def python_OP_NotExists(self, pc, pOp):
@@ -162,6 +167,7 @@ class Sqlite3Query(object):
         capi.impl_OP_Real(self.p, pOp)
 
     def python_OP_RealAffinity(self, pOp):
+        # capi.impl_OP_RealAffinity(self.p, pOp)
         translated.python_OP_RealAffinity(self, pOp)
 
     def python_OP_Add_Subtract_Multiply_Divide_Remainder(self, pOp):
@@ -169,13 +175,14 @@ class Sqlite3Query(object):
         # translated.python_OP_Add_Subtract_Multiply_Divide_Remainder(self, pOp)
 
     def python_OP_If_IfNot(self, pc, pOp):
-        return translated.python_OP_If_IfNot(self, pc, pOp)
         # return capi.impl_OP_If_IfNot(self.p, pc, pOp)
+        return translated.python_OP_If_IfNot(self, pc, pOp)
 
     def python_OP_Rowid(self, pc, rc, pOp):
         return capi.impl_OP_Rowid(self.p, self.db, pc, rc, pOp)
 
     def python_OP_IsNull(self, pc, pOp):
+        # return capi.impl_OP_IsNull(self.p, pc, pOp)
         return translated.python_OP_IsNull(self, pc, pOp)
 
     def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(self, pc, rc, pOp):
@@ -203,12 +210,14 @@ class Sqlite3Query(object):
         capi.impl_OP_Seek(self.p, pOp)
 
     def python_OP_Once(self, pc, pOp):
+        # return capi.impl_OP_Once(self.p, pc, pOp)
         return translated.python_OP_Once(self, pc, pOp)
 
     def python_OP_SCopy(self, pOp):
         capi.impl_OP_SCopy(self.p, pOp)
 
     def python_OP_Affinity(self, pOp):
+        # capi.impl_OP_Affinity(self.p, self.db, pOp)
         translated.python_OP_Affinity(self, pOp)
 
     def python_OP_OpenAutoindex_OpenEphemeral(self, pc, pOp):
@@ -286,6 +295,7 @@ class Sqlite3Query(object):
         capi.impl_OP_CollSeq(self.p, pOp)
 
     def python_OP_NotNull(self, pc, pOp):
+        # return capi.impl_OP_NotNull(self.p, pc, pOp)
         return translated.python_OP_NotNull(self, pc, pOp)
 
     def python_OP_InitCoroutine(self, pc, pOp):
