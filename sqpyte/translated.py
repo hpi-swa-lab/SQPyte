@@ -642,7 +642,7 @@ def python_OP_If_IfNot(hlquery, pc, pOp):
         # #ifdef SQLITE_OMIT_FLOATING_POINT
         #     c = sqlite3VdbeIntValue(pIn1)!=0;
         # #else
-        c = sqlite3VdbeRealValue(pIn1) != 0.0
+        c = _sqlite3VdbeRealValue_flags(pIn1, flags1) != 0.0
         # #endif
         if opcode == CConfig.OP_IfNot:
             c = not c
@@ -662,13 +662,16 @@ def python_OP_If_IfNot(hlquery, pc, pOp):
 # If it is a NULL, return 0.0.
 
 def sqlite3VdbeRealValue(pMem):
+    return _sqlite3VdbeRealValue_flags(pMem, flags)
+
+def _sqlite3VdbeRealValue_flags(pMem, flags):
     # assert( pMem->db==0 || sqlite3_mutex_held(pMem->db->mutex) );
     # assert( EIGHT_BYTE_ALIGNMENT(pMem) );
-    if pMem.flags & CConfig.MEM_Real:
+    if flags & CConfig.MEM_Real:
         return pMem.r
-    elif pMem.flags & CConfig.MEM_Int:
+    elif flags & CConfig.MEM_Int:
         return pMem.u.i
-    elif pMem.flags & (CConfig.MEM_Str | CConfig.MEM_Blob):
+    elif flags & (CConfig.MEM_Str | CConfig.MEM_Blob):
         # XXX this is never freed!!!!
         val = lltype.malloc(rffi.DOUBLEP.TO, 1, flavor='raw')
         val[0] = 0.0
@@ -721,12 +724,14 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, pOp):
     opcode = hlquery.get_opcode(pOp)
 
     aMem = p.aMem
-    pIn1 = aMem[pOp.p1]
-    type1 = numericType(pIn1)
-    pIn2 = aMem[pOp.p2]
-    type2 = numericType(pIn2)
-    pOut = aMem[pOp.p3]
-    flags = rffi.cast(lltype.Unsigned, pIn1.flags) | rffi.cast(lltype.Unsigned, pIn2.flags)
+    pIn1, flags1 = hlquery.mem_and_flags_of_p(pOp, 1)    # 1st input operand
+    jit.promote(flags1)
+    type1 = _numericType_with_flags(pIn1, flags1)
+    pIn2, flags2 = hlquery.mem_and_flags_of_p(pOp, 2)    # 1st input operand
+    jit.promote(flags2)
+    type2 = _numericType_with_flags(pIn2, flags2)
+    pOut = hlquery.mem_of_p(pOp, 3)
+    flags = flags1 | flags2
 
     if flags & CConfig.MEM_Null != 0:
         capi.sqlite3VdbeMemSetNull(pOut)
@@ -746,8 +751,8 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, pOp):
                 MemSetTypeFlag(pOut, CConfig.MEM_Int)
                 return
             bIntint = True
-        rA = sqlite3VdbeRealValue(pIn1)
-        rB = sqlite3VdbeRealValue(pIn2)
+        rA = _sqlite3VdbeRealValue_flags(pIn1, flags1)
+        rB = _sqlite3VdbeRealValue_flags(pIn2, flags2)
         rB += rA
         # SQLITE_OMIT_FLOATING_POINT is not defined.
         #ifdef SQLITE_OMIT_FLOATING_POINT
@@ -777,8 +782,8 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, pOp):
                 MemSetTypeFlag(pOut, CConfig.MEM_Int)
                 return
             bIntint = True
-        rA = sqlite3VdbeRealValue(pIn1)
-        rB = sqlite3VdbeRealValue(pIn2)
+        rA = _sqlite3VdbeRealValue_flags(pIn1, flags1)
+        rB = _sqlite3VdbeRealValue_flags(pIn2, flags2)
         rB -= rA
         # SQLITE_OMIT_FLOATING_POINT is not defined.
         #ifdef SQLITE_OMIT_FLOATING_POINT
@@ -808,8 +813,8 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, pOp):
                 MemSetTypeFlag(pOut, CConfig.MEM_Int)
                 return
             bIntint = True
-        rA = sqlite3VdbeRealValue(pIn1)
-        rB = sqlite3VdbeRealValue(pIn2)
+        rA = _sqlite3VdbeRealValue_flags(pIn1, flags1)
+        rB = _sqlite3VdbeRealValue_flags(pIn2, flags2)
         rB *= rA
         # SQLITE_OMIT_FLOATING_POINT is not defined.
         #ifdef SQLITE_OMIT_FLOATING_POINT
@@ -842,8 +847,8 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, pOp):
                 MemSetTypeFlag(pOut, CConfig.MEM_Int)
                 return
             bIntint = True
-        rA = sqlite3VdbeRealValue(pIn1)
-        rB = sqlite3VdbeRealValue(pIn2)
+        rA = _sqlite3VdbeRealValue_flags(pIn1, flags1)
+        rB = _sqlite3VdbeRealValue_flags(pIn2, flags2)
         # /* (double)0 In case of SQLITE_OMIT_FLOATING_POINT... */
         if rA == 0.0:
             capi.sqlite3VdbeMemSetNull(pOut)
@@ -880,8 +885,8 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, pOp):
             return
         else:
             bIntint = 0
-            rA = sqlite3VdbeRealValue(pIn1)
-            rB = sqlite3VdbeRealValue(pIn2)
+            rA = _sqlite3VdbeRealValue_flags(pIn1, flags1)
+            rB = _sqlite3VdbeRealValue_flags(pIn2, flags2)
             iA = int(rA)
             iB = int(rB)
             if iA == 0:
@@ -918,9 +923,12 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, pOp):
 # But it does set pMem->r and pMem->u.i appropriately.
 
 def numericType(pMem):
-    if pMem.flags & (CConfig.MEM_Int | CConfig.MEM_Real):
-        return pMem.flags & (CConfig.MEM_Int | CConfig.MEM_Real)
-    if pMem.flags & (CConfig.MEM_Str | CConfig.MEM_Blob):
+    return _numericType_with_flags(pMem, pMem.flags)
+
+def _numericType_with_flags(pMem, flags):
+    if flags & (CConfig.MEM_Int | CConfig.MEM_Real):
+        return flags & (CConfig.MEM_Int | CConfig.MEM_Real)
+    if flags & (CConfig.MEM_Str | CConfig.MEM_Blob):
         # XXX this is never freed!!!!
         val1 = lltype.malloc(rffi.DOUBLEP.TO, 1, flavor='raw')
         val1[0] = 0.0
