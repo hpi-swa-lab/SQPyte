@@ -619,6 +619,55 @@ long _column_helper3(Vdbe *p, VdbeCursor *pC, u32 *aOffset, int p2) {
   return rc;
 }
 
+int _column_helper4(Vdbe *p, VdbeCursor *pC, Op *pOp, Mem *pDest, u32 *aOffset) {
+  int rc = SQLITE_OK;
+  i64 dummy;
+  u32 *aType = pC->aType; /* aType[i] holds the numeric type of the i-th column */
+  const u8 *zData;        /* Part of the record being decoded */
+  int len;                /* The length of the serialized data for the column */
+  u32 t;                  /* A type code from the record header */
+  Mem sMem;               /* For storing the record being decoded */
+  int p2 = pOp->p2;
+  BtCursor *pCrsr = pC->pCursor;
+  t = aType[p2];
+  if( ((pOp->p5 & (OPFLAG_LENGTHARG|OPFLAG_TYPEOFARG))!=0
+        && ((t>=12 && (t&1)==0) || (pOp->p5 & OPFLAG_TYPEOFARG)!=0))
+   || (len = sqlite3VdbeSerialTypeLen(t))==0
+  ){
+    /* Content is irrelevant for the typeof() function and for
+    ** the length(X) function if X is a blob.  So we might as well use
+    ** bogus content rather than reading content from disk.  NULL works
+    ** for text and blob and whatever is in the dummy variable
+    ** will work for everything else.  Content is also irrelevant if
+    ** the content length is 0. */
+    zData = t<=13 ? (u8*)&dummy : 0;
+    sMem.zMalloc = 0;
+  }else{
+    memset(&sMem, 0, sizeof(sMem));
+    sqlite3VdbeMemMove(&sMem, pDest);
+    rc = sqlite3VdbeMemFromBtree(pCrsr, aOffset[p2], len, !pC->isTable,
+                                 &sMem);
+    if( rc!=SQLITE_OK ){
+      return rc;
+    }
+    zData = (u8*)sMem.z;
+  }
+  sqlite3VdbeSerialGet(zData, t, pDest);
+  /* If we dynamically allocated space to hold the data (in the
+  ** sqlite3VdbeMemFromBtree() call above) then transfer control of that
+  ** dynamically allocated space over to the pDest structure.
+  ** This prevents a memory copy. */
+  if( sMem.zMalloc ){
+    assert( sMem.z==sMem.zMalloc );
+    assert( VdbeMemDynamic(pDest)==0 );
+    assert( (pDest->flags & (MEM_Blob|MEM_Str))==0 || pDest->z==sMem.z );
+    pDest->flags &= ~(MEM_Ephem|MEM_Static);
+    pDest->flags |= MEM_Term;
+    pDest->z = sMem.z;
+    pDest->zMalloc = sMem.zMalloc;
+  }
+  return rc;
+}
 
 /* Opcode: Column P1 P2 P3 P4 P5
 ** Synopsis:  r[P3]=PX
@@ -652,13 +701,10 @@ long impl_OP_Column(Vdbe *p, sqlite3 *db, long pc, Op *pOp) {
   BtCursor *pCrsr;   /* The BTree cursor */
   u32 *aType;        /* aType[i] holds the numeric type of the i-th column */
   u32 *aOffset;      /* aOffset[i] is offset to start of data for i-th column */
-  int len;           /* The length of the serialized data for the column */
   Mem *pDest;        /* Where to write the extracted value */
   Mem sMem;          /* For storing the record being decoded */
-  const u8 *zData;   /* Part of the record being decoded */
   u32 offset;        /* Offset into the data */
   u32 avail;         /* Number of bytes of available data */
-  u32 t;             /* A type code from the record header */
   int rc;
   Mem *aMem = p->aMem;
   u8 encoding = ENC(db);     /* The database encoding */
@@ -754,42 +800,9 @@ long impl_OP_Column(Vdbe *p, sqlite3 *db, long pc, Op *pOp) {
     sqlite3VdbeSerialGet(pC->aRow+aOffset[p2], aType[p2], pDest);
   }else{
     /* This branch happens only when content is on overflow pages */
-    t = aType[p2];
-    if( ((pOp->p5 & (OPFLAG_LENGTHARG|OPFLAG_TYPEOFARG))!=0
-          && ((t>=12 && (t&1)==0) || (pOp->p5 & OPFLAG_TYPEOFARG)!=0))
-     || (len = sqlite3VdbeSerialTypeLen(t))==0
-    ){
-      /* Content is irrelevant for the typeof() function and for
-      ** the length(X) function if X is a blob.  So we might as well use
-      ** bogus content rather than reading content from disk.  NULL works
-      ** for text and blob and whatever is in the payloadSize64 variable
-      ** will work for everything else.  Content is also irrelevant if
-      ** the content length is 0. */
-      zData = t<=13 ? (u8*)&payloadSize64 : 0;
-      sMem.zMalloc = 0;
-    }else{
-      memset(&sMem, 0, sizeof(sMem));
-      sqlite3VdbeMemMove(&sMem, pDest);
-      rc = sqlite3VdbeMemFromBtree(pCrsr, aOffset[p2], len, !pC->isTable,
-                                   &sMem);
-      if( rc!=SQLITE_OK ){
-        goto op_column_error;
-      }
-      zData = (u8*)sMem.z;
-    }
-    sqlite3VdbeSerialGet(zData, t, pDest);
-    /* If we dynamically allocated space to hold the data (in the
-    ** sqlite3VdbeMemFromBtree() call above) then transfer control of that
-    ** dynamically allocated space over to the pDest structure.
-    ** This prevents a memory copy. */
-    if( sMem.zMalloc ){
-      assert( sMem.z==sMem.zMalloc );
-      assert( VdbeMemDynamic(pDest)==0 );
-      assert( (pDest->flags & (MEM_Blob|MEM_Str))==0 || pDest->z==sMem.z );
-      pDest->flags &= ~(MEM_Ephem|MEM_Static);
-      pDest->flags |= MEM_Term;
-      pDest->z = sMem.z;
-      pDest->zMalloc = sMem.zMalloc;
+    rc = _column_helper4(p, pC, pOp, pDest, aOffset);
+    if (rc != SQLITE_OK) {
+      goto op_column_error;
     }
   }
   pDest->enc = encoding;
