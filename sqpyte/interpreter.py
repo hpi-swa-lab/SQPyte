@@ -171,8 +171,8 @@ class Sqlite3Query(object):
         translated.python_OP_RealAffinity(self, pOp)
 
     def python_OP_Add_Subtract_Multiply_Divide_Remainder(self, pOp):
-        capi.impl_OP_Add_Subtract_Multiply_Divide_Remainder(self.p, pOp)
-        # translated.python_OP_Add_Subtract_Multiply_Divide_Remainder(self, pOp)
+        # capi.impl_OP_Add_Subtract_Multiply_Divide_Remainder(self.p, pOp)
+        translated.python_OP_Add_Subtract_Multiply_Divide_Remainder(self, pOp)
 
     def python_OP_If_IfNot(self, pc, pOp):
         # return capi.impl_OP_If_IfNot(self.p, pc, pOp)

@@ -1,10 +1,12 @@
-from rpython.rlib import jit
+from rpython.rlib import jit, rarithmetic
 from rpython.rtyper.lltypesystem import rffi
 from capi import CConfig
 from rpython.rtyper.lltypesystem import lltype
 import capi
 import sys
 import math
+
+assert sys.maxint == 2 ** 63 - 1 # sqpyte only works on 64 bit machines
 
 LARGEST_INT64 = 0xffffffff | (0x7fffffff << 32)
 SMALLEST_INT64 = -1 - LARGEST_INT64
@@ -729,199 +731,138 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, pOp):
         capi.sqlite3VdbeMemSetNull(pOut)
         return
 
+    bIntint = False
     if opcode == CConfig.OP_Add:
         if (type1 & type2 & CConfig.MEM_Int) != 0:
             iA = pIn1.u.i
             iB = pIn2.u.i
-            bIntint = 1
-            res, iB = sqlite3AddInt64(iB, iA)
-            if res != 0:
-                rA = sqlite3VdbeRealValue(pIn1)
-                rB = sqlite3VdbeRealValue(pIn2)
-                rB += rA
-                # SQLITE_OMIT_FLOATING_POINT is not defined.
-                #ifdef SQLITE_OMIT_FLOATING_POINT
-                # pOut->u.i = rB;
-                # MemSetTypeFlag(pOut, MEM_Int);
-                #else
-                # if( sqlite3IsNaN(rB) ){
-                if math.isnan(rB):
-                    capi.sqlite3VdbeMemSetNull(pOut)
-                    return
-                pOut.r = float(rB)
-                MemSetTypeFlag(pOut, CConfig.MEM_Real)
-                if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
-                    sqlite3VdbeIntegerAffinity(pOut)
-                #endif                
-            return
-        else:
-            bIntint = 0
-            rA = sqlite3VdbeRealValue(pIn1)
-            rB = sqlite3VdbeRealValue(pIn2)
-            rB += rA
-            # SQLITE_OMIT_FLOATING_POINT is not defined.
-            #ifdef SQLITE_OMIT_FLOATING_POINT
-            # pOut->u.i = rB;
-            # MemSetTypeFlag(pOut, MEM_Int);
-            #else
-            # if( sqlite3IsNaN(rB) ){
-            if math.isnan(rB):
-                capi.sqlite3VdbeMemSetNull(pOut)
+            try:
+                iB = rarithmetic.ovfcheck(iA + iB)
+            except OverflowError:
+                pass
+            else:
+                pOut.u.i = iB
+                MemSetTypeFlag(pOut, CConfig.MEM_Int)
                 return
-            pOut.r = float(rB)
-            MemSetTypeFlag(pOut, CConfig.MEM_Real)
-            if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
-                sqlite3VdbeIntegerAffinity(pOut)
-            #endif                
+            bIntint = True
+        rA = sqlite3VdbeRealValue(pIn1)
+        rB = sqlite3VdbeRealValue(pIn2)
+        rB += rA
+        # SQLITE_OMIT_FLOATING_POINT is not defined.
+        #ifdef SQLITE_OMIT_FLOATING_POINT
+        # pOut->u.i = rB;
+        # MemSetTypeFlag(pOut, MEM_Int);
+        #else
+        # if( sqlite3IsNaN(rB) ){
+        if math.isnan(rB):
+            capi.sqlite3VdbeMemSetNull(pOut)
             return
+        pOut.r = float(rB)
+        MemSetTypeFlag(pOut, CConfig.MEM_Real)
+        if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
+            sqlite3VdbeIntegerAffinity(pOut)
+        #endif                
+        return
     elif opcode == CConfig.OP_Subtract:
         if (type1 & type2 & CConfig.MEM_Int) != 0:
             iA = pIn1.u.i
             iB = pIn2.u.i
-            bIntint = 1
-            res, iB = sqlite3SubInt64(iB,iA)
-            if res != 0:
-                rA = sqlite3VdbeRealValue(pIn1)
-                rB = sqlite3VdbeRealValue(pIn2)
-                rB -= rA
-                # SQLITE_OMIT_FLOATING_POINT is not defined.
-                #ifdef SQLITE_OMIT_FLOATING_POINT
-                # pOut->u.i = rB;
-                # MemSetTypeFlag(pOut, MEM_Int);
-                #else
-                # if( sqlite3IsNaN(rB) ){
-                if math.isnan(rB):
-                    capi.sqlite3VdbeMemSetNull(pOut)
-                    return
-                pOut.r = float(rB)
-                MemSetTypeFlag(pOut, CConfig.MEM_Real)
-                if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
-                    sqlite3VdbeIntegerAffinity(pOut)
-                #endif                
+            try:
+                iB = rarithmetic.ovfcheck(iB - iA)
+            except OverflowError:
+                pass
+            else:
+                pOut.u.i = iB
+                MemSetTypeFlag(pOut, CConfig.MEM_Int)
                 return
-        else:
-            bIntint = 0
-            rA = sqlite3VdbeRealValue(pIn1)
-            rB = sqlite3VdbeRealValue(pIn2)
-            rB -= rA
-            # SQLITE_OMIT_FLOATING_POINT is not defined.
-            #ifdef SQLITE_OMIT_FLOATING_POINT
-            # pOut->u.i = rB;
-            # MemSetTypeFlag(pOut, MEM_Int);
-            #else
-            # if( sqlite3IsNaN(rB) ){
-            if math.isnan(rB):
-                capi.sqlite3VdbeMemSetNull(pOut)
-                return
-            pOut.r = float(rB)
-            MemSetTypeFlag(pOut, CConfig.MEM_Real)
-            if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
-                sqlite3VdbeIntegerAffinity(pOut)
-            #endif                
+            bIntint = True
+        rA = sqlite3VdbeRealValue(pIn1)
+        rB = sqlite3VdbeRealValue(pIn2)
+        rB -= rA
+        # SQLITE_OMIT_FLOATING_POINT is not defined.
+        #ifdef SQLITE_OMIT_FLOATING_POINT
+        # pOut->u.i = rB;
+        # MemSetTypeFlag(pOut, MEM_Int);
+        #else
+        # if( sqlite3IsNaN(rB) ){
+        if math.isnan(rB):
+            capi.sqlite3VdbeMemSetNull(pOut)
             return
+        pOut.r = float(rB)
+        MemSetTypeFlag(pOut, CConfig.MEM_Real)
+        if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
+            sqlite3VdbeIntegerAffinity(pOut)
+        #endif                
+        return
     elif opcode == CConfig.OP_Multiply:
         if (type1 & type2 & CConfig.MEM_Int) != 0:
             iA = pIn1.u.i
             iB = pIn2.u.i
-            bIntint = 1
-            if sqlite3MulInt64(iB,iA):
-                rA = sqlite3VdbeRealValue(pIn1)
-                rB = sqlite3VdbeRealValue(pIn2)
-                rB *= rA
-                # SQLITE_OMIT_FLOATING_POINT is not defined.
-                #ifdef SQLITE_OMIT_FLOATING_POINT
-                # pOut->u.i = rB;
-                # MemSetTypeFlag(pOut, MEM_Int);
-                #else
-                # if( sqlite3IsNaN(rB) ){
-                if math.isnan(rB):
-                    capi.sqlite3VdbeMemSetNull(pOut)
-                    return
-                pOut.r = float(rB)
-                MemSetTypeFlag(pOut, CConfig.MEM_Real)
-                if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
-                    sqlite3VdbeIntegerAffinity(pOut)
-                #endif                
+            try:
+                iB = rarithmetic.ovfcheck(iA * iB)
+            except OverflowError:
+                pass
+            else:
+                pOut.u.i = iB
+                MemSetTypeFlag(pOut, CConfig.MEM_Int)
                 return
-        else:
-            bIntint = 0
-            rA = sqlite3VdbeRealValue(pIn1)
-            rB = sqlite3VdbeRealValue(pIn2)
-            rB *= rA
-            # SQLITE_OMIT_FLOATING_POINT is not defined.
-            #ifdef SQLITE_OMIT_FLOATING_POINT
-            # pOut->u.i = rB;
-            # MemSetTypeFlag(pOut, MEM_Int);
-            #else
-            # if( sqlite3IsNaN(rB) ){
-            if math.isnan(rB):
-                capi.sqlite3VdbeMemSetNull(pOut)
-                return
-            pOut.r = float(rB)
-            MemSetTypeFlag(pOut, CConfig.MEM_Real)
-            if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
-                sqlite3VdbeIntegerAffinity(pOut)
-            #endif                
+            bIntint = True
+        rA = sqlite3VdbeRealValue(pIn1)
+        rB = sqlite3VdbeRealValue(pIn2)
+        rB *= rA
+        # SQLITE_OMIT_FLOATING_POINT is not defined.
+        #ifdef SQLITE_OMIT_FLOATING_POINT
+        # pOut->u.i = rB;
+        # MemSetTypeFlag(pOut, MEM_Int);
+        #else
+        # if( sqlite3IsNaN(rB) ){
+        if math.isnan(rB):
+            capi.sqlite3VdbeMemSetNull(pOut)
             return
+        pOut.r = float(rB)
+        MemSetTypeFlag(pOut, CConfig.MEM_Real)
+        if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
+            sqlite3VdbeIntegerAffinity(pOut)
+        #endif                
+        return
     elif opcode == CConfig.OP_Divide:
         if (type1 & type2 & CConfig.MEM_Int) != 0:
             iA = pIn1.u.i
             iB = pIn2.u.i
-            bIntint = 1
             if iA == 0:
                 capi.sqlite3VdbeMemSetNull(pOut)
                 return
-            if iA == -1 and iB == SMALLEST_INT64:
-                rA = sqlite3VdbeRealValue(pIn1)
-                rB = sqlite3VdbeRealValue(pIn2)
-                # /* (double)0 In case of SQLITE_OMIT_FLOATING_POINT... */
-                if rA == 0.0:
-                    capi.sqlite3VdbeMemSetNull(pOut)
-                    return
-                rB /= rA
-                # SQLITE_OMIT_FLOATING_POINT is not defined.
-                #ifdef SQLITE_OMIT_FLOATING_POINT
-                # pOut->u.i = rB;
-                # MemSetTypeFlag(pOut, MEM_Int);
-                #else
-                # if( sqlite3IsNaN(rB) ){
-                if math.isnan(rB):
-                    capi.sqlite3VdbeMemSetNull(pOut)
-                    return
-                pOut.r = float(rB)
-                MemSetTypeFlag(pOut, CConfig.MEM_Real)
-                if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
-                    sqlite3VdbeIntegerAffinity(pOut)
-                #endif                
+            try:
+                iB = rarithmetic.ovfcheck(iB / iA) # XXX how's the rounding behaviour?
+            except OverflowError:
+                pass
+            else:
+                pOut.u.i = iB
+                MemSetTypeFlag(pOut, CConfig.MEM_Int)
                 return
-            iB /= iA
-            pOut.u.i = iB
-            MemSetTypeFlag(pOut, CConfig.MEM_Int)
+            bIntint = True
+        rA = sqlite3VdbeRealValue(pIn1)
+        rB = sqlite3VdbeRealValue(pIn2)
+        # /* (double)0 In case of SQLITE_OMIT_FLOATING_POINT... */
+        if rA == 0.0:
+            capi.sqlite3VdbeMemSetNull(pOut)
             return
-        else:
-            bIntint = 0
-            rA = sqlite3VdbeRealValue(pIn1)
-            rB = sqlite3VdbeRealValue(pIn2)
-            # /* (double)0 In case of SQLITE_OMIT_FLOATING_POINT... */
-            if rA == 0.0:
-                capi.sqlite3VdbeMemSetNull(pOut)
-                return
-            rB /= rA
-            # SQLITE_OMIT_FLOATING_POINT is not defined.
-            #ifdef SQLITE_OMIT_FLOATING_POINT
-            # pOut->u.i = rB;
-            # MemSetTypeFlag(pOut, MEM_Int);
-            #else
-            # if( sqlite3IsNaN(rB) ){
-            if math.isnan(rB):
-                capi.sqlite3VdbeMemSetNull(pOut)
-                return
-            pOut.r = float(rB)
-            MemSetTypeFlag(pOut, CConfig.MEM_Real)
-            if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
-                sqlite3VdbeIntegerAffinity(pOut)
-            #endif                
+        rB /= rA
+        # SQLITE_OMIT_FLOATING_POINT is not defined.
+        #ifdef SQLITE_OMIT_FLOATING_POINT
+        # pOut->u.i = rB;
+        # MemSetTypeFlag(pOut, MEM_Int);
+        #else
+        # if( sqlite3IsNaN(rB) ){
+        if math.isnan(rB):
+            capi.sqlite3VdbeMemSetNull(pOut)
             return
+        pOut.r = float(rB)
+        MemSetTypeFlag(pOut, CConfig.MEM_Real)
+        if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
+            sqlite3VdbeIntegerAffinity(pOut)
+        #endif                
+        return
     elif opcode == CConfig.OP_Remainder:
         if (type1 & type2 & CConfig.MEM_Int) != 0:
             iA = pIn1.u.i

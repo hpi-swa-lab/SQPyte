@@ -76,6 +76,26 @@ def test_mainloop_over50():
         count += 1
     assert(count == 48)
 
+def test_mainloop_arithmetic():
+    db = Sqlite3DB(testdb).db
+    query = Sqlite3Query(db, 'select name from contacts where 2 * age + 2 - age / 1 > 48;')
+    rc = query.mainloop()
+    count = 0
+    while rc == CConfig.SQLITE_ROW:
+        rc = query.mainloop()
+        count += 1
+    assert(count == 53)
+
+def test_mainloop_mixed_arithmetic():
+    db = Sqlite3DB(testdb).db
+    query = Sqlite3Query(db, 'select name from contacts where 2.1 * age + 2 - age / 0.909 > 48;')
+    rc = query.mainloop()
+    count = 0
+    while rc == CConfig.SQLITE_ROW:
+        rc = query.mainloop()
+        count += 1
+    assert(count == 53)
+
 def test_mainloop_namelist():
     fname = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'names.txt')
     names = [name.strip() for name in open(fname)]
