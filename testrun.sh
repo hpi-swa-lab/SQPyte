@@ -19,6 +19,7 @@ do
         echo -e "Query $i:\tPass"
     else
         echo -e "Query $i:\tFAIL"
+        ./target-c -t $DB $DIR/tpch/sqlite-queries-in/$i.sql $DIR/tpch/sqlite-queries-out/$i.txt
     fi
 
     HG=$(hg st $DB)
