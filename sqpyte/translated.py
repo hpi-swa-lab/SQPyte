@@ -672,11 +672,12 @@ def _sqlite3VdbeRealValue_flags(pMem, flags):
     elif flags & CConfig.MEM_Int:
         return pMem.u.i
     elif flags & (CConfig.MEM_Str | CConfig.MEM_Blob):
-        # XXX this is never freed!!!!
         val = lltype.malloc(rffi.DOUBLEP.TO, 1, flavor='raw')
         val[0] = 0.0
         capi.sqlite3AtoF(pMem.z, val, pMem.n, pMem.enc)
-        return val[0]
+        ret = val[0]
+        lltype.free(val, flavor='raw')
+        return ret
     else:
         return 0.0
 
@@ -929,20 +930,20 @@ def _numericType_with_flags(pMem, flags):
     if flags & (CConfig.MEM_Int | CConfig.MEM_Real):
         return flags & (CConfig.MEM_Int | CConfig.MEM_Real)
     if flags & (CConfig.MEM_Str | CConfig.MEM_Blob):
-        # XXX this is never freed!!!!
         val1 = lltype.malloc(rffi.DOUBLEP.TO, 1, flavor='raw')
         val1[0] = 0.0
         atof = capi.sqlite3AtoF(pMem.z, val1, pMem.n, pMem.enc)
         pMem.r = val1[0]
+        lltype.free(val1, flavor='raw')
 
         if atof == 0:
             return 0
 
-        # XXX this is never freed!!!!
         val2 = lltype.malloc(rffi.LONGLONGP.TO, 1, flavor='raw')
         val2[0] = 0
         atoi64 = capi.sqlite3Atoi64(pMem.z, val2, pMem.n, pMem.enc)
         pMem.u.i = val2[0]
+        lltype.free(val2, flavor='raw')
 
         if atoi64 == CConfig.SQLITE_OK:
             return CConfig.MEM_Int
