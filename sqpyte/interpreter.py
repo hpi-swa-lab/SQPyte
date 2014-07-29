@@ -42,7 +42,7 @@ class Sqlite3DB(object):
 
 class Sqlite3Query(object):
 
-    _immutable_fields_ = ['internalPc', 'db', 'p']
+    _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]']
 
     def __init__(self, db, query):
         self.db = db
@@ -50,12 +50,20 @@ class Sqlite3Query(object):
         self.internalPc = lltype.malloc(rffi.LONGP.TO, 1, flavor='raw')
         self.intp = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
 
+    def __del__(self):
+        lltype.free(self.internalPc, flavor='raw')
+        lltype.free(self.intp, flavor='raw')
+
     def prepare(self, query):
         length = len(query)
         with rffi.scoped_str2charp(query) as query, lltype.scoped_alloc(rffi.VOIDPP.TO, 1) as result, lltype.scoped_alloc(rffi.CCHARPP.TO, 1) as unused_buffer:
             errorcode = capi.sqlite3_prepare(self.db, query, length, result, unused_buffer)
             assert errorcode == 0
             self.p = rffi.cast(capi.VDBEP, result[0])
+        self._init_python_data()
+
+    def _init_python_data(self):
+        self._mem_as_python_list = [self.p.aMem[i] for i in range(self.p.nMem)]
 
     def reset_query(self):
         capi.sqlite3_reset(self.p)
@@ -120,7 +128,8 @@ class Sqlite3Query(object):
         return translated.python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(self, pc, rc, pOp)
 
     def python_OP_Integer(self, pOp):
-        capi.impl_OP_Integer(self.p, pOp)
+        translated.python_OP_Integer(self, pOp)
+        #capi.impl_OP_Integer(self.p, pOp)
 
     def python_OP_Null(self, pOp):
         capi.impl_OP_Null(self.p, pOp)
@@ -135,6 +144,11 @@ class Sqlite3Query(object):
         return capi.impl_OP_Copy(self.p, self.db, pc, rc, pOp)
 
     def python_OP_MustBeInt(self, pc, rc, pOp):
+        # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
+        # rc = capi.impl_OP_MustBeInt(self.p, self.db, self.internalPc, rc, pOp)
+        # retPc = self.internalPc[0]
+        # return retPc, rc
+
         return translated.python_OP_MustBeInt(self, pc, rc, pOp)
 
     def python_OP_NotExists(self, pc, pOp):
@@ -162,18 +176,22 @@ class Sqlite3Query(object):
         capi.impl_OP_Real(self.p, pOp)
 
     def python_OP_RealAffinity(self, pOp):
+        # capi.impl_OP_RealAffinity(self.p, pOp)
         translated.python_OP_RealAffinity(self, pOp)
 
     def python_OP_Add_Subtract_Multiply_Divide_Remainder(self, pOp):
-        capi.impl_OP_Add_Subtract_Multiply_Divide_Remainder(self.p, pOp)
+        # capi.impl_OP_Add_Subtract_Multiply_Divide_Remainder(self.p, pOp)
+        translated.python_OP_Add_Subtract_Multiply_Divide_Remainder(self, pOp)
 
     def python_OP_If_IfNot(self, pc, pOp):
-        return capi.impl_OP_If_IfNot(self.p, pc, pOp)
+        # return capi.impl_OP_If_IfNot(self.p, pc, pOp)
+        return translated.python_OP_If_IfNot(self, pc, pOp)
 
     def python_OP_Rowid(self, pc, rc, pOp):
         return capi.impl_OP_Rowid(self.p, self.db, pc, rc, pOp)
 
     def python_OP_IsNull(self, pc, pOp):
+        # return capi.impl_OP_IsNull(self.p, pc, pOp)
         return translated.python_OP_IsNull(self, pc, pOp)
 
     def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(self, pc, rc, pOp):
@@ -201,12 +219,14 @@ class Sqlite3Query(object):
         capi.impl_OP_Seek(self.p, pOp)
 
     def python_OP_Once(self, pc, pOp):
+        # return capi.impl_OP_Once(self.p, pc, pOp)
         return translated.python_OP_Once(self, pc, pOp)
 
     def python_OP_SCopy(self, pOp):
         capi.impl_OP_SCopy(self.p, pOp)
 
     def python_OP_Affinity(self, pOp):
+        # capi.impl_OP_Affinity(self.p, self.db, pOp)
         translated.python_OP_Affinity(self, pOp)
 
     def python_OP_OpenAutoindex_OpenEphemeral(self, pc, pOp):
@@ -284,6 +304,7 @@ class Sqlite3Query(object):
         capi.impl_OP_CollSeq(self.p, pOp)
 
     def python_OP_NotNull(self, pc, pOp):
+        # return capi.impl_OP_NotNull(self.p, pc, pOp)
         return translated.python_OP_NotNull(self, pc, pOp)
 
     def python_OP_InitCoroutine(self, pc, pOp):
@@ -388,12 +409,23 @@ class Sqlite3Query(object):
         return self.p_Signed(pOp, 2) - 1
 
     def mem_of_p(self, pOp, i):
-        return self.p.aMem[self.p_Signed(pOp, i)]
+        return self._mem_as_python_list[self.p_Signed(pOp, i)]
 
     def mem_and_flags_of_p(self, pOp, i):
         mem = self.mem_of_p(pOp, i)
         flags = rffi.cast(lltype.Unsigned, mem.flags)
         return mem, flags
+
+    @jit.elidable
+    def opflags(self, pOp):
+        return rffi.cast(lltype.Unsigned, pOp.opflags)
+
+    def VdbeMemDynamic(self, x):
+        return (x.flags & (CConfig.MEM_Agg|CConfig.MEM_Dyn|CConfig.MEM_RowSet|CConfig.MEM_Frame))!=0
+
+    def VdbeMemRelease(self, x):
+        if self.VdbeMemDynamic(x):
+            capi.sqlite3VdbeMemReleaseExternal(x)
 
     def mainloop(self):
         ops = self.get_aOp()
@@ -410,8 +442,14 @@ class Sqlite3Query(object):
             pOp = ops[pc]
             opcode = self.get_opcode(pOp)
             oldpc = pc
-
             self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
+
+            opflags = self.opflags(pOp)
+            if opflags & CConfig.OPFLG_OUT2_PRERELEASE:
+                pOut = self.mem_of_p(pOp, 2)
+                self.VdbeMemRelease(pOut)
+                pOut.flags = rffi.cast(CConfig.u16, CConfig.MEM_Int)
+
             if opcode == CConfig.OP_Init:
                 pc = self.python_OP_Init(pc, pOp)
             elif (opcode == CConfig.OP_OpenRead or

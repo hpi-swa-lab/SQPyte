@@ -57,13 +57,13 @@ opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite', 'OP_Rewind',
            'OP_SetCookie', 'OP_ParseSchema', 'OP_RowSetAdd', 'OP_RowSetRead',
            'OP_Delete', 'OP_DropTable']
 p4names = ['P4_INT32', 'P4_KEYINFO', 'P4_COLLSEQ']
-p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR', 'OPFLAG_CLEARCACHE', 'OPFLAG_LENGTHARG', 'OPFLAG_TYPEOFARG']
+p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR', 'OPFLAG_CLEARCACHE', 'OPFLAG_LENGTHARG', 'OPFLAG_TYPEOFARG', 'OPFLG_OUT2_PRERELEASE']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW', 'SQLITE_BUSY', 'SQLITE_CORRUPT_BKPT']
 sqlite_codes = ['SQLITE_NULLEQ', 'SQLITE_JUMPIFNULL', 'SQLITE_STOREP2', 'SQLITE_AFF_MASK']
 affinity_codes = ['SQLITE_AFF_TEXT', 'SQLITE_AFF_NONE', 'SQLITE_AFF_INTEGER', 'SQLITE_AFF_REAL', 'SQLITE_AFF_NUMERIC']
 btree_values = ['BTCURSOR_MAX_DEPTH', 'BTREE_BULKLOAD']
 other_constants = ['SQLITE_MAX_VARIABLE_NUMBER', 'CACHE_STALE']
-memValues = ['MEM_Null', 'MEM_Real', 'MEM_Cleared', 'MEM_TypeMask', 'MEM_Zero', 'MEM_Int', 'MEM_Str', 'MEM_RowSet']
+memValues = ['MEM_Null', 'MEM_Real', 'MEM_Cleared', 'MEM_TypeMask', 'MEM_Zero', 'MEM_Int', 'MEM_Str', 'MEM_RowSet', 'MEM_Blob', 'MEM_Agg', 'MEM_Dyn', 'MEM_Frame']
 
 for name in p4names + opnames + p5flags + result_codes + sqlite_codes + btree_values + other_constants + memValues + affinity_codes:
     setattr(CConfig, name, platform.DefinedConstantInteger(name))
@@ -719,6 +719,16 @@ sqlite3_sqlite3BtreeNext = rffi.llexternal('sqlite3BtreeNext', [BTCURSORP, rffi.
 
 sqlite3_applyNumericAffinity = rffi.llexternal('applyNumericAffinity', [MEMP],
     lltype.Void, compilation_info=CConfig._compilation_info_)
+
+sqlite3AtoF = rffi.llexternal('sqlite3AtoF', [rffi.CCHARP, rffi.DOUBLEP, rffi.INT, CConfig.u8],
+    rffi.INT, compilation_info=CConfig._compilation_info_)
+sqlite3Atoi64 = rffi.llexternal('sqlite3Atoi64', [rffi.CCHARP, rffi.LONGLONGP, rffi.INT, CConfig.u8],
+    rffi.INT, compilation_info=CConfig._compilation_info_)
+sqlite3VdbeMemSetNull = rffi.llexternal('sqlite3VdbeMemSetNull', [MEMP],
+    lltype.Void, compilation_info=CConfig._compilation_info_)
+sqlite3VdbeMemReleaseExternal = rffi.llexternal('sqlite3VdbeMemReleaseExternal', [MEMP],
+    lltype.Void, compilation_info=CConfig._compilation_info_)
+
 
 sqlite3_sqlite3MemCompare = rffi.llexternal('sqlite3MemCompare', [MEMP, MEMP, COLLSEQP],
     rffi.INT, compilation_info=CConfig._compilation_info_)
