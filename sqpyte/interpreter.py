@@ -50,6 +50,10 @@ class Sqlite3Query(object):
         self.internalPc = lltype.malloc(rffi.LONGP.TO, 1, flavor='raw')
         self.intp = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
 
+    def __del__(self):
+        lltype.free(self.internalPc, flavor='raw')
+        lltype.free(self.intp, flavor='raw')
+
     def prepare(self, query):
         length = len(query)
         with rffi.scoped_str2charp(query) as query, lltype.scoped_alloc(rffi.VOIDPP.TO, 1) as result, lltype.scoped_alloc(rffi.CCHARPP.TO, 1) as unused_buffer:
