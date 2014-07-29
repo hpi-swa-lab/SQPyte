@@ -631,7 +631,6 @@ def python_OP_RealAffinity(hlquery, pOp):
 
 def python_OP_If_IfNot(hlquery, pc, pOp):
     p = hlquery.p
-    aMem = p.aMem           # /* Copy of p->aMem */
     pIn1, flags1 = hlquery.mem_and_flags_of_p(pOp, 1)    # 1st input operand
     opcode = hlquery.get_opcode(pOp)
 

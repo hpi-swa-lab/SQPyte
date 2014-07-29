@@ -42,7 +42,7 @@ class Sqlite3DB(object):
 
 class Sqlite3Query(object):
 
-    _immutable_fields_ = ['internalPc', 'db', 'p']
+    _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]']
 
     def __init__(self, db, query):
         self.db = db
@@ -60,6 +60,10 @@ class Sqlite3Query(object):
             errorcode = capi.sqlite3_prepare(self.db, query, length, result, unused_buffer)
             assert errorcode == 0
             self.p = rffi.cast(capi.VDBEP, result[0])
+        self._init_python_data()
+
+    def _init_python_data(self):
+        self._mem_as_python_list = [self.p.aMem[i] for i in range(self.p.nMem)]
 
     def reset_query(self):
         capi.sqlite3_reset(self.p)
@@ -404,7 +408,7 @@ class Sqlite3Query(object):
         return self.p_Signed(pOp, 2) - 1
 
     def mem_of_p(self, pOp, i):
-        return self.p.aMem[self.p_Signed(pOp, i)]
+        return self._mem_as_python_list[self.p_Signed(pOp, i)]
 
     def mem_and_flags_of_p(self, pOp, i):
         mem = self.mem_of_p(pOp, i)
