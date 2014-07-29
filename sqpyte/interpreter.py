@@ -415,6 +415,17 @@ class Sqlite3Query(object):
         flags = rffi.cast(lltype.Unsigned, mem.flags)
         return mem, flags
 
+    @jit.elidable
+    def opflags(self, pOp):
+        return rffi.cast(lltype.Unsigned, pOp.opflags)
+
+    def VdbeMemDynamic(self, x):
+        return (x.flags & (CConfig.MEM_Agg|CConfig.MEM_Dyn|CConfig.MEM_RowSet|CConfig.MEM_Frame))!=0
+
+    def VdbeMemRelease(self, x):
+        if self.VdbeMemDynamic(x):
+            capi.sqlite3VdbeMemReleaseExternal(x)
+
     def mainloop(self):
         ops = self.get_aOp()
         rc = CConfig.SQLITE_OK
@@ -430,8 +441,14 @@ class Sqlite3Query(object):
             pOp = ops[pc]
             opcode = self.get_opcode(pOp)
             oldpc = pc
-
             self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
+
+            opflags = self.opflags(pOp)
+            if opflags & CConfig.OPFLG_OUT2_PRERELEASE:
+                pOut = self.mem_of_p(pOp, 2)
+                self.VdbeMemRelease(pOut)
+                pOut.flags = rffi.cast(CConfig.u16, CConfig.MEM_Int)
+
             if opcode == CConfig.OP_Init:
                 pc = self.python_OP_Init(pc, pOp)
             elif (opcode == CConfig.OP_OpenRead or
