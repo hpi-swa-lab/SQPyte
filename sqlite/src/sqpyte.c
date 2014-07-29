@@ -619,8 +619,8 @@ long _column_helper3(Vdbe *p, VdbeCursor *pC, u32 *aOffset, int p2) {
   return rc;
 }
 
-int _column_helper4(Vdbe *p, VdbeCursor *pC, Op *pOp, Mem *pDest, u32 *aOffset) {
-  int rc = SQLITE_OK;
+long _column_helper4(Vdbe *p, VdbeCursor *pC, Op *pOp, Mem *pDest, u32 *aOffset) {
+  long rc = SQLITE_OK;
   i64 dummy;
   u32 *aType = pC->aType; /* aType[i] holds the numeric type of the i-th column */
   const u8 *zData;        /* Part of the record being decoded */
@@ -695,17 +695,15 @@ int _column_helper4(Vdbe *p, VdbeCursor *pC, Op *pOp, Mem *pDest, u32 *aOffset) 
 ** skipped for length() and all content loading can be skipped for typeof().
 */
 long impl_OP_Column(Vdbe *p, sqlite3 *db, long pc, Op *pOp) {
-  i64 payloadSize64; /* Number of bytes in the record */
   int p2;            /* column number to retrieve */
   VdbeCursor *pC;    /* The VDBE cursor */
   BtCursor *pCrsr;   /* The BTree cursor */
   u32 *aType;        /* aType[i] holds the numeric type of the i-th column */
   u32 *aOffset;      /* aOffset[i] is offset to start of data for i-th column */
   Mem *pDest;        /* Where to write the extracted value */
-  Mem sMem;          /* For storing the record being decoded */
   u32 offset;        /* Offset into the data */
   u32 avail;         /* Number of bytes of available data */
-  int rc;
+  long rc;
   Mem *aMem = p->aMem;
   u8 encoding = ENC(db);     /* The database encoding */
 
@@ -4273,3 +4271,9 @@ void impl_OP_DropTable(sqlite3 *db, Op *pOp) {
   sqlite3UnlinkAndDeleteTable(db, pOp->p1, pOp->p4.z);
   // break;
 }
+
+//void _mem_debug_print(Mem *p) {
+//    char zBuf[200];
+//    sqlite3VdbeMemPrettyPrint(p, zBuf);
+//    printf(" %s", zBuf);
+//}

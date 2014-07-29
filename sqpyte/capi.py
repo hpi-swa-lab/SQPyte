@@ -56,16 +56,21 @@ opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite', 'OP_Rewind',
            'OP_ReadCookie', 'OP_NewRowid', 'OP_Insert', 'OP_InsertInt',
            'OP_SetCookie', 'OP_ParseSchema', 'OP_RowSetAdd', 'OP_RowSetRead',
            'OP_Delete', 'OP_DropTable']
-p4names = ['P4_INT32', 'P4_KEYINFO', 'P4_COLLSEQ']
+p4names = ['P4_INT32', 'P4_KEYINFO', 'P4_COLLSEQ', 'P4_MEM']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR', 'OPFLAG_CLEARCACHE', 'OPFLAG_LENGTHARG', 'OPFLAG_TYPEOFARG', 'OPFLG_OUT2_PRERELEASE']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW', 'SQLITE_BUSY', 'SQLITE_CORRUPT_BKPT']
 sqlite_codes = ['SQLITE_NULLEQ', 'SQLITE_JUMPIFNULL', 'SQLITE_STOREP2', 'SQLITE_AFF_MASK']
 affinity_codes = ['SQLITE_AFF_TEXT', 'SQLITE_AFF_NONE', 'SQLITE_AFF_INTEGER', 'SQLITE_AFF_REAL', 'SQLITE_AFF_NUMERIC']
 btree_values = ['BTCURSOR_MAX_DEPTH', 'BTREE_BULKLOAD']
 other_constants = ['SQLITE_MAX_VARIABLE_NUMBER', 'CACHE_STALE']
-memValues = ['MEM_Null', 'MEM_Real', 'MEM_Cleared', 'MEM_TypeMask', 'MEM_Zero', 'MEM_Int', 'MEM_Str', 'MEM_RowSet', 'MEM_Blob', 'MEM_Agg', 'MEM_Dyn', 'MEM_Frame']
+limits = ['SQLITE_LIMIT_LENGTH']
+memValues = ['MEM_Null', 'MEM_Real', 'MEM_Cleared', 'MEM_TypeMask', 'MEM_Zero',
+             'MEM_Int', 'MEM_Str', 'MEM_RowSet', 'MEM_Blob', 'MEM_Agg',
+             'MEM_Dyn', 'MEM_Frame', 'MEM_Ephem', 'MEM_Static']
 
-for name in p4names + opnames + p5flags + result_codes + sqlite_codes + btree_values + other_constants + memValues + affinity_codes:
+for name in (p4names + opnames + p5flags + result_codes + sqlite_codes +
+             btree_values + other_constants + memValues + affinity_codes +
+             limits):
     setattr(CConfig, name, platform.DefinedConstantInteger(name))
 
 
@@ -97,6 +102,8 @@ BTCURSOR = lltype.ForwardReference()
 BTCURSORP = lltype.Ptr(BTCURSOR)
 FUNCDEF = lltype.ForwardReference()
 FUNCDEFP = lltype.Ptr(FUNCDEF)
+
+U32P = lltype.Ptr(lltype.Array(CConfig.u32, hints={'nolength': True}))
 
 HASH = lltype.Struct("Hash",                # src/hash.h: 43
     ("htsize", rffi.UINT),                  # Number of buckets in the hash table
@@ -567,6 +574,18 @@ sqlite3_sqlite3BtreeCursorHints = rffi.llexternal('sqlite3BtreeCursorHints', [BT
     lltype.Void, compilation_info=CConfig._compilation_info_)
 sqlite3_sqlite3VdbeSorterRewind = rffi.llexternal('sqlite3VdbeSorterRewind', [SQLITE3P, VDBECURSORP, rffi.INTP],
     rffi.INT, compilation_info=CConfig._compilation_info_)
+sqlite3VdbeCursorMoveto = rffi.llexternal('sqlite3VdbeCursorMoveto', [VDBECURSORP],
+    rffi.INT, compilation_info=CConfig._compilation_info_)
+
+_column_helper1 = rffi.llexternal('_column_helper1', [VDBEP, VDBECURSORP],
+    CConfig.u32, compilation_info=CConfig._compilation_info_)
+_column_helper2 = rffi.llexternal('_column_helper2', [VDBEP, VDBECURSORP, U32P, CConfig.u32],
+    CConfig.u32, compilation_info=CConfig._compilation_info_)
+_column_helper3 = rffi.llexternal('_column_helper3', [VDBEP, VDBECURSORP, U32P, rffi.INT],
+    lltype.Signed, compilation_info=CConfig._compilation_info_)
+_column_helper4 = rffi.llexternal('_column_helper4', [VDBEP, VDBECURSORP, VDBEOPP, MEMP, U32P],
+    lltype.Signed, compilation_info=CConfig._compilation_info_)
+
 
 impl_OP_Transaction = rffi.llexternal('impl_OP_Transaction', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
     rffi.LONG, compilation_info=CConfig._compilation_info_)
@@ -728,6 +747,10 @@ sqlite3VdbeMemSetNull = rffi.llexternal('sqlite3VdbeMemSetNull', [MEMP],
     lltype.Void, compilation_info=CConfig._compilation_info_)
 sqlite3VdbeMemReleaseExternal = rffi.llexternal('sqlite3VdbeMemReleaseExternal', [MEMP],
     lltype.Void, compilation_info=CConfig._compilation_info_)
+sqlite3VdbeMemMakeWriteable = rffi.llexternal('sqlite3VdbeMemMakeWriteable', [MEMP],
+    rffi.INT, compilation_info=CConfig._compilation_info_)
+sqlite3VdbeMemShallowCopy = rffi.llexternal('sqlite3VdbeMemShallowCopy', [MEMP, MEMP, rffi.INT],
+    lltype.Void, compilation_info=CConfig._compilation_info_)
 
 
 sqlite3_sqlite3MemCompare = rffi.llexternal('sqlite3MemCompare', [MEMP, MEMP, COLLSEQP],
@@ -736,6 +759,10 @@ sqlite3_sqlite3VdbeMemStringify = rffi.llexternal('sqlite3VdbeMemStringify', [ME
     rffi.INT, compilation_info=CConfig._compilation_info_)
 sqlite3_gotoAbortDueToInterrupt = rffi.llexternal('gotoAbortDueToInterrupt', [VDBEP, SQLITE3P, rffi.INT, rffi.INT],
     rffi.INT, compilation_info=CConfig._compilation_info_)
-sqlite3_gotoNoMem = rffi.llexternal('gotoNoMem', [VDBEP, SQLITE3P, rffi.INT],
+gotoAbortDueToError = rffi.llexternal('gotoAbortDueToError', [VDBEP, SQLITE3P, rffi.INT, rffi.INT],
+    rffi.INT, compilation_info=CConfig._compilation_info_)
+gotoNoMem = rffi.llexternal('gotoNoMem', [VDBEP, SQLITE3P, rffi.INT],
+    rffi.INT, compilation_info=CConfig._compilation_info_)
+gotoTooBig = rffi.llexternal('gotoTooBig', [VDBEP, SQLITE3P, rffi.INT],
     rffi.INT, compilation_info=CConfig._compilation_info_)
 

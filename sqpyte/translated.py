@@ -463,7 +463,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
                 if rffi.cast(lltype.Unsigned, db.mallocFailed) != 0:
                     # goto no_mem;
                     print 'In python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(): no_mem.'
-                    rc = capi.sqlite3_gotoNoMem(p, db, pc)
+                    rc = capi.gotoNoMem(p, db, pc)
                     return pc, rc
 
             assert hlquery.p4type(pOp) == CConfig.P4_COLLSEQ or not pOp.p4.pColl
@@ -959,4 +959,240 @@ def _numericType_with_flags(pMem, flags):
 def python_OP_Integer(hlquery, pOp):
     pOut = hlquery.mem_of_p(pOp, 2)
     pOut.u.i = hlquery.p_Signed(pOp, 1)
+
+
+# Opcode: Column P1 P2 P3 P4 P5
+# Synopsis:  r[P3]=PX
+#
+# Interpret the data that cursor P1 points to as a structure built using
+# the MakeRecord instruction.  (See the MakeRecord opcode for additional
+# information about the format of the data.)  Extract the P2-th column
+# from this record.  If there are less that (P2+1) 
+# values in the record, extract a NULL.
+#
+# The value extracted is stored in register P3.
+#
+# If the column contains fewer than P2 fields, then extract a NULL.  Or,
+# if the P4 argument is a P4_MEM use the value of the P4 argument as
+# the result.
+#
+# If the OPFLAG_CLEARCACHE bit is set on P5 and P1 is a pseudo-table cursor,
+# then the cache of the cursor is reset prior to extracting the column.
+# The first OP_Column against a pseudo-table after the value of the content
+# register has changed should have this bit set.
+#
+# If the OPFLAG_LENGTHARG and OPFLAG_TYPEOFARG bits are set on P5 when
+# the result is guaranteed to only be used as the argument of a length()
+# or typeof() function, respectively.  The loading of large blobs can be
+# skipped for length() and all content loading can be skipped for typeof().
+
+OFFSETARRAY = lltype.Ptr(lltype.Array(CConfig.u32, hints={'nolength': True}))
+
+def python_OP_Column(hlquery, pc, pOp):
+    p = hlquery.p
+    db = hlquery.db
+    p2 = hlquery.p_Signed(pOp, 2) #  column number to retrieve
+    offset = -1 # Offset into the data
+    avail = -1  # Number of bytes of available data
+    aMem = p.aMem
+    encoding = ENC(db) # The database encoding
+
+    p2 = hlquery.p_Signed(pOp, 2)
+    pDest = hlquery.mem_of_p(pOp, 3) # Where to write the extracted value
+    p1 = hlquery.p_Signed(pOp, 1)
+    p5 = hlquery.p_Unsigned(pOp, 5)
+    #assert p1 >= 0 and p1 < p.nCursor
+    pC = p.apCsr[p1] # The VDBE cursor
+    assert pC
+    #assert p2 < pC.nField
+    aType = rffi.cast(capi.U32P, pC.aType) # aType[i] holds the numeric type of the i-th column
+    # aOffset[i] is offset to start of data for i-th column
+    aOffset = rffi.ptradd(aType, rffi.cast(lltype.Signed, pC.nField))
+    assert not pC.pVtabCursor # OP_Column never called on virtual table
+    pCrsr = pC.pCursor # The BTree cursor
+    assert pCrsr or rffi.cast(lltype.Signed, pC.pseudoTableReg) > 0 # pCrsr NULL on PseudoTables
+    nullRow = rffi.cast(lltype.Unsigned, pC.nullRow)
+    assert pCrsr or nullRow            # pC->nullRow on PseudoTables
+
+    # If the cursor cache is stale, bring it up-to-date
+    rc = rffi.cast(lltype.Signed, capi.sqlite3VdbeCursorMoveto(pC))
+    if rc:
+        print "In impl_OP_Column(): abort_due_to_error."
+        rc = rffi.cast(lltype.Signed, capi.gotoAbortDueToError(p, db, pc, rc))
+        return rc
+    if rffi.cast(lltype.Unsigned, pC.cacheStatus) != rffi.cast(lltype.Unsigned, p.cacheCtr) or (p5 & CConfig.OPFLAG_CLEARCACHE):
+        if rffi.cast(lltype.Unsigned, pC.nullRow) and pCrsr:
+            MemSetTypeFlag(pDest, CConfig.MEM_Null)
+            # goto op_column_out:
+            return Deephemeralize(pDest, p, db, pc)
+        avail = capi._column_helper1(p, pC)
+        if (not rffi.cast(lltype.Unsigned, pC.nullRow) and
+                rffi.cast(lltype.Signed, pC.payloadSize) > rffi.cast(lltype.Signed, db.aLimit[CConfig.SQLITE_LIMIT_LENGTH])):
+            # goto too_big
+            print "In impl_OP_Column(): too_big."
+            rc = rffi.cast(lltype.Signed, capi.gotoTooBig(p, db, pc))
+            return rc
+        offset = capi._column_helper2(p, pC, aOffset, avail)
+
+        # Make sure a corrupt database has not given us an oversize header.
+        # Do this now to avoid an oversize memory allocation.
+        #
+        # Type entries can be between 1 and 5 bytes each.  But 4 and 5 byte
+        # types use so much data space that there can only be 4096 and 32 of
+        # them, respectively.  So the maximum header length results from a
+        # 3-byte type for each of the maximum of 32768 columns plus three
+        # extra bytes for the header length itself.  32768*3 + 3 = 98307.
+
+        if offset > 98307 or offset > pC.payloadSize:
+            rc = CConfig.SQLITE_CORRUPT_BKPT
+            # goto op_column_error
+            return rc
+
+    # Make sure at least the first p2+1 entries of the header have been
+    # parsed and valid information is in aOffset[] and aType[].
+
+    if rffi.cast(lltype.Signed, pC.nHdrParsed) <= p2:
+        rc = capi._column_helper3(p, pC, aOffset, p2)
+        if rc != CConfig.SQLITE_OK:
+            # goto op_column_error
+            return rc
+
+        # If after trying to extra new entries from the header, nHdrParsed is
+        # still not up to p2, that means that the record has fewer than p2
+        # columns.  So the result will be either the default value or a NULL.
+
+        if rffi.cast(lltype.Signed, pC.nHdrParsed) <= p2:
+            if pOp.p4type == CConfig.P4_MEM:
+                capi.sqlite3VdbeMemShallowCopy(pDest, pOp.p4.pMem, CConfig.MEM_Static);
+            else:
+                MemSetTypeFlag(pDest, CConfig.MEM_Null)
+            # goto op_column_out:
+            return Deephemeralize(pDest, p, db, pc)
+
+    # Extract the content for the p2+1-th column.  Control can only
+    # reach this point if aOffset[p2], aOffset[p2+1], and aType[p2] are
+    # all valid.
+
+    assert p2 < rffi.cast(lltype.Signed, pC.nHdrParsed)
+    assert rc == CConfig.SQLITE_OK
+    # assert sqlite3VdbeCheckMemInvariants(pDest)
+    if rffi.cast(lltype.Unsigned, pC.szRow) >= rffi.cast(lltype.Unsigned, aOffset[p2 + 1]):
+        # This is the common case where the desired content fits on the original
+        # page - where the content is not on an overflow page
+        hlquery.VdbeMemRelease(pDest)
+        _serial_get(pC.aRow, aOffset[p2], aType[p2], pDest)
+    else:
+        # This branch happens only when content is on overflow pages
+        rc = capi._column_helper4(p, pC, pOp, pDest, aOffset)
+        if rc != CConfig.SQLITE_OK:
+            return rc
+
+    pDest.enc = encoding
+
+    # op_column_out:
+    # Deephemeralize(pDest)
+    return Deephemeralize(pDest, p, db, pc)
+
+    # op_column_error:
+    #  UPDATE_MAX_BLOBSIZE(pDest);
+    #  REGISTER_TRACE(pOp.p3, pDest);
+    # return rc
+
+def Deephemeralize(pDest, p, db, pc):
+    if pDest.flags & CConfig.MEM_Ephem:
+        if capi.sqlite3VdbeMemMakeWriteable(pDest):
+            print "Deephemeralize no_mem"
+            return rffi.cast(lltype.Signed, capi.gotoNoMem(p, db, pc))
+    return CConfig.SQLITE_OK
+
+def one_byte_int(buf, offset):
+    return rffi.cast(lltype.Signed, buf[offset])
+#define ONE_BYTE_INT(x)    ((i8)(x)[0])
+#define TWO_BYTE_INT(x)    (256*(i8)((x)[0])|(x)[1])
+#define THREE_BYTE_INT(x)  (65536*(i8)((x)[0])|((x)[1]<<8)|(x)[2])
+#define FOUR_BYTE_UINT(x)  (((u32)(x)[0]<<24)|((x)[1]<<16)|((x)[2]<<8)|(x)[3])
+
+def sqlite3VdbeSerialGet(buf, serial_type, pMem):
+    return _serial_get(buf, 0, serial_type, pMem)
+
+def _serial_get(buf, offset, serial_type, pMem):
+    # const unsigned char *buf,     /* Buffer to deserialize from */
+    # u32 serial_type,              /* Serial type to deserialize */
+    # Mem *pMem                     /* Memory cell to write value into */
+    # u64 x;
+    # u32 y;
+    serial_type = rffi.cast(lltype.Unsigned, serial_type)
+    if serial_type == 10 or serial_type == 11: # Reserved for future use
+        assert 0, "should not happen"
+    elif serial_type == 0: # NULL
+        pMem.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Null)
+        return 0
+    elif serial_type == 1: # 1-byte signed integer
+        pMem.u.i = one_byte_int(buf, offset)
+        pMem.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Int)
+        return 1
+    elif serial_type == 2: # 2-byte signed integer
+        print "serial_type 2 not impl"
+        assert 0
+        pMem.u.i = TWO_BYTE_INT(buf);
+        pMem.flags = MEM_Int;
+        return 2;
+    elif serial_type == 3: # 3-byte signed integer */
+        print "serial_type 3 not impl"
+        assert 0
+        pMem.u.i = THREE_BYTE_INT(buf);
+        pMem.flags = MEM_Int;
+        return 3;
+    elif serial_type == 4: # 4-byte signed integer */
+        print "serial_type 4 not impl"
+        assert 0
+        #y = FOUR_BYTE_UINT(buf);
+        #pMem.u.i = (i64)*(int*)&y;
+        #pMem.flags = MEM_Int;
+        #testcase( pMem.u.i<0 );
+        #return 4;
+    elif serial_type == 5: # 6-byte signed integer */
+        print "serial_type 5 not impl"
+        assert 0
+        #pMem.u.i = FOUR_BYTE_UINT(buf+2) + (((i64)1)<<32)*TWO_BYTE_INT(buf);
+        #pMem.flags = MEM_Int;
+        #testcase( pMem.u.i<0 );
+        #return 6;
+    elif (serial_type == 6 or # 8-byte signed integer
+          serial_type == 7): # IEEE floating point
+        print "serial_type 6 and 7 not impl"
+        assert 0
+        #x = FOUR_BYTE_UINT(buf);
+        #y = FOUR_BYTE_UINT(buf+4);
+        #x = (x<<32) | y;
+        #if( serial_type==6 ){
+        #  pMem.u.i = *(i64*)&x;
+        #  pMem.flags = MEM_Int;
+        #  testcase( pMem.u.i<0 );
+        #}else{
+        #  assert( sizeof(x)==8 && sizeof(pMem.r)==8 );
+        #  swapMixedEndianFloat(x);
+        #  memcpy(&pMem.r, &x, sizeof(x));
+        #  pMem.flags = sqlite3IsNaN(pMem.r) ? MEM_Null : MEM_Real;
+        #}
+        #return 8;
+    elif serial_type == 8: # Integer 0
+        pMem.u.i = 0
+        pMem.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Int)
+        return 0
+    elif serial_type == 9: # Integer 1
+        pMem.u.i = 1
+        pMem.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Int)
+        return 0
+    else:
+        len = (serial_type - 12) / 2;
+        pMem.z = rffi.cast(rffi.CCHARP, rffi.ptradd(buf, offset))
+        pMem.n = rffi.cast(rffi.INT, len)
+        pMem.xDel = lltype.nullptr(lltype.typeOf(pMem.xDel).TO)
+        if serial_type & 1:
+            flags = CConfig.MEM_Str | CConfig.MEM_Ephem
+        else:
+            flags = CConfig.MEM_Blob | CConfig.MEM_Ephem
+        pMem.flags = rffi.cast(rffi.USHORT, flags)
+        return len
 

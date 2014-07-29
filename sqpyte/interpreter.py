@@ -96,8 +96,8 @@ class Sqlite3Query(object):
         # translated.python_OP_OpenRead_OpenWrite_translated(self, self.db, pc, pOp)
 
     def python_OP_Column(self, pc, pOp):
-        return capi.impl_OP_Column(self.p, self.db, pc, pOp)
-        # return translated.python_OP_Column_translated(self, self.db, pc, pOp)
+        # return capi.impl_OP_Column(self.p, self.db, pc, pOp)
+        return translated.python_OP_Column(self, pc, pOp)
 
     def python_OP_ResultRow(self, pc, pOp):
         return capi.impl_OP_ResultRow(self.p, self.db, pc, pOp)
