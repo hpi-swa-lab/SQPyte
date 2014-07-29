@@ -1290,7 +1290,6 @@ void impl_OP_Integer(Vdbe *p, Op *pOp) {
   Mem *pOut;                 /* Output operand */
   pOut = &aMem[pOp->p2];
   pOut->u.i = pOp->p1;
-  pOut->flags = MEM_Int;
   // break;
 }
 

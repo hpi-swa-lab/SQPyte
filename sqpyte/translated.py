@@ -631,7 +631,6 @@ def python_OP_RealAffinity(hlquery, pOp):
 
 def python_OP_If_IfNot(hlquery, pc, pOp):
     p = hlquery.p
-    aMem = p.aMem           # /* Copy of p->aMem */
     pIn1, flags1 = hlquery.mem_and_flags_of_p(pOp, 1)    # 1st input operand
     opcode = hlquery.get_opcode(pOp)
 
@@ -950,4 +949,14 @@ def _numericType_with_flags(pMem, flags):
 
         return CConfig.MEM_Real
     return 0
+
+
+# Opcode: Integer P1 P2 * * *
+# Synopsis: r[P2]=P1
+#
+# The 32-bit integer value P1 is written into register P2.
+
+def python_OP_Integer(hlquery, pOp):
+    pOut = hlquery.mem_of_p(pOp, 2)
+    pOut.u.i = hlquery.p_Signed(pOp, 1)
 

@@ -42,7 +42,7 @@ class Sqlite3DB(object):
 
 class Sqlite3Query(object):
 
-    _immutable_fields_ = ['internalPc', 'db', 'p']
+    _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]']
 
     def __init__(self, db, query):
         self.db = db
@@ -60,6 +60,10 @@ class Sqlite3Query(object):
             errorcode = capi.sqlite3_prepare(self.db, query, length, result, unused_buffer)
             assert errorcode == 0
             self.p = rffi.cast(capi.VDBEP, result[0])
+        self._init_python_data()
+
+    def _init_python_data(self):
+        self._mem_as_python_list = [self.p.aMem[i] for i in range(self.p.nMem)]
 
     def reset_query(self):
         capi.sqlite3_reset(self.p)
@@ -124,7 +128,8 @@ class Sqlite3Query(object):
         return translated.python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(self, pc, rc, pOp)
 
     def python_OP_Integer(self, pOp):
-        capi.impl_OP_Integer(self.p, pOp)
+        translated.python_OP_Integer(self, pOp)
+        #capi.impl_OP_Integer(self.p, pOp)
 
     def python_OP_Null(self, pOp):
         capi.impl_OP_Null(self.p, pOp)
@@ -404,12 +409,23 @@ class Sqlite3Query(object):
         return self.p_Signed(pOp, 2) - 1
 
     def mem_of_p(self, pOp, i):
-        return self.p.aMem[self.p_Signed(pOp, i)]
+        return self._mem_as_python_list[self.p_Signed(pOp, i)]
 
     def mem_and_flags_of_p(self, pOp, i):
         mem = self.mem_of_p(pOp, i)
         flags = rffi.cast(lltype.Unsigned, mem.flags)
         return mem, flags
+
+    @jit.elidable
+    def opflags(self, pOp):
+        return rffi.cast(lltype.Unsigned, pOp.opflags)
+
+    def VdbeMemDynamic(self, x):
+        return (x.flags & (CConfig.MEM_Agg|CConfig.MEM_Dyn|CConfig.MEM_RowSet|CConfig.MEM_Frame))!=0
+
+    def VdbeMemRelease(self, x):
+        if self.VdbeMemDynamic(x):
+            capi.sqlite3VdbeMemReleaseExternal(x)
 
     def mainloop(self):
         ops = self.get_aOp()
@@ -426,8 +442,14 @@ class Sqlite3Query(object):
             pOp = ops[pc]
             opcode = self.get_opcode(pOp)
             oldpc = pc
-
             self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
+
+            opflags = self.opflags(pOp)
+            if opflags & CConfig.OPFLG_OUT2_PRERELEASE:
+                pOut = self.mem_of_p(pOp, 2)
+                self.VdbeMemRelease(pOut)
+                pOut.flags = rffi.cast(CConfig.u16, CConfig.MEM_Int)
+
             if opcode == CConfig.OP_Init:
                 pc = self.python_OP_Init(pc, pOp)
             elif (opcode == CConfig.OP_OpenRead or
