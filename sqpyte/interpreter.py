@@ -128,7 +128,8 @@ class Sqlite3Query(object):
         return translated.python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(self, pc, rc, pOp)
 
     def python_OP_Integer(self, pOp):
-        capi.impl_OP_Integer(self.p, pOp)
+        translated.python_OP_Integer(self, pOp)
+        #capi.impl_OP_Integer(self.p, pOp)
 
     def python_OP_Null(self, pOp):
         capi.impl_OP_Null(self.p, pOp)

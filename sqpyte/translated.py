@@ -950,3 +950,13 @@ def _numericType_with_flags(pMem, flags):
         return CConfig.MEM_Real
     return 0
 
+
+# Opcode: Integer P1 P2 * * *
+# Synopsis: r[P2]=P1
+#
+# The 32-bit integer value P1 is written into register P2.
+
+def python_OP_Integer(hlquery, pOp):
+    pOut = hlquery.mem_of_p(pOp, 2)
+    pOut.u.i = hlquery.p_Signed(pOp, 1)
+
