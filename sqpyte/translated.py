@@ -1,4 +1,5 @@
 from rpython.rlib import jit, rarithmetic
+from rpython.rlib.longlong2float import longlong2float, float2longlong
 from rpython.rtyper.lltypesystem import rffi
 from capi import CConfig
 from rpython.rtyper.lltypesystem import lltype
@@ -1016,7 +1017,7 @@ def python_OP_Column(hlquery, pc, pOp):
 
     # If the cursor cache is stale, bring it up-to-date
     rc = rffi.cast(lltype.Signed, capi.sqlite3VdbeCursorMoveto(pC))
-    if rc:
+    if rc != CConfig.SQLITE_OK:
         print "In impl_OP_Column(): abort_due_to_error."
         rc = rffi.cast(lltype.Signed, capi.gotoAbortDueToError(p, db, pc, rc))
         return rc
@@ -1027,7 +1028,7 @@ def python_OP_Column(hlquery, pc, pOp):
             return Deephemeralize(pDest, p, db, pc)
         avail = capi._column_helper1(p, pC)
         if (not rffi.cast(lltype.Unsigned, pC.nullRow) and
-                rffi.cast(lltype.Signed, pC.payloadSize) > rffi.cast(lltype.Signed, db.aLimit[CConfig.SQLITE_LIMIT_LENGTH])):
+                rffi.cast(lltype.Signed, pC.payloadSize) > hlquery.get_aLimit(CConfig.SQLITE_LIMIT_LENGTH)):
             # goto too_big
             print "In impl_OP_Column(): too_big."
             rc = rffi.cast(lltype.Signed, capi.gotoTooBig(p, db, pc))
@@ -1080,7 +1081,7 @@ def python_OP_Column(hlquery, pc, pOp):
         # This is the common case where the desired content fits on the original
         # page - where the content is not on an overflow page
         hlquery.VdbeMemRelease(pDest)
-        _serial_get(pC.aRow, aOffset[p2], aType[p2], pDest)
+        _serial_get(pC.aRow, rffi.cast(lltype.Signed, aOffset[p2]), aType[p2], pDest)
     else:
         # This branch happens only when content is on overflow pages
         rc = capi._column_helper4(p, pC, pOp, pDest, aOffset)
@@ -1106,11 +1107,22 @@ def Deephemeralize(pDest, p, db, pc):
     return CConfig.SQLITE_OK
 
 def one_byte_int(buf, offset):
-    return rffi.cast(lltype.Signed, buf[offset])
-#define ONE_BYTE_INT(x)    ((i8)(x)[0])
-#define TWO_BYTE_INT(x)    (256*(i8)((x)[0])|(x)[1])
+    return rffi.cast(lltype.Signed, rffi.cast(CConfig.i8, buf[offset]))
+
+def two_byte_int(buf, offset):
+    return one_byte_int(buf, offset) * 256 | rffi.cast(lltype.Signed, buf[offset + 1])
+
+def three_byte_int(buf, offset):
+    return two_byte_int(buf, offset) << 8 | rffi.cast(lltype.Signed, buf[offset + 3])
 #define THREE_BYTE_INT(x)  (65536*(i8)((x)[0])|((x)[1]<<8)|(x)[2])
-#define FOUR_BYTE_UINT(x)  (((u32)(x)[0]<<24)|((x)[1]<<16)|((x)[2]<<8)|(x)[3])
+#define FOUR_BYTE_UINT(x)  
+
+def four_byte_uint(buf, offset):
+    result  = rffi.cast(lltype.Unsigned, buf[offset]) << 24
+    result |= rffi.cast(lltype.Unsigned, buf[offset + 1]) << 16
+    result |= rffi.cast(lltype.Unsigned, buf[offset + 2]) <<  8
+    result |= rffi.cast(lltype.Unsigned, buf[offset + 3])
+    return result
 
 def sqlite3VdbeSerialGet(buf, serial_type, pMem):
     return _serial_get(buf, 0, serial_type, pMem)
@@ -1132,26 +1144,21 @@ def _serial_get(buf, offset, serial_type, pMem):
         pMem.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Int)
         return 1
     elif serial_type == 2: # 2-byte signed integer
-        print "serial_type 2 not impl"
-        assert 0
-        pMem.u.i = TWO_BYTE_INT(buf);
-        pMem.flags = MEM_Int;
-        return 2;
-    elif serial_type == 3: # 3-byte signed integer */
-        print "serial_type 3 not impl"
-        assert 0
-        pMem.u.i = THREE_BYTE_INT(buf);
-        pMem.flags = MEM_Int;
-        return 3;
-    elif serial_type == 4: # 4-byte signed integer */
+        pMem.u.i = two_byte_int(buf, offset)
+        pMem.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Int)
+        return 2
+    elif serial_type == 3: # 3-byte signed integer
+        pMem.u.i = three_byte_int(buf, offset)
+        pMem.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Int)
+        return 3
+    elif serial_type == 4: # 4-byte signed integer
         print "serial_type 4 not impl"
         assert 0
         #y = FOUR_BYTE_UINT(buf);
         #pMem.u.i = (i64)*(int*)&y;
-        #pMem.flags = MEM_Int;
-        #testcase( pMem.u.i<0 );
-        #return 4;
-    elif serial_type == 5: # 6-byte signed integer */
+        pMem.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Int)
+        return 4
+    elif serial_type == 5: # 6-byte signed integer
         print "serial_type 5 not impl"
         assert 0
         #pMem.u.i = FOUR_BYTE_UINT(buf+2) + (((i64)1)<<32)*TWO_BYTE_INT(buf);
@@ -1160,22 +1167,25 @@ def _serial_get(buf, offset, serial_type, pMem):
         #return 6;
     elif (serial_type == 6 or # 8-byte signed integer
           serial_type == 7): # IEEE floating point
-        print "serial_type 6 and 7 not impl"
-        assert 0
-        #x = FOUR_BYTE_UINT(buf);
-        #y = FOUR_BYTE_UINT(buf+4);
-        #x = (x<<32) | y;
-        #if( serial_type==6 ){
-        #  pMem.u.i = *(i64*)&x;
-        #  pMem.flags = MEM_Int;
-        #  testcase( pMem.u.i<0 );
-        #}else{
-        #  assert( sizeof(x)==8 && sizeof(pMem.r)==8 );
-        #  swapMixedEndianFloat(x);
-        #  memcpy(&pMem.r, &x, sizeof(x));
-        #  pMem.flags = sqlite3IsNaN(pMem.r) ? MEM_Null : MEM_Real;
-        #}
-        #return 8;
+        x = four_byte_uint(buf, offset)
+        y = four_byte_uint(buf, offset + 4)
+        x = (x<<32) | y
+        if serial_type == 6:
+            print "serial_type 6 not impl"
+            assert 0
+            #pMem.u.i = *(i64*)&x;
+            pMem.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Int)
+        else:
+            # memcpy(&pMem.r, &x, sizeof(x))
+            r = longlong2float(rffi.cast(lltype.Signed, x))
+            #print x
+            if math.isnan(r):
+                flags = CConfig.MEM_Null
+            else:
+                flags = CConfig.MEM_Real
+            pMem.r = r
+            pMem.flags = rffi.cast(rffi.USHORT, flags)
+        return 8
     elif serial_type == 8: # Integer 0
         pMem.u.i = 0
         pMem.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Int)

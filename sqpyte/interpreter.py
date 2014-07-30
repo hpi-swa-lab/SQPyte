@@ -427,6 +427,11 @@ class Sqlite3Query(object):
         if self.VdbeMemDynamic(x):
             capi.sqlite3VdbeMemReleaseExternal(x)
 
+    @jit.elidable # XXX not quite true, but good enough for now
+    def get_aLimit(self, n):
+        return rffi.cast(lltype.Signed, self.db.aLimit[n])
+
+
     def mainloop(self):
         ops = self.get_aOp()
         rc = CConfig.SQLITE_OK

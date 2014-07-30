@@ -578,13 +578,13 @@ sqlite3VdbeCursorMoveto = rffi.llexternal('sqlite3VdbeCursorMoveto', [VDBECURSOR
     rffi.INT, compilation_info=CConfig._compilation_info_)
 
 _column_helper1 = rffi.llexternal('_column_helper1', [VDBEP, VDBECURSORP],
-    CConfig.u32, compilation_info=CConfig._compilation_info_)
+    CConfig.u32, compilation_info=CConfig._compilation_info_, macro=True)
 _column_helper2 = rffi.llexternal('_column_helper2', [VDBEP, VDBECURSORP, U32P, CConfig.u32],
-    CConfig.u32, compilation_info=CConfig._compilation_info_)
+    CConfig.u32, compilation_info=CConfig._compilation_info_, macro=True)
 _column_helper3 = rffi.llexternal('_column_helper3', [VDBEP, VDBECURSORP, U32P, rffi.INT],
-    lltype.Signed, compilation_info=CConfig._compilation_info_)
+    lltype.Signed, compilation_info=CConfig._compilation_info_, macro=True)
 _column_helper4 = rffi.llexternal('_column_helper4', [VDBEP, VDBECURSORP, VDBEOPP, MEMP, U32P],
-    lltype.Signed, compilation_info=CConfig._compilation_info_)
+    lltype.Signed, compilation_info=CConfig._compilation_info_, macro=True)
 
 
 impl_OP_Transaction = rffi.llexternal('impl_OP_Transaction', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
@@ -737,7 +737,7 @@ sqlite3_sqlite3BtreeNext = rffi.llexternal('sqlite3BtreeNext', [BTCURSORP, rffi.
     rffi.INT, compilation_info=CConfig._compilation_info_)
 
 sqlite3_applyNumericAffinity = rffi.llexternal('applyNumericAffinity', [MEMP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
+    lltype.Void, compilation_info=CConfig._compilation_info_, macro=True)
 
 sqlite3AtoF = rffi.llexternal('sqlite3AtoF', [rffi.CCHARP, rffi.DOUBLEP, rffi.INT, CConfig.u8],
     rffi.INT, compilation_info=CConfig._compilation_info_)
