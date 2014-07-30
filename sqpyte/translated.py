@@ -1081,7 +1081,11 @@ def python_OP_Column(hlquery, pc, pOp):
         # This is the common case where the desired content fits on the original
         # page - where the content is not on an overflow page
         hlquery.VdbeMemRelease(pDest)
-        _serial_get(pC.aRow, rffi.cast(lltype.Signed, aOffset[p2]), aType[p2], pDest)
+        _, flags = _serial_get(pC.aRow, rffi.cast(lltype.Signed, aOffset[p2]), aType[p2], pDest)
+        pDest.enc = encoding
+        # op_column_out:
+        # Deephemeralize(pDest)
+        return Deephemeralize_with_flags(pDest, flags, p, db, pc)
     else:
         # This branch happens only when content is on overflow pages
         rc = capi._column_helper4(p, pC, pOp, pDest, aOffset)
@@ -1099,12 +1103,15 @@ def python_OP_Column(hlquery, pc, pOp):
     #  REGISTER_TRACE(pOp.p3, pDest);
     # return rc
 
-def Deephemeralize(pDest, p, db, pc):
-    if pDest.flags & CConfig.MEM_Ephem:
+def Deephemeralize_with_flags(pDest, flags, p, db, pc):
+    if flags & CConfig.MEM_Ephem:
         if capi.sqlite3VdbeMemMakeWriteable(pDest):
             print "Deephemeralize no_mem"
             return rffi.cast(lltype.Signed, capi.gotoNoMem(p, db, pc))
     return CConfig.SQLITE_OK
+
+def Deephemeralize(pDest, p, db, pc):
+    return Deephemeralize_with_flags(pDest, pDest.flags, p, db, pc)
 
 def one_byte_int(buf, offset):
     return rffi.cast(lltype.Signed, rffi.cast(CConfig.i8, buf[offset]))
@@ -1125,7 +1132,7 @@ def four_byte_uint(buf, offset):
     return result
 
 def sqlite3VdbeSerialGet(buf, serial_type, pMem):
-    return _serial_get(buf, 0, serial_type, pMem)
+    return _serial_get(buf, 0, serial_type, pMem)[0]
 
 def _serial_get(buf, offset, serial_type, pMem):
     # const unsigned char *buf,     /* Buffer to deserialize from */
@@ -1134,37 +1141,46 @@ def _serial_get(buf, offset, serial_type, pMem):
     # u64 x;
     # u32 y;
     serial_type = rffi.cast(lltype.Unsigned, serial_type)
+    if serial_type >= 12: # do this case first to not do a promotion that a switch implies
+        result_length = (serial_type - 12) / 2;
+        pMem.z = rffi.cast(rffi.CCHARP, rffi.ptradd(buf, offset))
+        pMem.n = rffi.cast(rffi.INT, result_length)
+        pMem.xDel = lltype.nullptr(lltype.typeOf(pMem.xDel).TO)
+        if serial_type & 1:
+            flags = CConfig.MEM_Str | CConfig.MEM_Ephem
+        else:
+            flags = CConfig.MEM_Blob | CConfig.MEM_Ephem
+
     if serial_type == 10 or serial_type == 11: # Reserved for future use
         assert 0, "should not happen"
     elif serial_type == 0: # NULL
-        pMem.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Null)
-        return 0
+        flags = CConfig.MEM_Null
+        result_length = 0
     elif serial_type == 1: # 1-byte signed integer
         pMem.u.i = one_byte_int(buf, offset)
-        pMem.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Int)
-        return 1
+        flags = CConfig.MEM_Int
+        result_length = 1
     elif serial_type == 2: # 2-byte signed integer
         pMem.u.i = two_byte_int(buf, offset)
-        pMem.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Int)
-        return 2
+        pMem.flags = CConfig.MEM_Int
+        result_length = 2
     elif serial_type == 3: # 3-byte signed integer
         pMem.u.i = three_byte_int(buf, offset)
-        pMem.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Int)
-        return 3
+        pMem.flags = CConfig.MEM_Int
+        result_length = 3
     elif serial_type == 4: # 4-byte signed integer
         print "serial_type 4 not impl"
         assert 0
         #y = FOUR_BYTE_UINT(buf);
         #pMem.u.i = (i64)*(int*)&y;
-        pMem.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Int)
-        return 4
+        pMem.flags = CConfig.MEM_Int
+        result_length = 4
     elif serial_type == 5: # 6-byte signed integer
         print "serial_type 5 not impl"
         assert 0
         #pMem.u.i = FOUR_BYTE_UINT(buf+2) + (((i64)1)<<32)*TWO_BYTE_INT(buf);
-        #pMem.flags = MEM_Int;
-        #testcase( pMem.u.i<0 );
-        #return 6;
+        pMem.flags = CConfig.MEM_Int
+        result_length = 6
     elif (serial_type == 6 or # 8-byte signed integer
           serial_type == 7): # IEEE floating point
         x = four_byte_uint(buf, offset)
@@ -1174,7 +1190,7 @@ def _serial_get(buf, offset, serial_type, pMem):
             print "serial_type 6 not impl"
             assert 0
             #pMem.u.i = *(i64*)&x;
-            pMem.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Int)
+            flags = CConfig.MEM_Int
         else:
             # memcpy(&pMem.r, &x, sizeof(x))
             r = longlong2float(rffi.cast(lltype.Signed, x))
@@ -1184,25 +1200,15 @@ def _serial_get(buf, offset, serial_type, pMem):
             else:
                 flags = CConfig.MEM_Real
             pMem.r = r
-            pMem.flags = rffi.cast(rffi.USHORT, flags)
-        return 8
+        result_length = 8
     elif serial_type == 8: # Integer 0
         pMem.u.i = 0
-        pMem.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Int)
-        return 0
+        flags = MEM_Int
+        result_length = 0
     elif serial_type == 9: # Integer 1
         pMem.u.i = 1
-        pMem.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Int)
-        return 0
-    else:
-        len = (serial_type - 12) / 2;
-        pMem.z = rffi.cast(rffi.CCHARP, rffi.ptradd(buf, offset))
-        pMem.n = rffi.cast(rffi.INT, len)
-        pMem.xDel = lltype.nullptr(lltype.typeOf(pMem.xDel).TO)
-        if serial_type & 1:
-            flags = CConfig.MEM_Str | CConfig.MEM_Ephem
-        else:
-            flags = CConfig.MEM_Blob | CConfig.MEM_Ephem
-        pMem.flags = rffi.cast(rffi.USHORT, flags)
-        return len
+        flags = MEM_Int
+        result_length = 0
+    pMem.flags = rffi.cast(rffi.USHORT, flags)
+    return len, flags
 

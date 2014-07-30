@@ -421,11 +421,21 @@ class Sqlite3Query(object):
         return rffi.cast(lltype.Unsigned, pOp.opflags)
 
     def VdbeMemDynamic(self, x):
-        return (x.flags & (CConfig.MEM_Agg|CConfig.MEM_Dyn|CConfig.MEM_RowSet|CConfig.MEM_Frame))!=0
+        res, _ = self.VdbeMemDynamic_and_flags(x)
+        return res
 
-    def VdbeMemRelease(self, x):
+    def VdbeMemDynamic_and_flags(self, x):
+        flags = x.flags
+        return (flags & (CConfig.MEM_Agg|CConfig.MEM_Dyn|CConfig.MEM_RowSet|CConfig.MEM_Frame)) != 0, flags
+
+    def VdbeMemRelease_and_flags(self, x):
+        res, flags = self.VdbeMemDynamic_and_flags(x)
         if self.VdbeMemDynamic(x):
             capi.sqlite3VdbeMemReleaseExternal(x)
+        return flags
+
+    def VdbeMemRelease(self, x):
+        self.VdbeMemRelease_and_flags(x)
 
     @jit.elidable # XXX not quite true, but good enough for now
     def get_aLimit(self, n):
