@@ -1151,7 +1151,7 @@ def _serial_get(buf, offset, serial_type, pMem):
         else:
             flags = CConfig.MEM_Blob | CConfig.MEM_Ephem
 
-    if serial_type == 10 or serial_type == 11: # Reserved for future use
+    elif serial_type == 10 or serial_type == 11: # Reserved for future use
         assert 0, "should not happen"
     elif serial_type == 0: # NULL
         flags = CConfig.MEM_Null
@@ -1162,24 +1162,24 @@ def _serial_get(buf, offset, serial_type, pMem):
         result_length = 1
     elif serial_type == 2: # 2-byte signed integer
         pMem.u.i = two_byte_int(buf, offset)
-        pMem.flags = CConfig.MEM_Int
+        flags = CConfig.MEM_Int
         result_length = 2
     elif serial_type == 3: # 3-byte signed integer
         pMem.u.i = three_byte_int(buf, offset)
-        pMem.flags = CConfig.MEM_Int
+        flags = CConfig.MEM_Int
         result_length = 3
     elif serial_type == 4: # 4-byte signed integer
         print "serial_type 4 not impl"
         assert 0
         #y = FOUR_BYTE_UINT(buf);
         #pMem.u.i = (i64)*(int*)&y;
-        pMem.flags = CConfig.MEM_Int
+        flags = CConfig.MEM_Int
         result_length = 4
     elif serial_type == 5: # 6-byte signed integer
         print "serial_type 5 not impl"
         assert 0
         #pMem.u.i = FOUR_BYTE_UINT(buf+2) + (((i64)1)<<32)*TWO_BYTE_INT(buf);
-        pMem.flags = CConfig.MEM_Int
+        flags = CConfig.MEM_Int
         result_length = 6
     elif (serial_type == 6 or # 8-byte signed integer
           serial_type == 7): # IEEE floating point
@@ -1203,12 +1203,14 @@ def _serial_get(buf, offset, serial_type, pMem):
         result_length = 8
     elif serial_type == 8: # Integer 0
         pMem.u.i = 0
-        flags = MEM_Int
+        flags = CConfig.MEM_Int
         result_length = 0
     elif serial_type == 9: # Integer 1
         pMem.u.i = 1
-        flags = MEM_Int
+        flags = CConfig.MEM_Int
         result_length = 0
+    else:
+        assert 0 # unreachable
     pMem.flags = rffi.cast(rffi.USHORT, flags)
-    return len, flags
+    return result_length, flags
 
