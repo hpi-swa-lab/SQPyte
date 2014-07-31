@@ -420,6 +420,10 @@ class Sqlite3Query(object):
     def opflags(self, pOp):
         return rffi.cast(lltype.Unsigned, pOp.opflags)
 
+    @jit.elidable
+    def enc(self):
+        return self.db.aDb[0].pSchema.enc
+
     def VdbeMemDynamic(self, x):
         return (x.flags & (CConfig.MEM_Agg|CConfig.MEM_Dyn|CConfig.MEM_RowSet|CConfig.MEM_Frame))!=0
 
