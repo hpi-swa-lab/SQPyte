@@ -535,7 +535,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
                 # See vdbe.c lines 110-136.
                 # VdbeBranchTaken(2,3);
                 if p5 & CConfig.SQLITE_JUMPIFNULL:
-                    pc = rffi.cast(lltype.Signed, pOp.p2) - 1
+                    pc = pc.p2as_pc()
             return pc, rc
     else:
 
@@ -741,7 +741,7 @@ def python_OP_If_IfNot(hlquery, pc, pOp):
     opcode = hlquery.get_opcode(pOp)
 
     if flags1 & CConfig.MEM_Null:
-        c = pOp.p3
+        c = hlquery.p_Signed(pOp, 3)
     else:
         # SQLITE_OMIT_FLOATING_POINT is not defined.
         # #ifdef SQLITE_OMIT_FLOATING_POINT
@@ -755,8 +755,8 @@ def python_OP_If_IfNot(hlquery, pc, pOp):
     # does not appear an production builds.
     # See vdbe.c lines 110-136.
     # VdbeBranchTaken(c!=0, 2);
-    if rffi.cast(lltype.Unsigned, c):
-        pc = rffi.cast(lltype.Signed, pOp.p2) - 1
+    if c:
+        pc = hlquery.p2as_pc(pOp)
 
     return pc
 
