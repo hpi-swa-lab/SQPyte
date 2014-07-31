@@ -46,9 +46,9 @@ class Sqlite3Query(object):
 
     def __init__(self, db, query):
         self.db = db
-        self.prepare(query)
         self.internalPc = lltype.malloc(rffi.LONGP.TO, 1, flavor='raw')
         self.intp = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
+        self.prepare(query)
 
     def __del__(self):
         lltype.free(self.internalPc, flavor='raw')
