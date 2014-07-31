@@ -152,10 +152,11 @@ class Sqlite3Query(object):
         return translated.python_OP_MustBeInt(self, pc, rc, pOp)
 
     def python_OP_NotExists(self, pc, pOp):
-        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        rc = capi.impl_OP_NotExists(self.p, self.db, self.internalPc, pOp)
-        retPc = self.internalPc[0]
-        return retPc, rc
+        return translated.python_OP_NotExists(self, pc, pOp)
+        #self.internalPc[0] = rffi.cast(rffi.LONG, pc)
+        #rc = capi.impl_OP_NotExists(self.p, self.db, self.internalPc, pOp)
+        #retPc = self.internalPc[0]
+        #return retPc, rc
 
     def python_OP_String(self, pOp):
         capi.impl_OP_String(self.p, self.db, pOp)

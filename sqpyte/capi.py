@@ -521,10 +521,11 @@ VDBECURSOR.become(lltype.Struct("VdbeCursor",   # src/vdbeInt.h: 63
     ("nullRow", CConfig.u8),                    # True if pointing to a row with no data
     ("rowidIsValid", CConfig.u8),               # True if lastRowid is valid
     ("deferredMoveto", CConfig.u8),             # A call to sqlite3BtreeMoveto() is needed
-    ("isEphemeral", lltype.Bool),               #   Bool isEphemeral:1;   /* True for an ephemeral table */
-    ("useRandomRowid", lltype.Bool),            #   Bool useRandomRowid:1;/* Generate new record numbers semi-randomly */
-    ("isTable", lltype.Bool),                   #   Bool isTable:1;       /* True if a table requiring integer keys */
-    ("isOrdered", lltype.Bool),                 #   Bool isOrdered:1;     /* True if the underlying table is BTREE_UNORDERED */
+    ("scary_bitfield", lltype.Signed),          #
+    #("isEphemeral", lltype.Bool),               #   Bool isEphemeral:1;   /* True for an ephemeral table */
+    #("useRandomRowid", lltype.Bool),            #   Bool useRandomRowid:1;/* Generate new record numbers semi-randomly */
+    #("isTable", lltype.Bool),                   #   Bool isTable:1;       /* True if a table requiring integer keys */
+    #("isOrdered", lltype.Bool),                 #   Bool isOrdered:1;     /* True if the underlying table is BTREE_UNORDERED */
     ("pVtabCursor", rffi.VOIDP),                #   sqlite3_vtab_cursor *pVtabCursor;  /* The cursor for a virtual table */
     ("seqCount", CConfig.i64),                  # Sequence counter
     ("movetoTarget", CConfig.i64),              # Argument to the deferred sqlite3BtreeMoveto()
@@ -715,6 +716,8 @@ sqlite3_column_bytes = rffi.llexternal('sqlite3_column_bytes', [VDBEP, rffi.INT]
     rffi.INT, compilation_info=CConfig._compilation_info_)
 
 sqlite3_sqlite3BtreeNext = rffi.llexternal('sqlite3BtreeNext', [BTCURSORP, rffi.INTP],
+    rffi.INT, compilation_info=CConfig._compilation_info_)
+sqlite3BtreeMovetoUnpacked = rffi.llexternal('sqlite3BtreeMovetoUnpacked', [BTCURSORP, rffi.VOIDP, CConfig.i64, rffi.INT, rffi.INTP],
     rffi.INT, compilation_info=CConfig._compilation_info_)
 
 sqlite3_applyNumericAffinity = rffi.llexternal('applyNumericAffinity', [MEMP],

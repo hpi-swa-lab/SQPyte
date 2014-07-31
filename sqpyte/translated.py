@@ -310,7 +310,7 @@ def python_OP_Next_translated(hlquery, pc, pOp):
     assert pC
     assert rffi.cast(lltype.Unsigned, pC.deferredMoveto) == 0
     assert pC.pCursor
-    assert res == 0 or (res == 1 and rffi.cast(lltype.Signed, pC.isTable) == 0)
+    #assert res == 0 or (res == 1 and rffi.cast(lltype.Signed, pC.isTable) == 0)
     
     # testcase() is used for SQLite3 coverage testing and logically
     # should not be used in production.
@@ -976,3 +976,40 @@ def python_OP_Integer(hlquery, pOp):
     pOut = hlquery.mem_of_p(pOp, 2)
     pOut.u.i = hlquery.p_Signed(pOp, 1)
 
+
+# Opcode: NotExists P1 P2 P3 * *
+# Synopsis: intkey=r[P3]
+#
+# P1 is the index of a cursor open on an SQL table btree (with integer
+# keys).  P3 is an integer rowid.  If P1 does not contain a record with
+# rowid P3 then jump immediately to P2.  If P1 does contain a record
+# with rowid P3 then leave the cursor pointing at that record and fall
+# through to the next instruction.
+#
+# The OP_NotFound opcode performs the same operation on index btrees
+# (with arbitrary multi-value keys).
+#
+# See also: Found, NotFound, NoConflict
+
+def python_OP_NotExists(hlquery, pc, pOp):
+    p = hlquery.p
+    pIn3 = hlquery.mem_of_p(pOp, 3)
+    pC = p.apCsr[hlquery.p_Signed(pOp, 1)]
+    assert pC
+    #assert rffi.cast(lltype.Signed, pC.isTable)
+    assert not rffi.cast(lltype.Signed, pC.pseudoTableReg)
+    pCrsr = pC.pCursor
+    assert pCrsr
+    iKey = pIn3.u.i
+    rc = capi.sqlite3BtreeMovetoUnpacked(pCrsr, lltype.nullptr(rffi.VOIDP.TO), iKey, 0, hlquery.intp)
+    res = rffi.cast(lltype.Signed, hlquery.intp[0])
+    pC.lastRowid = iKey
+    pC.rowidIsValid = rffi.cast(lltype.typeOf(pC.rowidIsValid), 1 if res == 0 else 0)
+    pC.nullRow = rffi.cast(lltype.typeOf(pC.nullRow), 0)
+    pC.cacheStatus = rffi.cast(lltype.typeOf(pC.cacheStatus), CConfig.CACHE_STALE)
+    pC.deferredMoveto = rffi.cast(lltype.typeOf(pC.deferredMoveto), 0)
+    if res:
+        pc = hlquery.p2as_pc(pOp)
+        assert not rffi.cast(lltype.Signed, pC.rowidIsValid)
+    pC.seekResult = rffi.cast(lltype.typeOf(pC.seekResult), res)
+    return pc, rc
