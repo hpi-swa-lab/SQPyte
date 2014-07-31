@@ -411,9 +411,11 @@ class Sqlite3Query(object):
     def mem_of_p(self, pOp, i):
         return self._mem_as_python_list[self.p_Signed(pOp, i)]
 
-    def mem_and_flags_of_p(self, pOp, i):
+    def mem_and_flags_of_p(self, pOp, i, promote=False):
         mem = self.mem_of_p(pOp, i)
         flags = rffi.cast(lltype.Unsigned, mem.flags)
+        if promote:
+            jit.promote(flags)
         return mem, flags
 
     @jit.elidable

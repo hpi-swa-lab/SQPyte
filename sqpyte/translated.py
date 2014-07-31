@@ -130,7 +130,8 @@ def MemSetTypeFlag(mem, flags):
 
 def _MemSetTypeFlag_flags(mem, oldflags, flags):
     newflags = (oldflags & ~(CConfig.MEM_TypeMask | CConfig.MEM_Zero)) | flags
-    mem.flags = rffi.cast(CConfig.u16, newflags)
+    if newflags != oldflags:
+        mem.flags = rffi.cast(CConfig.u16, newflags)
 
 
 def python_OP_Init_translated(hlquery, pc, pOp):
@@ -390,12 +391,10 @@ def python_OP_NextIfOpen_translated(hlquery, pc, rc, pOp):
 def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
     p = hlquery.p
     db = hlquery.db
-    pIn1, flags1 = hlquery.mem_and_flags_of_p(pOp, 1)    # 1st input operand
-    pIn3, flags3 = hlquery.mem_and_flags_of_p(pOp, 3)    # 3st input operand
+    pIn1, flags1 = hlquery.mem_and_flags_of_p(pOp, 1, promote=True)    # 1st input operand
+    pIn3, flags3 = hlquery.mem_and_flags_of_p(pOp, 3, promote=True)    # 3st input operand
     orig_flags1 = flags1
     orig_flags3 = flags3
-    flags1 = jit.promote(flags1)
-    flags3 = jit.promote(flags3)
     opcode = hlquery.get_opcode(pOp)
     flags_can_have_changed = False
     p5 = hlquery.p_Unsigned(pOp, 5)
@@ -588,7 +587,7 @@ def python_OP_Once(hlquery, pc, pOp):
 def python_OP_MustBeInt(hlquery, pc, rc, pOp):
     # not a full translation, only translate the fast path where the argument
     # is already an int
-    pIn1, flags1 = hlquery.mem_and_flags_of_p(pOp, 1)
+    pIn1, flags1 = hlquery.mem_and_flags_of_p(pOp, 1, promote=True)
     if not flags1 & CConfig.MEM_Int:
         hlquery.internalPc[0] = rffi.cast(rffi.LONG, pc)
         rc = capi.impl_OP_MustBeInt(hlquery.p, hlquery.db, hlquery.internalPc, rc, pOp)
@@ -743,11 +742,9 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, pOp):
     opcode = hlquery.get_opcode(pOp)
 
     aMem = p.aMem
-    pIn1, flags1 = hlquery.mem_and_flags_of_p(pOp, 1)    # 1st input operand
-    jit.promote(flags1)
+    pIn1, flags1 = hlquery.mem_and_flags_of_p(pOp, 1, promote=True)    # 1st input operand
     type1 = _numericType_with_flags(pIn1, flags1)
-    pIn2, flags2 = hlquery.mem_and_flags_of_p(pOp, 2)    # 1st input operand
-    jit.promote(flags2)
+    pIn2, flags2 = hlquery.mem_and_flags_of_p(pOp, 2, promote=True)    # 1st input operand
     type2 = _numericType_with_flags(pIn2, flags2)
     pOut = hlquery.mem_of_p(pOp, 3)
     flags = flags1 | flags2
