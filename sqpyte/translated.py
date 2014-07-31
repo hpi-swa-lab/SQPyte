@@ -628,11 +628,11 @@ def python_OP_Affinity(hlquery, pOp):
 # to have only a real value.
 
 def python_OP_RealAffinity(hlquery, pOp):
-    pIn1, flags = hlquery.mem_and_flags_of_p(pOp, 1)
+    pIn1, flags = hlquery.mem_and_flags_of_p(pOp, 1, promote=True)
     if flags & CConfig.MEM_Int and not flags & CConfig.MEM_Real:
         # only relevant parts of sqlite3VdbeMemRealify
         pIn1.r = float(pIn1.u.i)
-        MemSetTypeFlag(pIn1, CConfig.MEM_Real)
+        _MemSetTypeFlag_flags(pIn1, flags, CConfig.MEM_Real)
 
 
 # Opcode: If P1 P2 P3 * *
@@ -649,7 +649,7 @@ def python_OP_RealAffinity(hlquery, pOp):
 
 def python_OP_If_IfNot(hlquery, pc, pOp):
     p = hlquery.p
-    pIn1, flags1 = hlquery.mem_and_flags_of_p(pOp, 1)    # 1st input operand
+    pIn1, flags1 = hlquery.mem_and_flags_of_p(pOp, 1, promote=True)    # 1st input operand
     opcode = hlquery.get_opcode(pOp)
 
     if flags1 & CConfig.MEM_Null:
