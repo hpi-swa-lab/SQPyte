@@ -1,4 +1,5 @@
 from rpython.rlib import jit, rarithmetic
+from rpython.rlib.objectmodel import specialize
 from rpython.rtyper.lltypesystem import rffi
 from capi import CConfig
 from rpython.rtyper.lltypesystem import lltype
@@ -388,6 +389,104 @@ def python_OP_NextIfOpen_translated(hlquery, pc, rc, pOp):
     else:
         return python_OP_Next_translated(hlquery, pc, pOp)
 
+@specialize.argtype(1)
+def _cmp_depending_on_opcode(opcode, a, b):
+    if opcode == CConfig.OP_Eq:
+        return a == b
+    elif opcode == CConfig.OP_Ne:
+        return a != b
+    elif opcode == CConfig.OP_Lt:
+        return a < b
+    elif opcode == CConfig.OP_Le:
+        return a <= b
+    elif opcode == CConfig.OP_Gt:
+        return a > b
+    else:
+        return a >= b
+
+
+# Opcode: Lt P1 P2 P3 P4 P5
+# Synopsis: if r[P1]<r[P3] goto P2
+#
+# Compare the values in register P1 and P3.  If reg(P3)<reg(P1) then
+# jump to address P2.
+#
+# If the SQLITE_JUMPIFNULL bit of P5 is set and either reg(P1) or
+# reg(P3) is NULL then take the jump.  If the SQLITE_JUMPIFNULL
+# bit is clear then fall through if either operand is NULL.
+#
+# The SQLITE_AFF_MASK portion of P5 must be an affinity character -
+# SQLITE_AFF_TEXT, SQLITE_AFF_INTEGER, and so forth. An attempt is made
+# to coerce both inputs according to this affinity before the
+# comparison is made. If the SQLITE_AFF_MASK is 0x00, then numeric
+# affinity is used. Note that the affinity conversions are stored
+# back into the input registers P1 and P3.  So this opcode can cause
+# persistent changes to registers P1 and P3.
+#
+# Once any conversions have taken place, and neither value is NULL,
+# the values are compared. If both values are blobs then memcmp() is
+# used to determine the results of the comparison.  If both values
+# are text, then the appropriate collating function specified in
+# P4 is  used to do the comparison.  If P4 is not specified then
+# memcmp() is used to compare text string.  If both values are
+# numeric, then a numeric comparison is used. If the two values
+# are of different types, then numbers are considered less than
+# strings and strings are considered less than blobs.
+#
+# If the SQLITE_STOREP2 bit of P5 is set, then do not jump.  Instead,
+# store a boolean result (either 0, or 1, or NULL) in register P2.
+#
+# If the SQLITE_NULLEQ bit is set in P5, then NULL values are considered
+# equal to one another, provided that they do not have their MEM_Cleared
+# bit set.
+#
+# Opcode: Ne P1 P2 P3 P4 P5
+# Synopsis: if r[P1]!=r[P3] goto P2
+#
+# This works just like the Lt opcode except that the jump is taken if
+# the operands in registers P1 and P3 are not equal.  See the Lt opcode for
+# additional information.
+#
+# If SQLITE_NULLEQ is set in P5 then the result of comparison is always either
+# true or false and is never NULL.  If both operands are NULL then the result
+# of comparison is false.  If either operand is NULL then the result is true.
+# If neither operand is NULL the result is the same as it would be if
+# the SQLITE_NULLEQ flag were omitted from P5.
+#
+# Opcode: Eq P1 P2 P3 P4 P5
+# Synopsis: if r[P1]==r[P3] goto P2
+#
+# This works just like the Lt opcode except that the jump is taken if
+# the operands in registers P1 and P3 are equal.
+# See the Lt opcode for additional information.
+#
+# If SQLITE_NULLEQ is set in P5 then the result of comparison is always either
+# true or false and is never NULL.  If both operands are NULL then the result
+# of comparison is true.  If either operand is NULL then the result is false.
+# If neither operand is NULL the result is the same as it would be if
+# the SQLITE_NULLEQ flag were omitted from P5.
+#
+# Opcode: Le P1 P2 P3 P4 P5
+# Synopsis: if r[P1]<=r[P3] goto P2
+#
+# This works just like the Lt opcode except that the jump is taken if
+# the content of register P3 is less than or equal to the content of
+# register P1.  See the Lt opcode for additional information.
+#
+# Opcode: Gt P1 P2 P3 P4 P5
+# Synopsis: if r[P1]>r[P3] goto P2
+#
+# This works just like the Lt opcode except that the jump is taken if
+# the content of register P3 is greater than the content of
+# register P1.  See the Lt opcode for additional information.
+#
+# Opcode: Ge P1 P2 P3 P4 P5
+# Synopsis: if r[P1]>=r[P3] goto P2
+#
+# This works just like the Lt opcode except that the jump is taken if
+# the content of register P3 is greater than or equal to the content of
+# register P1.  See the Lt opcode for additional information.
+
 def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
     p = hlquery.p
     db = hlquery.db
@@ -431,7 +530,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
                 # REGISTER_TRACE(pOp->p2, pOut);
 
             else:
-                # VdbeBranchTaken() is used for test suite validation only and 
+                # VdbeBranchTaken() is used for test suite validation only and
                 # does not appear an production builds.
                 # See vdbe.c lines 110-136.
                 # VdbeBranchTaken(2,3);
@@ -447,23 +546,13 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
             if flags1 & flags3 & CConfig.MEM_Int:
                 i1 = pIn1.u.i
                 i3 = pIn3.u.i
-                if i1 > i3:
-                    res = -1
-                elif i1 < i3:
-                    res = 1
-                else:
-                    res = 0
+                res = _cmp_depending_on_opcode(opcode, i3, i1)
             else:
                 # mixed int and real comparison, convert to real
                 n1 = pIn1.u.i if flags1 & CConfig.MEM_Int else pIn1.r
                 n3 = pIn3.u.i if flags3 & CConfig.MEM_Int else pIn3.r
 
-                if n1 > n3:
-                    res = -1
-                elif n1 < n3:
-                    res = 1
-                else:
-                    res = 0
+                res = _cmp_depending_on_opcode(opcode, n3, n1)
         else:
             flags_can_have_changed = True
 
@@ -488,21 +577,20 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
             #   ExpandBlob(pIn3);
 
             res = capi.sqlite3_sqlite3MemCompare(pIn3, pIn1, pOp.p4.pColl)
+            if opcode == CConfig.OP_Eq:
+                res = 1 if res == 0 else 0
+            elif opcode == CConfig.OP_Ne:
+                res = 1 if res != 0 else 0
+            elif opcode == CConfig.OP_Lt:
+                res = 1 if res < 0 else 0
+            elif opcode == CConfig.OP_Le:
+                res = 1 if res <= 0 else 0
+            elif opcode == CConfig.OP_Gt:
+                res = 1 if res > 0 else 0
+            else:
+                res = 1 if res >= 0 else 0
 
     ################################# MODIFIED BLOCK ENDS #################################
-
-    if opcode == CConfig.OP_Eq:
-        res = 1 if res == 0 else 0
-    elif opcode == CConfig.OP_Ne:
-        res = 1 if res != 0 else 0
-    elif opcode == CConfig.OP_Lt:
-        res = 1 if res < 0 else 0
-    elif opcode == CConfig.OP_Le:
-        res = 1 if res <= 0 else 0
-    elif opcode == CConfig.OP_Gt:
-        res = 1 if res > 0 else 0
-    else:
-        res = 1 if res >= 0 else 0
 
     if p5 & CConfig.SQLITE_STOREP2:
         pOut = hlquery.mem_of_p(pOp, 2)

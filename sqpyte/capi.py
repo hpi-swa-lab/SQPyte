@@ -721,7 +721,7 @@ sqlite3BtreeMovetoUnpacked = rffi.llexternal('sqlite3BtreeMovetoUnpacked', [BTCU
     rffi.INT, compilation_info=CConfig._compilation_info_)
 
 sqlite3_applyNumericAffinity = rffi.llexternal('applyNumericAffinity', [MEMP],
-    lltype.Void, compilation_info=CConfig._compilation_info_, macro=True)
+    lltype.Void, compilation_info=CConfig._compilation_info_)
 
 sqlite3AtoF = rffi.llexternal('sqlite3AtoF', [rffi.CCHARP, rffi.DOUBLEP, rffi.INT, CConfig.u8],
     rffi.INT, compilation_info=CConfig._compilation_info_)
