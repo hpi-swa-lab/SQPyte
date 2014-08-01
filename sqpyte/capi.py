@@ -566,6 +566,8 @@ sqlite3_sqlite3BtreeCursor = rffi.llexternal('sqlite3BtreeCursor', [rffi.VOIDP, 
     rffi.INT, compilation_info=CConfig._compilation_info_)
 sqlite3_sqlite3BtreeCursorHints = rffi.llexternal('sqlite3BtreeCursorHints', [BTCURSORP, rffi.UINT],
     lltype.Void, compilation_info=CConfig._compilation_info_)
+sqlite3VdbeCursorMoveto = rffi.llexternal('sqlite3VdbeCursorMoveto', [VDBECURSORP],
+    rffi.INT, compilation_info=CConfig._compilation_info_)
 sqlite3_sqlite3VdbeSorterRewind = rffi.llexternal('sqlite3VdbeSorterRewind', [SQLITE3P, VDBECURSORP, rffi.INTP],
     rffi.INT, compilation_info=CConfig._compilation_info_)
 
@@ -629,7 +631,7 @@ impl_OP_Move = rffi.llexternal('impl_OP_Move', [VDBEP, VDBEOPP],
     lltype.Void, compilation_info=CConfig._compilation_info_)
 impl_OP_IfZero = rffi.llexternal('impl_OP_IfZero', [VDBEP, rffi.LONG, VDBEOPP],
     rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_IdxRowid = rffi.llexternal('impl_OP_IdxRowid', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
+impl_OP_IdxRowid = rffi.llexternal('impl_OP_IdxRowid', [DBP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
     rffi.LONG, compilation_info=CConfig._compilation_info_)
 impl_OP_IdxLE_IdxGT_IdxLT_IdxGE = rffi.llexternal('impl_OP_IdxLE_IdxGT_IdxLT_IdxGE', [VDBEP, rffi.LONGP, VDBEOPP],
     rffi.LONG, compilation_info=CConfig._compilation_info_)
@@ -721,7 +723,7 @@ sqlite3BtreeMovetoUnpacked = rffi.llexternal('sqlite3BtreeMovetoUnpacked', [BTCU
     rffi.INT, compilation_info=CConfig._compilation_info_)
 
 sqlite3_applyNumericAffinity = rffi.llexternal('applyNumericAffinity', [MEMP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
+    lltype.Void, compilation_info=CConfig._compilation_info_, macro=True)
 
 sqlite3AtoF = rffi.llexternal('sqlite3AtoF', [rffi.CCHARP, rffi.DOUBLEP, rffi.INT, CConfig.u8],
     rffi.INT, compilation_info=CConfig._compilation_info_)
@@ -731,6 +733,8 @@ sqlite3VdbeMemSetNull = rffi.llexternal('sqlite3VdbeMemSetNull', [MEMP],
     lltype.Void, compilation_info=CConfig._compilation_info_)
 sqlite3VdbeMemReleaseExternal = rffi.llexternal('sqlite3VdbeMemReleaseExternal', [MEMP],
     lltype.Void, compilation_info=CConfig._compilation_info_)
+sqlite3VdbeIdxRowid = rffi.llexternal('sqlite3VdbeIdxRowid', [SQLITE3P, BTCURSORP, rffi.LONGP],
+    rffi.INT, compilation_info=CConfig._compilation_info_)
 
 
 sqlite3_sqlite3MemCompare = rffi.llexternal('sqlite3MemCompare', [MEMP, MEMP, COLLSEQP],
@@ -738,6 +742,8 @@ sqlite3_sqlite3MemCompare = rffi.llexternal('sqlite3MemCompare', [MEMP, MEMP, CO
 sqlite3_sqlite3VdbeMemStringify = rffi.llexternal('sqlite3VdbeMemStringify', [MEMP, rffi.INT],
     rffi.INT, compilation_info=CConfig._compilation_info_)
 sqlite3_gotoAbortDueToInterrupt = rffi.llexternal('gotoAbortDueToInterrupt', [VDBEP, SQLITE3P, rffi.INT, rffi.INT],
+    rffi.INT, compilation_info=CConfig._compilation_info_)
+gotoAbortDueToError = rffi.llexternal('gotoAbortDueToError', [VDBEP, SQLITE3P, rffi.INT, rffi.INT],
     rffi.INT, compilation_info=CConfig._compilation_info_)
 sqlite3_gotoNoMem = rffi.llexternal('gotoNoMem', [VDBEP, SQLITE3P, rffi.INT],
     rffi.INT, compilation_info=CConfig._compilation_info_)

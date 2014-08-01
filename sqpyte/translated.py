@@ -135,6 +135,36 @@ def _MemSetTypeFlag_flags(mem, oldflags, flags):
         mem.flags = rffi.cast(CConfig.u16, newflags)
 
 
+# Return some kind of integer value which is the best we can do
+# at representing the value that *pMem describes as an integer.
+# If pMem is an integer, then the value is exact.  If pMem is
+# a floating-point then the value returned is the integer part.
+# If pMem is a string or blob, then we make an attempt to convert
+# it into a integer and return that.  If pMem represents an
+# an SQL-NULL value, return 0.
+#
+# If pMem represents a string value, its encoding might be changed.
+
+def sqlite3VdbeIntValue(pMem):
+    return _sqlite3VdbeIntValue_flags(pMem, pMem.flags)
+
+def _sqlite3VdbeIntValue_flags(pMem, flags):
+    #assert( pMem->db==0 || sqlite3_mutex_held(pMem->db->mutex) );
+    #assert( EIGHT_BYTE_ALIGNMENT(pMem) );
+    if flags & CConfig.MEM_Int:
+        return pMem.u.i
+    elif flags & CConfig.MEM_Real:
+        return int(pMem.r)
+    elif flags & (CConfig.MEM_Str|CConfig.MEM_Blob):
+        val2 = lltype.malloc(rffi.LONGLONGP.TO, 1, flavor='raw')
+        val2[0] = 0
+        capi.sqlite3Atoi64(pMem.z, val2, pMem.n, pMem.enc)
+        value = val2[0]
+        lltype.free(val2, flavor='raw')
+        return value
+    else:
+        return 0
+
 def python_OP_Init_translated(hlquery, pc, pOp):
     cond = rffi.cast(lltype.Bool, pOp.p2)
     p2 = rffi.cast(lltype.Signed, pOp.p2)
@@ -546,13 +576,13 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
             if flags1 & flags3 & CConfig.MEM_Int:
                 i1 = pIn1.u.i
                 i3 = pIn3.u.i
-                res = _cmp_depending_on_opcode(opcode, i3, i1)
+                res = int(_cmp_depending_on_opcode(opcode, i3, i1))
             else:
                 # mixed int and real comparison, convert to real
                 n1 = pIn1.u.i if flags1 & CConfig.MEM_Int else pIn1.r
                 n3 = pIn3.u.i if flags3 & CConfig.MEM_Int else pIn3.r
 
-                res = _cmp_depending_on_opcode(opcode, n3, n1)
+                res = int(_cmp_depending_on_opcode(opcode, n3, n1))
         else:
             flags_can_have_changed = True
 
@@ -1116,3 +1146,65 @@ def python_OP_IfPos(hlquery, pc, pOp):
     if pIn1.u.i > 0:
         pc = hlquery.p2as_pc(pOp)
     return pc
+
+
+# Opcode: IdxRowid P1 P2 * * *
+# Synopsis: r[P2]=rowid
+#
+# Write into register P2 an integer which is the last entry in the record at
+# the end of the index key pointed to by cursor P1.  This integer should be
+# the rowid of the table entry to which this index entry points.
+#
+# See also: Rowid, MakeRecord.
+
+def python_OP_IdxRowid(hlquery, pc, rc, pOp):
+    p = hlquery.p
+    db = hlquery.db
+
+    pOut = hlquery.mem_of_p(pOp, 2)
+    # assert( pOp.p1>=0 && pOp.p1<p.nCursor );
+    pC = p.apCsr[hlquery.p_Signed(pOp, 1)]
+    assert pC
+    pCrsr = pC.pCursor
+    assert pCrsr
+    rc = rffi.cast(lltype.Signed, capi.sqlite3VdbeCursorMoveto(pC))
+    if rc:
+        print "In impl_OP_IdxRowid():1: abort_due_to_error."
+        rc = capi.gotoAbortDueToError(p, db, pc, rc)
+        return rc
+    #assert pC.deferredMoveto == 0
+    #assert pC.isTable == 0
+    if not rffi.cast(lltype.Signed, pC.nullRow):
+        rc = capi.sqlite3VdbeIdxRowid(db, pCrsr, hlquery.longp)
+        if rc != CConfig.SQLITE_OK:
+            print "In impl_OP_IdxRowid():2: abort_due_to_error."
+            rc = capi.gotoAbortDueToError(p, db, pc, rc)
+            return rc
+        pOut.u.i = hlquery.longp[0]
+        rffi.setintfield(pOut, "flags", CConfig.MEM_Int)
+    else:
+        rffi.setintfield(pOut, "flags", CConfig.MEM_Null)
+    return rc
+
+
+# Opcode: Seek P1 P2 * * *
+# Synopsis:  intkey=r[P2]
+#
+# P1 is an open table cursor and P2 is a rowid integer.  Arrange
+# for P1 to move so that it points to the rowid given by P2.
+#
+# This is actually a deferred seek.  Nothing actually happens until
+# the cursor is used to read a record.  That way, if no reads
+# occur, no unnecessary I/O happens.
+
+def python_OP_Seek(hlquery, pOp):
+    p = hlquery.p
+    pC = p.apCsr[hlquery.p_Signed(pOp, 1)]
+    assert pC
+    # assert( pC.pCursor!=0 );
+    # assert( pC.isTable );
+    rffi.setintfield(pC, 'nullRow', 0)
+    pIn2, flags = hlquery.mem_and_flags_of_p(pOp, 2, promote=True)
+    pC.movetoTarget = _sqlite3VdbeIntValue_flags(pIn2, flags)
+    rffi.setintfield(pC, 'rowidIsValid', 0)
+    rffi.setintfield(pC, 'deferredMoveto', 1)

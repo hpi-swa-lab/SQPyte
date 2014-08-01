@@ -48,11 +48,13 @@ class Sqlite3Query(object):
         self.db = db
         self.internalPc = lltype.malloc(rffi.LONGP.TO, 1, flavor='raw')
         self.intp = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
+        self.longp = lltype.malloc(rffi.LONGP.TO, 1, flavor='raw')
         self.prepare(query)
 
     def __del__(self):
         lltype.free(self.internalPc, flavor='raw')
         lltype.free(self.intp, flavor='raw')
+        lltype.free(self.longp, flavor='raw')
 
     def prepare(self, query):
         length = len(query)
@@ -208,7 +210,8 @@ class Sqlite3Query(object):
         return capi.impl_OP_IfZero(self.p, pc, pOp)
 
     def python_OP_IdxRowid(self, pc, rc, pOp):
-        return capi.impl_OP_IdxRowid(self.p, self.db, pc, rc, pOp)
+        return translated.python_OP_IdxRowid(self, pc, rc, pOp)
+        #return capi.impl_OP_IdxRowid(self.p, self.db, pc, rc, pOp)
 
     def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(self, pc, pOp):
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
@@ -217,7 +220,8 @@ class Sqlite3Query(object):
         return retPc, rc
 
     def python_OP_Seek(self, pOp):
-        capi.impl_OP_Seek(self.p, pOp)
+        #capi.impl_OP_Seek(self.p, pOp)
+        translated.python_OP_Seek(self, pOp)
 
     def python_OP_Once(self, pc, pOp):
         # return capi.impl_OP_Once(self.p, pc, pOp)
