@@ -42,7 +42,7 @@ class Sqlite3DB(object):
 
 class Sqlite3Query(object):
 
-    _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]']
+    _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]', 'intp']
 
     def __init__(self, db, query):
         self.db = db
@@ -299,7 +299,7 @@ class Sqlite3Query(object):
         return capi.impl_OP_Jump(pOp)
 
     def python_OP_IfPos(self, pc, pOp):
-        return capi.impl_OP_IfPos(self.p, pc, pOp)
+        return translated.python_OP_IfPos(self, pc, pOp)
 
     def python_OP_CollSeq(self, pOp):
         capi.impl_OP_CollSeq(self.p, pOp)

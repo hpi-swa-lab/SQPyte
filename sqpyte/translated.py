@@ -535,7 +535,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, pOp):
                 # See vdbe.c lines 110-136.
                 # VdbeBranchTaken(2,3);
                 if p5 & CConfig.SQLITE_JUMPIFNULL:
-                    pc = pc.p2as_pc()
+                    pc = hlquery.p2as_pc(pOp)
             return pc, rc
     else:
 
@@ -1101,3 +1101,18 @@ def python_OP_NotExists(hlquery, pc, pOp):
         assert not rffi.cast(lltype.Signed, pC.rowidIsValid)
     pC.seekResult = rffi.cast(lltype.typeOf(pC.seekResult), res)
     return pc, rc
+
+# Opcode: IfPos P1 P2 * * *
+# Synopsis: if r[P1]>0 goto P2
+#
+# If the value of register P1 is 1 or greater, jump to P2.
+#
+# It is illegal to use this instruction on a register that does
+# not contain an integer.  An assertion fault will result if you try.
+
+
+def python_OP_IfPos(hlquery, pc, pOp):
+    pIn1 = hlquery.mem_of_p(pOp, 1)
+    if pIn1.u.i > 0:
+        pc = hlquery.p2as_pc(pOp)
+    return pc
