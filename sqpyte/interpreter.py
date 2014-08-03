@@ -15,7 +15,10 @@ def get_printable_location(pc, rc, self):
     op = self._hlops[pc]
     opcode = op.get_opcode()
     name = self.get_opcode_str(opcode)
-    return "%s %s %s" % (pc, rc, name)
+    unsafe = ''
+    if not _cache_safe_opcodes[opcode]:
+        unsafe = ' UNSAFE'
+    return "%s %s %s%s" % (pc, rc, name, unsafe)
 
 
 jitdriver = jit.JitDriver(
@@ -39,6 +42,21 @@ class Sqlite3DB(object):
             errorcode = capi.sqlite3_open(db_name, result)
             assert(errorcode == 0)
             self.db = rffi.cast(capi.SQLITE3P, result[0])
+
+_cache_safe_opcodes = [False] * 256
+
+def cache_safe(opcodes=None):
+    def decorate(func):
+        ops = opcodes
+        if ops is None:
+            name = func.func_name
+            assert name.startswith("python_")
+            opcodename = name[len("python_"):]
+            ops = [getattr(CConfig, opcodename)]
+        for opcode in ops:
+            _cache_safe_opcodes[opcode] = True
+        return func
+    return decorate
 
 
 class Sqlite3Query(object):
@@ -79,7 +97,7 @@ class Sqlite3Query(object):
             mem.invalidate_cache()
 
     def is_op_cache_safe(self, opcode):
-        return False # for now
+        return _cache_safe_opcodes[opcode]
 
     def reset_query(self):
         capi.sqlite3_reset(self.p)
@@ -99,6 +117,7 @@ class Sqlite3Query(object):
     def python_OP_TableLock(self, rc, op):
         return capi.impl_OP_TableLock(self.p, self.db, rc, op.pOp)
 
+    @cache_safe()
     def python_OP_Goto(self, pc, rc, op):
         # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         # retRc = capi.impl_OP_Goto(self.p, self.db, self.internalPc, rc, op.pOp)
@@ -118,6 +137,7 @@ class Sqlite3Query(object):
     def python_OP_ResultRow(self, pc, op):
         return capi.impl_OP_ResultRow(self.p, self.db, pc, op.pOp)
 
+    @cache_safe()
     def python_OP_Next(self, pc, op):
         # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         # rc = capi.impl_OP_Next(self.p, self.db, self.internalPc, op.pOp)
@@ -135,6 +155,9 @@ class Sqlite3Query(object):
         retPc = self.internalPc[0]
         return retPc, rc
 
+    @cache_safe(
+        opcodes=[CConfig.OP_Eq, CConfig.OP_Ne, CConfig.OP_Lt, CConfig.OP_Le,
+                 CConfig.OP_Gt, CConfig.OP_Ge])
     def python_OP_Ne_Eq_Gt_Le_Lt_Ge(self, pc, rc, op):
         # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         # rc = capi.impl_OP_Ne_Eq_Gt_Le_Lt_Ge(self.p, self.db, self.internalPc, rc, op.pOp)
@@ -161,11 +184,6 @@ class Sqlite3Query(object):
         return capi.impl_OP_Copy(self.p, self.db, pc, rc, op.pOp)
 
     def python_OP_MustBeInt(self, pc, rc, op):
-        # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        # rc = capi.impl_OP_MustBeInt(self.p, self.db, self.internalPc, rc, op.pOp)
-        # retPc = self.internalPc[0]
-        # return retPc, rc
-
         return translated.python_OP_MustBeInt(self, pc, rc, op)
 
     def python_OP_NotExists(self, pc, op):
