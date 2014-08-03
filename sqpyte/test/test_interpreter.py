@@ -2,7 +2,7 @@ from rpython.rtyper.lltypesystem import rffi
 from sqpyte.interpreter import Sqlite3DB, Sqlite3Query
 from sqpyte.capi import CConfig
 from sqpyte import capi
-from sqpyte.translated import allocateCursor, sqlite3VdbeMemIntegerify, sqlite3BtreeCursor
+from sqpyte.translated import allocateCursor, sqlite3BtreeCursor
 from sqpyte.translated import sqlite3BtreeCursorHints, sqlite3VdbeSorterRewind
 import os, sys
 
@@ -151,16 +151,6 @@ def test_translated_allocateCursor():
     db = Sqlite3DB(testdb).db
     p = Sqlite3Query(db, 'select name from contacts;').p
     vdbe = allocateCursor(p, p.aOp[0].p1, p.aOp[0].p4.i, p.aOp[0].p3, 1)
-
-def test_translated_sqlite3VdbeMemIntegerify():
-    db = Sqlite3DB(testdb).db
-    p = Sqlite3Query(db, 'select name from contacts;').p
-    pOp = p.aOp[0]
-    p2 = pOp.p2
-    aMem = p.aMem
-    pMem = aMem[p2]
-    rc = sqlite3VdbeMemIntegerify(pMem)
-    assert(rc == CConfig.SQLITE_OK)
 
 def test_translated_sqlite3BtreeCursorHints():
     db = Sqlite3DB(testdb).db

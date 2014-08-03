@@ -18,9 +18,6 @@ TWOPOWER31 = 1 << 31
 def allocateCursor(vdbe_struct, p1, nField, iDb, isBtreeCursor):
     return capi.sqlite3_allocateCursor(vdbe_struct, p1, nField, iDb, isBtreeCursor) 
 
-def sqlite3VdbeMemIntegerify(pMem):
-    return capi.sqlite3_sqlite3VdbeMemIntegerify(pMem)
-
 def sqlite3BtreeCursor(p, iTable, wrFlag, pKeyInfo, pCur):
     return capi.sqlite3_sqlite3BtreeCursor(p, iTable, wrFlag, pKeyInfo, pCur)
 
@@ -32,148 +29,7 @@ def sqlite3VdbeSorterRewind(db, pC, res):
         errorcode = capi.sqlite3_sqlite3VdbeSorterRewind(db, pC, res)
         return rffi.cast(rffi.INTP, res[0])
 
-def applyAffinity(mem, affinity, enc):
-    """
-     Processing is determine by the affinity parameter:
 
-     SQLITE_AFF_INTEGER:
-     SQLITE_AFF_REAL:
-     SQLITE_AFF_NUMERIC:
-        Try to convert pRec to an integer representation or a
-        floating-point representation if an integer representation
-        is not possible.  Note that the integer representation is
-        always preferred, even if the affinity is REAL, because
-        an integer representation is more space efficient on disk.
-
-     SQLITE_AFF_TEXT:
-        Convert pRec to a text representation.
-
-     SQLITE_AFF_NONE:
-        No-op.  pRec is unchanged.
-    """
-    flags = rffi.cast(lltype.Unsigned, mem.flags)
-
-    return _applyAffinity_flags_read(mem, flags, affinity, enc)
-
-def _applyAffinity_flags_read(mem, flags, affinity, enc):
-    assert isinstance(affinity, int)
-    if affinity == CConfig.SQLITE_AFF_TEXT:
-        # Only attempt the conversion to TEXT if there is an integer or real
-        # representation (blob and NULL do not get converted) but no string
-        # representation.
-
-        if not (flags & CConfig.MEM_Str) and flags & (CConfig.MEM_Real|CConfig.MEM_Int):
-            capi.sqlite3_sqlite3VdbeMemStringify(mem, enc)
-            flags = mem.flags
-        flags = flags & ~(CConfig.MEM_Real|CConfig.MEM_Int)
-        mem.flags = rffi.cast(CConfig.u16, flags)
-    elif affinity != CConfig.SQLITE_AFF_NONE:
-        assert affinity in (CConfig.SQLITE_AFF_INTEGER,
-                            CConfig.SQLITE_AFF_REAL,
-                            CConfig.SQLITE_AFF_NUMERIC)
-        flags = _applyNumericAffinity_flags_read(mem, flags)
-        if flags & CConfig.MEM_Real:
-            flags = _sqlite3VdbeIntegerAffinity_flags(mem, flags)
-    return flags
-
-def sqlite3VdbeIntegerAffinity(mem):
-    """
-    The MEM structure is already a MEM_Real.  Try to also make it a
-    MEM_Int if we can.
-    """
-    _sqlite3VdbeIntegerAffinity_flags(mem, mem.flags)
-
-def _sqlite3VdbeIntegerAffinity_flags(mem, flags):
-    assert flags & CConfig.MEM_Real
-    assert not flags & CConfig.MEM_RowSet
-    # assert( mem->db==0 || sqlite3_mutex_held(mem->db->mutex) );
-    # assert( EIGHT_BYTE_ALIGNMENT(mem) );
-    floatval = mem.r
-    intval = int(floatval)
-    # Only mark the value as an integer if
-    #
-    #    (1) the round-trip conversion real->int->real is a no-op, and
-    #    (2) The integer is neither the largest nor the smallest
-    #        possible integer (ticket #3922)
-    #
-    # The second and third terms in the following conditional enforces
-    # the second condition under the assumption that addition overflow causes
-    # values to wrap around.
-    if floatval == float(intval) and intval < sys.maxint and intval > (-sys.maxint - 1):
-        flags = flags | CConfig.MEM_Int
-        mem.flags = rffi.cast(CConfig.u16, flags)
-    return flags
-
-
-
-def applyNumericAffinity(mem):
-    """
-    Try to convert a value into a numeric representation if we can
-    do so without loss of information.  In other words, if the string
-    looks like a number, convert it into a number.  If it does not
-    look like a number, leave it alone.
-    """
-    _applyNumericAffinity_flags_read(mem, flags)
-
-def _applyNumericAffinity_flags_read(mem, flags):
-    if flags & (CConfig.MEM_Real|CConfig.MEM_Int):
-        return flags
-    if not flags & CConfig.MEM_Str:
-        return flags
-    # use the C function as a slow path for now
-    capi.sqlite3_applyNumericAffinity(mem)
-    return mem.flags
-
-def sqlite3VdbeMemRelease(hlquery, pMem):
-    hlquery.VdbeMemRelease(pMem)
-    if pMem.zMalloc:
-        capi.sqlite3DbFree(hlquery.db, pMem.zMalloc);
-        pMem.zMalloc = lltype.nullptr(rffi.CCHARP.TO)
-    pMem.z = lltype.nullptr(rffi.CCHARP.TO)
-
-def sqlite3VdbeMemSetInt64(hlquery, pMem, val):
-    sqlite3VdbeMemRelease(hlquery, pMem)
-    pMem.u.i = val
-    rffi.setintfield(pMem, 'flags', CConfig.MEM_Int)
-
-def MemSetTypeFlag(mem, flags):
-    mem.flags = rffi.cast(CConfig.u16, (mem.flags & ~(CConfig.MEM_TypeMask | CConfig.MEM_Zero)) | flags)
-
-def _MemSetTypeFlag_flags(mem, oldflags, flags):
-    newflags = (oldflags & ~(CConfig.MEM_TypeMask | CConfig.MEM_Zero)) | flags
-    if newflags != oldflags:
-        mem.flags = rffi.cast(CConfig.u16, newflags)
-
-
-# Return some kind of integer value which is the best we can do
-# at representing the value that *pMem describes as an integer.
-# If pMem is an integer, then the value is exact.  If pMem is
-# a floating-point then the value returned is the integer part.
-# If pMem is a string or blob, then we make an attempt to convert
-# it into a integer and return that.  If pMem represents an
-# an SQL-NULL value, return 0.
-#
-# If pMem represents a string value, its encoding might be changed.
-
-def sqlite3VdbeIntValue(pMem):
-    return _sqlite3VdbeIntValue_flags(pMem, pMem.flags)
-
-def _sqlite3VdbeIntValue_flags(pMem, flags):
-    #assert( pMem->db==0 || sqlite3_mutex_held(pMem->db->mutex) );
-    #assert( EIGHT_BYTE_ALIGNMENT(pMem) );
-    if flags & CConfig.MEM_Int:
-        return pMem.u.i
-    elif flags & CConfig.MEM_Real:
-        return int(pMem.r)
-    elif flags & (CConfig.MEM_Str|CConfig.MEM_Blob):
-        val2 = lltype.malloc(rffi.LONGLONGP.TO, 1, flavor='raw')
-        val2[0] = 0
-        capi.sqlite3Atoi64(pMem.z, val2, pMem.n, pMem.enc)
-        value = val2[0]
-        lltype.free(val2, flavor='raw')
-        return value
-    else:
-        return 0
 
 # Opcode: Init * P2 * P4 *
 # Synopsis:  Start at P2
@@ -296,8 +152,8 @@ def python_OP_OpenRead_OpenWrite_translated(hlquery, db, pc, op):
         pIn2 = aMem[p2]
         #     assert( memIsValid(pIn2) );
         #     assert( (pIn2->flags & MEM_Int)!=0 );
-        sqlite3VdbeMemIntegerify(pIn2)
-        p2 = rffi.cast(rffi.INT, pIn2.u.i)
+        pIn2.sqlite3VdbeMemIntegerify()
+        p2 = rffi.cast(rffi.INT, pIn2.get_u_i())
         #     /* The p2 value always comes from a prior OP_CreateTable opcode and
         #     ** that opcode will always set the p2 value to 2 or more or else fail.
         #     ** If there were a failure, the prepared statement would have halted
@@ -575,7 +431,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, op):
             if p5 & CConfig.SQLITE_STOREP2:
                 pOut = op.mem_of_p(2)
 
-                MemSetTypeFlag(pOut, CConfig.MEM_Null)
+                pOut.MemSetTypeFlag(CConfig.MEM_Null)
 
                 # Used only for debugging, i.e., not in production.
                 # See vdbe.c lines 451-455.
@@ -596,13 +452,13 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, op):
         if (flags1 | flags3) & (CConfig.MEM_Int | CConfig.MEM_Real):
             # both are ints
             if flags1 & flags3 & CConfig.MEM_Int:
-                i1 = pIn1.u.i
-                i3 = pIn3.u.i
+                i1 = pIn1.get_u_i()
+                i3 = pIn3.get_u_i()
                 res = int(_cmp_depending_on_opcode(opcode, i3, i1))
             else:
                 # mixed int and real comparison, convert to real
-                n1 = pIn1.u.i if flags1 & CConfig.MEM_Int else pIn1.r
-                n3 = pIn3.u.i if flags3 & CConfig.MEM_Int else pIn3.r
+                n1 = pIn1.get_u_i() if flags1 & CConfig.MEM_Int else pIn1.get_r()
+                n3 = pIn3.get_u_i() if flags3 & CConfig.MEM_Int else pIn3.get_r()
 
                 res = int(_cmp_depending_on_opcode(opcode, n3, n1))
         else:
@@ -613,8 +469,8 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, op):
             affinity = rffi.cast(lltype.Signed, p5 & CConfig.SQLITE_AFF_MASK)
             if affinity != 0:
                 encoding = hlquery.enc()
-                flags1 = _applyAffinity_flags_read(pIn1, flags1, affinity, encoding)
-                flags3 = _applyAffinity_flags_read(pIn3, flags3, affinity, encoding)
+                flags1 = pIn1._applyAffinity_flags_read(flags1, affinity, encoding)
+                flags3 = pIn3._applyAffinity_flags_read(flags3, affinity, encoding)
                 if rffi.cast(lltype.Unsigned, db.mallocFailed) != 0:
                     # goto no_mem;
                     print 'In python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(): no_mem.'
@@ -628,7 +484,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, op):
             #   ExpandBlob(pIn1);
             #   ExpandBlob(pIn3);
 
-            res = capi.sqlite3_sqlite3MemCompare(pIn3, pIn1, op.p4_pColl())
+            res = pIn3.sqlite3MemCompare(pIn1, op.p4_pColl())
             if opcode == CConfig.OP_Eq:
                 res = 1 if res == 0 else 0
             elif opcode == CConfig.OP_Ne:
@@ -650,9 +506,9 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, op):
         # See vdbe.c lines 24-37.
         #   memAboutToChange(p, pOut);
 
-        MemSetTypeFlag(pOut, CConfig.MEM_Int)
+        pOut.MemSetTypeFlag(CConfig.MEM_Int)
 
-        pOut.u.i = res
+        pOut.set_u_i(res)
 
         # Used only for debugging, i.e., not in production.
         # See vdbe.c lines 451-455.
@@ -671,9 +527,9 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, op):
         new_flags1 = (flags1 & ~CConfig.MEM_TypeMask) | (orig_flags1 & CConfig.MEM_TypeMask)
         new_flags3 = (flags3 & ~CConfig.MEM_TypeMask) | (orig_flags3 & CConfig.MEM_TypeMask)
         if new_flags1 != flags1:
-            pIn1.flags = rffi.cast(CConfig.u16, new_flags1)
+            pIn1.set_flags(new_flags1)
         if new_flags3 != flags3:
-            pIn3.flags = rffi.cast(CConfig.u16, new_flags3)
+            pIn3.set_flags(new_flags3)
 
     return pc, rc
 
@@ -733,7 +589,7 @@ def python_OP_MustBeInt(hlquery, pc, rc, op):
         rc = capi.impl_OP_MustBeInt(hlquery.p, hlquery.db, hlquery.internalPc, rc, op.pOp)
         retPc = hlquery.internalPc[0]
         return retPc, rc
-    _MemSetTypeFlag_flags(pIn1, flags1, CConfig.MEM_Int)
+    pIn1._MemSetTypeFlag_flags(flags1, CConfig.MEM_Int)
     return pc, rc
 
 
@@ -754,7 +610,7 @@ def python_OP_Affinity(hlquery, op):
     length =  op.p_Signed(2)
     assert len(zAffinity) == length
     for i in range(length):
-        applyAffinity(hlquery.p.aMem[index], ord(zAffinity[i]), encoding)
+        hlquery.mem_with_index(index).applyAffinity(ord(zAffinity[i]), encoding)
         index += 1
 
 
@@ -771,8 +627,8 @@ def python_OP_RealAffinity(hlquery, op):
     pIn1, flags = op.mem_and_flags_of_p(1, promote=True)
     if flags & CConfig.MEM_Int and not flags & CConfig.MEM_Real:
         # only relevant parts of sqlite3VdbeMemRealify
-        pIn1.r = float(pIn1.u.i)
-        _MemSetTypeFlag_flags(pIn1, flags, CConfig.MEM_Real)
+        pIn1.set_r(float(pIn1.get_u_i()))
+        pIn1._MemSetTypeFlag_flags(flags, CConfig.MEM_Real)
 
 
 # Opcode: If P1 P2 P3 * *
@@ -799,7 +655,7 @@ def python_OP_If_IfNot(hlquery, pc, op):
         # #ifdef SQLITE_OMIT_FLOATING_POINT
         #     c = sqlite3VdbeIntValue(pIn1)!=0;
         # #else
-        c = _sqlite3VdbeRealValue_flags(pIn1, flags1) != 0.0
+        c = pIn1._sqlite3VdbeRealValue_flags(flags1) != 0.0
         # #endif
         if opcode == CConfig.OP_IfNot:
             c = not c
@@ -813,30 +669,6 @@ def python_OP_If_IfNot(hlquery, pc, op):
     return pc
 
 
-# Return the best representation of pMem that we can get into a
-# double.  If pMem is already a double or an integer, return its
-# value.  If it is a string or blob, try to convert it to a double.
-# If it is a NULL, return 0.0.
-
-def sqlite3VdbeRealValue(pMem):
-    return _sqlite3VdbeRealValue_flags(pMem, flags)
-
-def _sqlite3VdbeRealValue_flags(pMem, flags):
-    # assert( pMem->db==0 || sqlite3_mutex_held(pMem->db->mutex) );
-    # assert( EIGHT_BYTE_ALIGNMENT(pMem) );
-    if flags & CConfig.MEM_Real:
-        return pMem.r
-    elif flags & CConfig.MEM_Int:
-        return pMem.u.i
-    elif flags & (CConfig.MEM_Str | CConfig.MEM_Blob):
-        val = lltype.malloc(rffi.DOUBLEP.TO, 1, flavor='raw')
-        val[0] = 0.0
-        capi.sqlite3AtoF(pMem.z, val, pMem.n, pMem.enc)
-        ret = val[0]
-        lltype.free(val, flavor='raw')
-        return ret
-    else:
-        return 0.0
 
 
 # Opcode: Add P1 P2 P3 * *
@@ -881,34 +713,33 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
     p = hlquery.p
     opcode = op.get_opcode()
 
-    aMem = p.aMem
     pIn1, flags1 = op.mem_and_flags_of_p(1, promote=True)    # 1st input operand
-    type1 = _numericType_with_flags(pIn1, flags1)
+    type1 = pIn1._numericType_with_flags(flags1)
     pIn2, flags2 = op.mem_and_flags_of_p(2, promote=True)    # 1st input operand
-    type2 = _numericType_with_flags(pIn2, flags2)
+    type2 = pIn2._numericType_with_flags(flags2)
     pOut = op.mem_of_p(3)
     flags = flags1 | flags2
 
     if flags & CConfig.MEM_Null != 0:
-        capi.sqlite3VdbeMemSetNull(pOut)
+        pOut.sqlite3VdbeMemSetNull()
         return
 
     bIntint = False
     if opcode == CConfig.OP_Add:
         if (type1 & type2 & CConfig.MEM_Int) != 0:
-            iA = pIn1.u.i
-            iB = pIn2.u.i
+            iA = pIn1.get_u_i()
+            iB = pIn2.get_u_i()
             try:
                 iB = rarithmetic.ovfcheck(iA + iB)
             except OverflowError:
                 pass
             else:
-                pOut.u.i = iB
-                MemSetTypeFlag(pOut, CConfig.MEM_Int)
+                pOut.set_u_i(iB)
+                pOut.MemSetTypeFlag(CConfig.MEM_Int)
                 return
             bIntint = True
-        rA = _sqlite3VdbeRealValue_flags(pIn1, flags1)
-        rB = _sqlite3VdbeRealValue_flags(pIn2, flags2)
+        rA = pIn1._sqlite3VdbeRealValue_flags(flags1)
+        rB = pIn2._sqlite3VdbeRealValue_flags(flags2)
         rB += rA
         # SQLITE_OMIT_FLOATING_POINT is not defined.
         #ifdef SQLITE_OMIT_FLOATING_POINT
@@ -917,29 +748,29 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
         #else
         # if( sqlite3IsNaN(rB) ){
         if math.isnan(rB):
-            capi.sqlite3VdbeMemSetNull(pOut)
+            pOut.sqlite3VdbeMemSetNull()
             return
-        pOut.r = float(rB)
-        MemSetTypeFlag(pOut, CConfig.MEM_Real)
+        pOut.set_r(float(rB))
+        pOut.MemSetTypeFlag(CConfig.MEM_Real)
         if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
-            sqlite3VdbeIntegerAffinity(pOut)
+            pOut.sqlite3VdbeIntegerAffinity()
         #endif                
         return
     elif opcode == CConfig.OP_Subtract:
         if (type1 & type2 & CConfig.MEM_Int) != 0:
-            iA = pIn1.u.i
-            iB = pIn2.u.i
+            iA = pIn1.get_u_i()
+            iB = pIn2.get_u_i()
             try:
                 iB = rarithmetic.ovfcheck(iB - iA)
             except OverflowError:
                 pass
             else:
-                pOut.u.i = iB
-                MemSetTypeFlag(pOut, CConfig.MEM_Int)
+                pOut.set_u_i(iB)
+                pOut.MemSetTypeFlag(CConfig.MEM_Int)
                 return
             bIntint = True
-        rA = _sqlite3VdbeRealValue_flags(pIn1, flags1)
-        rB = _sqlite3VdbeRealValue_flags(pIn2, flags2)
+        rA = pIn1._sqlite3VdbeRealValue_flags(flags1)
+        rB = pIn2._sqlite3VdbeRealValue_flags(flags2)
         rB -= rA
         # SQLITE_OMIT_FLOATING_POINT is not defined.
         #ifdef SQLITE_OMIT_FLOATING_POINT
@@ -948,29 +779,29 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
         #else
         # if( sqlite3IsNaN(rB) ){
         if math.isnan(rB):
-            capi.sqlite3VdbeMemSetNull(pOut)
+            pOut.sqlite3VdbeMemSetNull()
             return
-        pOut.r = float(rB)
-        MemSetTypeFlag(pOut, CConfig.MEM_Real)
+        pOut.set_r(float(rB))
+        pOut.MemSetTypeFlag(CConfig.MEM_Real)
         if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
-            sqlite3VdbeIntegerAffinity(pOut)
+            pOut.sqlite3VdbeIntegerAffinity()
         #endif                
         return
     elif opcode == CConfig.OP_Multiply:
         if (type1 & type2 & CConfig.MEM_Int) != 0:
-            iA = pIn1.u.i
-            iB = pIn2.u.i
+            iA = pIn1.get_u_i()
+            iB = pIn2.get_u_i()
             try:
                 iB = rarithmetic.ovfcheck(iA * iB)
             except OverflowError:
                 pass
             else:
-                pOut.u.i = iB
-                MemSetTypeFlag(pOut, CConfig.MEM_Int)
+                pOut.set_u_i(iB)
+                pOut.MemSetTypeFlag(CConfig.MEM_Int)
                 return
             bIntint = True
-        rA = _sqlite3VdbeRealValue_flags(pIn1, flags1)
-        rB = _sqlite3VdbeRealValue_flags(pIn2, flags2)
+        rA = pIn1._sqlite3VdbeRealValue_flags(flags1)
+        rB = pIn2._sqlite3VdbeRealValue_flags(flags2)
         rB *= rA
         # SQLITE_OMIT_FLOATING_POINT is not defined.
         #ifdef SQLITE_OMIT_FLOATING_POINT
@@ -979,35 +810,35 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
         #else
         # if( sqlite3IsNaN(rB) ){
         if math.isnan(rB):
-            capi.sqlite3VdbeMemSetNull(pOut)
+            pOut.sqlite3VdbeMemSetNull()
             return
-        pOut.r = float(rB)
-        MemSetTypeFlag(pOut, CConfig.MEM_Real)
+        pOut.set_r(float(rB))
+        pOut.MemSetTypeFlag(CConfig.MEM_Real)
         if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
-            sqlite3VdbeIntegerAffinity(pOut)
+            pOut.sqlite3VdbeIntegerAffinity()
         #endif                
         return
     elif opcode == CConfig.OP_Divide:
         if (type1 & type2 & CConfig.MEM_Int) != 0:
-            iA = pIn1.u.i
-            iB = pIn2.u.i
+            iA = pIn1.get_u_i()
+            iB = pIn2.get_u_i()
             if iA == 0:
-                capi.sqlite3VdbeMemSetNull(pOut)
+                pOut.sqlite3VdbeMemSetNull()
                 return
             try:
                 iB = rarithmetic.ovfcheck(iB / iA) # XXX how's the rounding behaviour?
             except OverflowError:
                 pass
             else:
-                pOut.u.i = iB
-                MemSetTypeFlag(pOut, CConfig.MEM_Int)
+                pOut.set_u_i(iB)
+                pOut.MemSetTypeFlag(CConfig.MEM_Int)
                 return
             bIntint = True
-        rA = _sqlite3VdbeRealValue_flags(pIn1, flags1)
-        rB = _sqlite3VdbeRealValue_flags(pIn2, flags2)
+        rA = pIn1._sqlite3VdbeRealValue_flags(flags1)
+        rB = pIn2._sqlite3VdbeRealValue_flags(flags2)
         # /* (double)0 In case of SQLITE_OMIT_FLOATING_POINT... */
         if rA == 0.0:
-            capi.sqlite3VdbeMemSetNull(pOut)
+            pOut.sqlite3VdbeMemSetNull()
             return
         rB /= rA
         # SQLITE_OMIT_FLOATING_POINT is not defined.
@@ -1017,36 +848,36 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
         #else
         # if( sqlite3IsNaN(rB) ){
         if math.isnan(rB):
-            capi.sqlite3VdbeMemSetNull(pOut)
+            pOut.sqlite3VdbeMemSetNull()
             return
-        pOut.r = float(rB)
-        MemSetTypeFlag(pOut, CConfig.MEM_Real)
+        pOut.set_r(float(rB))
+        pOut.MemSetTypeFlag(CConfig.MEM_Real)
         if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
-            sqlite3VdbeIntegerAffinity(pOut)
+            pOut.sqlite3VdbeIntegerAffinity()
         #endif                
         return
     elif opcode == CConfig.OP_Remainder:
         if (type1 & type2 & CConfig.MEM_Int) != 0:
-            iA = pIn1.u.i
-            iB = pIn2.u.i
+            iA = pIn1.get_u_i()
+            iB = pIn2.get_u_i()
             bIntint = 1
             if iA == 0:
-                capi.sqlite3VdbeMemSetNull(pOut)
+                pOut.sqlite3VdbeMemSetNull()
                 return
             if iA == -1:
                 iA = 1
             iB %= iA
-            pOut.u.i = iB
-            MemSetTypeFlag(pOut, CConfig.MEM_Int)
+            pOut.set_u_i(iB)
+            pOut.MemSetTypeFlag(CConfig.MEM_Int)
             return
         else:
             bIntint = 0
-            rA = _sqlite3VdbeRealValue_flags(pIn1, flags1)
-            rB = _sqlite3VdbeRealValue_flags(pIn2, flags2)
+            rA = pIn1._sqlite3VdbeRealValue_flags(flags1)
+            rB = pIn2._sqlite3VdbeRealValue_flags(flags2)
             iA = int(rA)
             iB = int(rB)
             if iA == 0:
-                capi.sqlite3VdbeMemSetNull(pOut)
+                pOut.sqlite3VdbeMemSetNull()
                 return
             if iA == -1:
                 iA = 1
@@ -1058,12 +889,12 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
             #else
             # if( sqlite3IsNaN(rB) ){
             if math.isnan(rB):
-                capi.sqlite3VdbeMemSetNull(pOut)
+                pOut.sqlite3VdbeMemSetNull()
                 return
-            pOut.r = float(rB)
-            MemSetTypeFlag(pOut, CConfig.MEM_Real)
+            pOut.set_r(float(rB))
+            pOut.MemSetTypeFlag(CConfig.MEM_Real)
             if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
-                sqlite3VdbeIntegerAffinity(pOut)
+                pOut.sqlite3VdbeIntegerAffinity()
             #endif                
             return;      
     else:
@@ -1078,33 +909,6 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
 # Unlike applyNumericAffinity(), this routine does not modify pMem->flags.
 # But it does set pMem->r and pMem->u.i appropriately.
 
-def numericType(pMem):
-    return _numericType_with_flags(pMem, pMem.flags)
-
-def _numericType_with_flags(pMem, flags):
-    if flags & (CConfig.MEM_Int | CConfig.MEM_Real):
-        return flags & (CConfig.MEM_Int | CConfig.MEM_Real)
-    if flags & (CConfig.MEM_Str | CConfig.MEM_Blob):
-        val1 = lltype.malloc(rffi.DOUBLEP.TO, 1, flavor='raw')
-        val1[0] = 0.0
-        atof = capi.sqlite3AtoF(pMem.z, val1, pMem.n, pMem.enc)
-        pMem.r = val1[0]
-        lltype.free(val1, flavor='raw')
-
-        if atof == 0:
-            return 0
-
-        val2 = lltype.malloc(rffi.LONGLONGP.TO, 1, flavor='raw')
-        val2[0] = 0
-        atoi64 = capi.sqlite3Atoi64(pMem.z, val2, pMem.n, pMem.enc)
-        pMem.u.i = val2[0]
-        lltype.free(val2, flavor='raw')
-
-        if atoi64 == CConfig.SQLITE_OK:
-            return CConfig.MEM_Int
-
-        return CConfig.MEM_Real
-    return 0
 
 
 # Opcode: Integer P1 P2 * * *
@@ -1114,7 +918,7 @@ def _numericType_with_flags(pMem, flags):
 
 def python_OP_Integer(hlquery, op):
     pOut = op.mem_of_p(2)
-    pOut.u.i = op.p_Signed(1)
+    pOut.set_u_i(op.p_Signed(1))
 
 
 # Opcode: NotExists P1 P2 P3 * *
@@ -1140,7 +944,7 @@ def python_OP_NotExists(hlquery, pc, op):
     assert not rffi.cast(lltype.Signed, pC.pseudoTableReg)
     pCrsr = pC.pCursor
     assert pCrsr
-    iKey = pIn3.u.i
+    iKey = pIn3.get_u_i()
     rc = capi.sqlite3BtreeMovetoUnpacked(pCrsr, lltype.nullptr(rffi.VOIDP.TO), iKey, 0, hlquery.intp)
     res = rffi.cast(lltype.Signed, hlquery.intp[0])
     pC.lastRowid = iKey
@@ -1165,7 +969,7 @@ def python_OP_NotExists(hlquery, pc, op):
 
 def python_OP_IfPos(hlquery, pc, op):
     pIn1 = op.mem_of_p(1)
-    if pIn1.u.i > 0:
+    if pIn1.get_u_i() > 0:
         pc = op.p2as_pc()
     return pc
 
@@ -1202,10 +1006,10 @@ def python_OP_IdxRowid(hlquery, pc, rc, op):
             print "In impl_OP_IdxRowid():2: abort_due_to_error."
             rc = capi.gotoAbortDueToError(p, db, pc, rc)
             return rc
-        pOut.u.i = hlquery.longp[0]
-        rffi.setintfield(pOut, "flags", CConfig.MEM_Int)
+        pOut.set_u_i(hlquery.longp[0])
+        pOut.set_flags(CConfig.MEM_Int)
     else:
-        rffi.setintfield(pOut, "flags", CConfig.MEM_Null)
+        pOut.set_flags(CConfig.MEM_Null)
     return rc
 
 
@@ -1227,7 +1031,7 @@ def python_OP_Seek(hlquery, op):
     # assert( pC.isTable );
     rffi.setintfield(pC, 'nullRow', 0)
     pIn2, flags = op.mem_and_flags_of_p(2, promote=True)
-    pC.movetoTarget = _sqlite3VdbeIntValue_flags(pIn2, flags)
+    pC.movetoTarget = pIn2._sqlite3VdbeIntValue_flags(flags)
     rffi.setintfield(pC, 'rowidIsValid', 0)
     rffi.setintfield(pC, 'deferredMoveto', 1)
 
@@ -1246,6 +1050,7 @@ def python_OP_Seek(hlquery, op):
 
 @jit.unroll_safe
 def python_OP_AggStep(hlquery, rc, pc, op):
+    from sqpyte.mem import Mem
     p = hlquery.p
     db = hlquery.db
     n = op.p_Signed(5)
@@ -1253,18 +1058,19 @@ def python_OP_AggStep(hlquery, rc, pc, op):
     assert apVal or n == 0
     index = op.p_Signed(2)
     for i in range(n):
-        apVal[i] = hlquery.mem_with_index(index + i)
-    pMem = op.mem_of_p(3)
+        apVal[i] = hlquery.mem_with_index(index + i).pMem
+    mem = op.mem_of_p(3)
     with lltype.scoped_alloc(capi.CONTEXT) as ctx:
+        mems = Mem(hlquery, ctx.s)
         ctx.pFunc = pFunc = op.p4_pFunc()
         #assert( pOp.p3>0 && pOp.p3<=(p.nMem-p.nCursor) );
-        ctx.pMem = pMem
-        rffi.setintfield(pMem, 'n', rffi.getintfield(pMem, 'n') + 1)
-        rffi.setintfield(ctx.s, 'flags', CConfig.MEM_Null)
-        ctx.s.z = lltype.nullptr(lltype.typeOf(ctx).TO.s.z.TO)
-        ctx.s.zMalloc = lltype.nullptr(lltype.typeOf(ctx).TO.s.zMalloc.TO)
-        ctx.s.xDel = lltype.nullptr(lltype.typeOf(ctx).TO.s.xDel.TO)
-        ctx.s.db = db
+        ctx.pMem = mem.pMem
+        mem.set_n(mem.get_n() + 1)
+        mems.set_flags(CConfig.MEM_Null)
+        mems.set_z_null()
+        mems.set_zMalloc_null()
+        mems.set_xDel_null()
+        mems.set_db(db)
         rffi.setintfield(ctx, 'isError', 0)
         ctx.pColl = lltype.nullptr(lltype.typeOf(ctx).TO.pColl.TO)
         rffi.setintfield(ctx, 'skipFlag', 0)
@@ -1282,6 +1088,6 @@ def python_OP_AggStep(hlquery, rc, pc, op):
             assert prevop.get_opcode() == CConfig.OP_CollSeq
             i = prevop.p_Signed(1)
             if i:
-                sqlite3VdbeMemSetInt64(hlquery, hlquery.mem_with_index(i), 1)
-        sqlite3VdbeMemRelease(hlquery, ctx.s)
+                hlquery.mem_with_index(i).sqlite3VdbeMemSetInt64(1)
+        mems.sqlite3VdbeMemRelease()
         return rc

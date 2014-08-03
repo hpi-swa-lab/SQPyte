@@ -43,7 +43,7 @@ class Sqlite3DB(object):
 
 class Sqlite3Query(object):
 
-    _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]', 'intp',
+    _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]', '_llmem_as_python_list[*]', 'intp',
                           '_hlops[*]']
 
     def __init__(self, db, query):
@@ -67,7 +67,9 @@ class Sqlite3Query(object):
         self._init_python_data()
 
     def _init_python_data(self):
-        self._mem_as_python_list = [self.p.aMem[i] for i in range(self.p.nMem)]
+        from sqpyte.mem import Mem
+        self._llmem_as_python_list = [self.p.aMem[i] for i in range(self.p.nMem)]
+        self._mem_as_python_list = [Mem(self, self.p.aMem[i]) for i in range(self.p.nMem)]
         self._hlops = [Op(self, self.p.aOp[i]) for i in range(self.p.nOp)]
 
     def reset_query(self):
@@ -386,13 +388,6 @@ class Sqlite3Query(object):
     def mem_with_index(self, i):
         return self._mem_as_python_list[i]
 
-    def VdbeMemDynamic(self, x):
-        return (x.flags & (CConfig.MEM_Agg|CConfig.MEM_Dyn|CConfig.MEM_RowSet|CConfig.MEM_Frame))!=0
-
-    def VdbeMemRelease(self, x):
-        if self.VdbeMemDynamic(x):
-            capi.sqlite3VdbeMemReleaseExternal(x)
-
     def mainloop(self):
         rc = CConfig.SQLITE_OK
         pc = jit.promote(rffi.cast(lltype.Signed, self.p.pc))
@@ -412,8 +407,8 @@ class Sqlite3Query(object):
             opflags = op.opflags()
             if opflags & CConfig.OPFLG_OUT2_PRERELEASE:
                 pOut = op.mem_of_p(2)
-                self.VdbeMemRelease(pOut)
-                pOut.flags = rffi.cast(CConfig.u16, CConfig.MEM_Int)
+                pOut.VdbeMemRelease()
+                pOut.set_flags(CConfig.MEM_Int)
 
             if opcode == CConfig.OP_Init:
                 pc = self.python_OP_Init(pc, op)
@@ -648,13 +643,11 @@ class Op(object):
         return self.p_Signed(2) - 1
 
     def mem_of_p(self, i):
-        return self.hlquery._mem_as_python_list[self.p_Signed(i)]
+        return self.hlquery.mem_with_index(self.p_Signed(i))
 
     def mem_and_flags_of_p(self, i, promote=False):
         mem = self.mem_of_p(i)
-        flags = rffi.cast(lltype.Unsigned, mem.flags)
-        if promote:
-            jit.promote(flags)
+        flags = mem.get_flags(promote=promote)
         return mem, flags
 
     @jit.elidable
