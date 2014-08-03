@@ -162,23 +162,6 @@ def test_translated_sqlite3VdbeMemIntegerify():
     rc = sqlite3VdbeMemIntegerify(pMem)
     assert(rc == CConfig.SQLITE_OK)
 
-def test_translated_sqlite3BtreeCursor():
-    db = Sqlite3DB(testdb).db
-    p = Sqlite3Query(db, 'select name from contacts;').p
-    pOp = p.aOp[0]
-    p2 = pOp.p2
-    iDb = pOp.p3
-    pDb = db.aDb[iDb]
-    pX = pDb.pBt
-    wrFlag = 1
-    pKeyInfo = pOp.p4.pKeyInfo
-    nField = p.aOp[0].p4.i
-    pCur = allocateCursor(p, pOp.p1, nField, iDb, 1)
-    pCur.nullRow = rffi.r_uchar(1)
-    pCur.isOrdered = bool(1)
-    rc = sqlite3BtreeCursor(pX, p2, wrFlag, pKeyInfo, pCur.pCursor)
-    assert(rc == CConfig.SQLITE_OK)
-
 def test_translated_sqlite3BtreeCursorHints():
     db = Sqlite3DB(testdb).db
     p = Sqlite3Query(db, 'select name from contacts;').p
