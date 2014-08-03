@@ -11,14 +11,15 @@ import math
 testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test/test.db")
 # testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test/big-test.db")
 
-def get_printable_location(pc, rc, ops, self):
-    opcode = self.get_opcode(ops[pc])
+def get_printable_location(pc, rc, self):
+    op = self._hlops[pc]
+    opcode = op.get_opcode()
     name = self.get_opcode_str(opcode)
     return "%s %s %s" % (pc, rc, name)
 
 
 jitdriver = jit.JitDriver(
-    greens=['pc', 'rc', 'ops', 'self_'], 
+    greens=['pc', 'rc', 'self_'],
     reds=[],
     should_unroll_one_iteration=lambda *args: True,
     get_printable_location=get_printable_location)
@@ -42,7 +43,8 @@ class Sqlite3DB(object):
 
 class Sqlite3Query(object):
 
-    _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]', 'intp']
+    _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]', 'intp',
+                          '_hlops[*]']
 
     def __init__(self, db, query):
         self.db = db
@@ -66,294 +68,295 @@ class Sqlite3Query(object):
 
     def _init_python_data(self):
         self._mem_as_python_list = [self.p.aMem[i] for i in range(self.p.nMem)]
+        self._hlops = [Op(self, self.p.aOp[i]) for i in range(self.p.nOp)]
 
     def reset_query(self):
         capi.sqlite3_reset(self.p)
 
-    def python_OP_Init(self, pc, pOp):
-        return translated.python_OP_Init_translated(self, pc, pOp)
+    def python_OP_Init(self, pc, op):
+        return translated.python_OP_Init_translated(self, pc, op)
 
-    def python_OP_Rewind(self, pc, pOp):
+    def python_OP_Rewind(self, pc, op):
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        rc = capi.impl_OP_Rewind(self.p, self.db, self.internalPc, pOp)
+        rc = capi.impl_OP_Rewind(self.p, self.db, self.internalPc, op.pOp)
         retPc = self.internalPc[0]
         return retPc, rc
 
-    def python_OP_Transaction(self, pc, pOp):
-        return capi.impl_OP_Transaction(self.p, self.db, pc, pOp)
+    def python_OP_Transaction(self, pc, op):
+        return capi.impl_OP_Transaction(self.p, self.db, pc, op.pOp)
 
-    def python_OP_TableLock(self, rc, pOp):
-        return capi.impl_OP_TableLock(self.p, self.db, rc, pOp)
+    def python_OP_TableLock(self, rc, op):
+        return capi.impl_OP_TableLock(self.p, self.db, rc, op.pOp)
 
-    def python_OP_Goto(self, pc, rc, pOp):
+    def python_OP_Goto(self, pc, rc, op):
         # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        # retRc = capi.impl_OP_Goto(self.p, self.db, self.internalPc, rc, pOp)
+        # retRc = capi.impl_OP_Goto(self.p, self.db, self.internalPc, rc, op.pOp)
         # retPc = self.internalPc[0]
         # return retPc, retRc
 
-        return translated.python_OP_Goto_translated(self, pc, rc, pOp)
+        return translated.python_OP_Goto_translated(self, pc, rc, op)
 
-    def python_OP_OpenRead_OpenWrite(self, pc, pOp):
-        return capi.impl_OP_OpenRead_OpenWrite(self.p, self.db, pc, pOp)
-        # translated.python_OP_OpenRead_OpenWrite_translated(self, self.db, pc, pOp)
+    def python_OP_OpenRead_OpenWrite(self, pc, op):
+        return capi.impl_OP_OpenRead_OpenWrite(self.p, self.db, pc, op.pOp)
+        # translated.python_OP_OpenRead_OpenWrite_translated(self, self.db, pc, op)
 
-    def python_OP_Column(self, pc, pOp):
-        return capi.impl_OP_Column(self.p, self.db, pc, pOp)
-        # return translated.python_OP_Column_translated(self, self.db, pc, pOp)
+    def python_OP_Column(self, pc, op):
+        return capi.impl_OP_Column(self.p, self.db, pc, op.pOp)
+        # return translated.python_OP_Column_translated(self, self.db, pc, op)
 
-    def python_OP_ResultRow(self, pc, pOp):
-        return capi.impl_OP_ResultRow(self.p, self.db, pc, pOp)
+    def python_OP_ResultRow(self, pc, op):
+        return capi.impl_OP_ResultRow(self.p, self.db, pc, op.pOp)
 
-    def python_OP_Next(self, pc, pOp):
+    def python_OP_Next(self, pc, op):
         # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        # rc = capi.impl_OP_Next(self.p, self.db, self.internalPc, pOp)
+        # rc = capi.impl_OP_Next(self.p, self.db, self.internalPc, op.pOp)
         # retPc = self.internalPc[0]
         # return retPc, rc
 
-        return translated.python_OP_Next_translated(self, pc, pOp)
+        return translated.python_OP_Next_translated(self, pc, op)
 
-    def python_OP_Close(self, pOp):
-        capi.impl_OP_Close(self.p, pOp)
+    def python_OP_Close(self, op):
+        capi.impl_OP_Close(self.p, op.pOp)
 
-    def python_OP_Halt(self, pc, pOp):
+    def python_OP_Halt(self, pc, op):
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        rc = capi.impl_OP_Halt(self.p, self.db, self.internalPc, pOp)
+        rc = capi.impl_OP_Halt(self.p, self.db, self.internalPc, op.pOp)
         retPc = self.internalPc[0]
         return retPc, rc
 
-    def python_OP_Ne_Eq_Gt_Le_Lt_Ge(self, pc, rc, pOp):
+    def python_OP_Ne_Eq_Gt_Le_Lt_Ge(self, pc, rc, op):
         # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        # rc = capi.impl_OP_Ne_Eq_Gt_Le_Lt_Ge(self.p, self.db, self.internalPc, rc, pOp)
+        # rc = capi.impl_OP_Ne_Eq_Gt_Le_Lt_Ge(self.p, self.db, self.internalPc, rc, op.pOp)
         # retPc = self.internalPc[0]
         # return retPc, rc
 
-        return translated.python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(self, pc, rc, pOp)
+        return translated.python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(self, pc, rc, op)
 
-    def python_OP_Integer(self, pOp):
-        translated.python_OP_Integer(self, pOp)
-        #capi.impl_OP_Integer(self.p, pOp)
+    def python_OP_Integer(self, op):
+        translated.python_OP_Integer(self, op)
+        #capi.impl_OP_Integer(self.p, op.pOp)
 
-    def python_OP_Null(self, pOp):
-        capi.impl_OP_Null(self.p, pOp)
+    def python_OP_Null(self, op):
+        capi.impl_OP_Null(self.p, op.pOp)
 
-    def python_OP_AggStep(self, rc, pc, pOp):
-        #return capi.impl_OP_AggStep(self.p, self.db, rc, pOp)
-        return translated.python_OP_AggStep(self, rc, pc, pOp)
+    def python_OP_AggStep(self, rc, pc, op):
+        #return capi.impl_OP_AggStep(self.p, self.db, rc, op.pOp)
+        return translated.python_OP_AggStep(self, rc, pc, op)
 
-    def python_OP_AggFinal(self, pc, rc, pOp):
-        return capi.impl_OP_AggFinal(self.p, self.db, pc, rc, pOp)
+    def python_OP_AggFinal(self, pc, rc, op):
+        return capi.impl_OP_AggFinal(self.p, self.db, pc, rc, op.pOp)
 
-    def python_OP_Copy(self, pc, rc, pOp):
-        return capi.impl_OP_Copy(self.p, self.db, pc, rc, pOp)
+    def python_OP_Copy(self, pc, rc, op):
+        return capi.impl_OP_Copy(self.p, self.db, pc, rc, op.pOp)
 
-    def python_OP_MustBeInt(self, pc, rc, pOp):
+    def python_OP_MustBeInt(self, pc, rc, op):
         # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        # rc = capi.impl_OP_MustBeInt(self.p, self.db, self.internalPc, rc, pOp)
+        # rc = capi.impl_OP_MustBeInt(self.p, self.db, self.internalPc, rc, op.pOp)
         # retPc = self.internalPc[0]
         # return retPc, rc
 
-        return translated.python_OP_MustBeInt(self, pc, rc, pOp)
+        return translated.python_OP_MustBeInt(self, pc, rc, op)
 
-    def python_OP_NotExists(self, pc, pOp):
-        return translated.python_OP_NotExists(self, pc, pOp)
+    def python_OP_NotExists(self, pc, op):
+        return translated.python_OP_NotExists(self, pc, op)
         #self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        #rc = capi.impl_OP_NotExists(self.p, self.db, self.internalPc, pOp)
+        #rc = capi.impl_OP_NotExists(self.p, self.db, self.internalPc, op.pOp)
         #retPc = self.internalPc[0]
         #return retPc, rc
 
-    def python_OP_String(self, pOp):
-        capi.impl_OP_String(self.p, self.db, pOp)
+    def python_OP_String(self, op):
+        capi.impl_OP_String(self.p, self.db, op.pOp)
 
-    def python_OP_String8(self, pc, rc, pOp):
-        return capi.impl_OP_String8(self.p, self.db, pc, rc, pOp)
+    def python_OP_String8(self, pc, rc, op):
+        return capi.impl_OP_String8(self.p, self.db, pc, rc, op.pOp)
 
-    def python_OP_Function(self, pc, rc, pOp):
-        return capi.impl_OP_Function(self.p, self.db, pc, rc, pOp)
+    def python_OP_Function(self, pc, rc, op):
+        return capi.impl_OP_Function(self.p, self.db, pc, rc, op.pOp)
 
-    def python_OP_Real(self, pOp):
+    def python_OP_Real(self, op):
         # aMem = self.p.aMem
         # pOut = aMem[pOp.p2]
         # pOut.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Real)
         # assert not math.isnan(pOp.p4.pReal)
         # pOut.r = pOp.p4.pReal
 
-        capi.impl_OP_Real(self.p, pOp)
+        capi.impl_OP_Real(self.p, op.pOp)
 
-    def python_OP_RealAffinity(self, pOp):
-        # capi.impl_OP_RealAffinity(self.p, pOp)
-        translated.python_OP_RealAffinity(self, pOp)
+    def python_OP_RealAffinity(self, op):
+        # capi.impl_OP_RealAffinity(self.p, op.pOp)
+        translated.python_OP_RealAffinity(self, op)
 
-    def python_OP_Add_Subtract_Multiply_Divide_Remainder(self, pOp):
-        # capi.impl_OP_Add_Subtract_Multiply_Divide_Remainder(self.p, pOp)
-        translated.python_OP_Add_Subtract_Multiply_Divide_Remainder(self, pOp)
+    def python_OP_Add_Subtract_Multiply_Divide_Remainder(self, op):
+        # capi.impl_OP_Add_Subtract_Multiply_Divide_Remainder(self.p, op.pOp)
+        translated.python_OP_Add_Subtract_Multiply_Divide_Remainder(self, op)
 
-    def python_OP_If_IfNot(self, pc, pOp):
-        # return capi.impl_OP_If_IfNot(self.p, pc, pOp)
-        return translated.python_OP_If_IfNot(self, pc, pOp)
+    def python_OP_If_IfNot(self, pc, op):
+        # return capi.impl_OP_If_IfNot(self.p, pc, op.pOp)
+        return translated.python_OP_If_IfNot(self, pc, op)
 
-    def python_OP_Rowid(self, pc, rc, pOp):
-        return capi.impl_OP_Rowid(self.p, self.db, pc, rc, pOp)
+    def python_OP_Rowid(self, pc, rc, op):
+        return capi.impl_OP_Rowid(self.p, self.db, pc, rc, op.pOp)
 
-    def python_OP_IsNull(self, pc, pOp):
-        # return capi.impl_OP_IsNull(self.p, pc, pOp)
-        return translated.python_OP_IsNull(self, pc, pOp)
+    def python_OP_IsNull(self, pc, op):
+        # return capi.impl_OP_IsNull(self.p, pc, op.pOp)
+        return translated.python_OP_IsNull(self, pc, op)
 
-    def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(self, pc, rc, pOp):
+    def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(self, pc, rc, op):
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        rc = capi.impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(self.p, self.db, self.internalPc, rc, pOp)
+        rc = capi.impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(self.p, self.db, self.internalPc, rc, op.pOp)
         retPc = self.internalPc[0]
         return retPc, rc
 
-    def python_OP_Move(self, pOp):
-        capi.impl_OP_Move(self.p, pOp)
+    def python_OP_Move(self, op):
+        capi.impl_OP_Move(self.p, op.pOp)
 
-    def python_OP_IfZero(self, pc, pOp):
-        return capi.impl_OP_IfZero(self.p, pc, pOp)
+    def python_OP_IfZero(self, pc, op):
+        return capi.impl_OP_IfZero(self.p, pc, op.pOp)
 
-    def python_OP_IdxRowid(self, pc, rc, pOp):
-        return translated.python_OP_IdxRowid(self, pc, rc, pOp)
-        #return capi.impl_OP_IdxRowid(self.p, self.db, pc, rc, pOp)
+    def python_OP_IdxRowid(self, pc, rc, op):
+        return translated.python_OP_IdxRowid(self, pc, rc, op)
+        #return capi.impl_OP_IdxRowid(self.p, self.db, pc, rc, op.pOp)
 
-    def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(self, pc, pOp):
+    def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(self, pc, op):
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        rc = capi.impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(self.p, self.internalPc, pOp)
+        rc = capi.impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(self.p, self.internalPc, op.pOp)
         retPc = self.internalPc[0]
         return retPc, rc
 
-    def python_OP_Seek(self, pOp):
-        #capi.impl_OP_Seek(self.p, pOp)
-        translated.python_OP_Seek(self, pOp)
+    def python_OP_Seek(self, op):
+        #capi.impl_OP_Seek(self.p, op.pOp)
+        translated.python_OP_Seek(self, op)
 
-    def python_OP_Once(self, pc, pOp):
-        # return capi.impl_OP_Once(self.p, pc, pOp)
-        return translated.python_OP_Once(self, pc, pOp)
+    def python_OP_Once(self, pc, op):
+        # return capi.impl_OP_Once(self.p, pc, op.pOp)
+        return translated.python_OP_Once(self, pc, op)
 
-    def python_OP_SCopy(self, pOp):
-        capi.impl_OP_SCopy(self.p, pOp)
+    def python_OP_SCopy(self, op):
+        capi.impl_OP_SCopy(self.p, op.pOp)
 
-    def python_OP_Affinity(self, pOp):
-        # capi.impl_OP_Affinity(self.p, self.db, pOp)
-        translated.python_OP_Affinity(self, pOp)
+    def python_OP_Affinity(self, op):
+        # capi.impl_OP_Affinity(self.p, self.db, op.pOp)
+        translated.python_OP_Affinity(self, op)
 
-    def python_OP_OpenAutoindex_OpenEphemeral(self, pc, pOp):
-        return capi.impl_OP_OpenAutoindex_OpenEphemeral(self.p, self.db, pc, pOp)
+    def python_OP_OpenAutoindex_OpenEphemeral(self, pc, op):
+        return capi.impl_OP_OpenAutoindex_OpenEphemeral(self.p, self.db, pc, op.pOp)
 
-    def python_OP_MakeRecord(self, pc, rc, pOp):
-        return capi.impl_OP_MakeRecord(self.p, self.db, pc, rc, pOp)
+    def python_OP_MakeRecord(self, pc, rc, op):
+        return capi.impl_OP_MakeRecord(self.p, self.db, pc, rc, op.pOp)
 
-    def python_OP_SorterInsert_IdxInsert(self, pOp):
-        return capi.impl_OP_SorterInsert_IdxInsert(self.p, self.db, pOp)
+    def python_OP_SorterInsert_IdxInsert(self, op):
+        return capi.impl_OP_SorterInsert_IdxInsert(self.p, self.db, op.pOp)
 
-    def python_OP_NoConflict_NotFound_Found(self, pc, rc, pOp):
+    def python_OP_NoConflict_NotFound_Found(self, pc, rc, op):
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        rc = capi.impl_OP_NoConflict_NotFound_Found(self.p, self.db, self.internalPc, rc, pOp)
+        rc = capi.impl_OP_NoConflict_NotFound_Found(self.p, self.db, self.internalPc, rc, op.pOp)
         retPc = self.internalPc[0]
         return retPc, rc        
 
-    def python_OP_RowSetTest(self, pc, rc, pOp):
+    def python_OP_RowSetTest(self, pc, rc, op):
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        rc = capi.impl_OP_RowSetTest(self.p, self.db, self.internalPc, rc, pOp)
+        rc = capi.impl_OP_RowSetTest(self.p, self.db, self.internalPc, rc, op.pOp)
         retPc = self.internalPc[0]
         return retPc, rc        
 
-    def python_OP_Gosub(self, pc, pOp):
-        return capi.impl_OP_Gosub(self.p, pc, pOp)
+    def python_OP_Gosub(self, pc, op):
+        return capi.impl_OP_Gosub(self.p, pc, op.pOp)
 
-    def python_OP_Return(self, pc, pOp):
-        return capi.impl_OP_Return(self.p, pc, pOp)
+    def python_OP_Return(self, pc, op):
+        return capi.impl_OP_Return(self.p, pc, op.pOp)
 
-    def python_OP_SorterOpen(self, pc, pOp):
-        return capi.impl_OP_SorterOpen(self.p, self.db, pc, pOp)
+    def python_OP_SorterOpen(self, pc, op):
+        return capi.impl_OP_SorterOpen(self.p, self.db, pc, op.pOp)
 
-    def python_OP_NextIfOpen(self, pc, rc, pOp):
+    def python_OP_NextIfOpen(self, pc, rc, op):
         # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        # rc = capi.impl_OP_NextIfOpen(self.p, self.db, self.internalPc, rc, pOp)
+        # rc = capi.impl_OP_NextIfOpen(self.p, self.db, self.internalPc, rc, op.pOp)
         # retPc = self.internalPc[0]
         # return retPc, rc        
 
-        return translated.python_OP_NextIfOpen_translated(self, pc, rc, pOp)
+        return translated.python_OP_NextIfOpen_translated(self, pc, rc, op)
 
-    def python_OP_Sequence(self, pOp):
-        capi.impl_OP_Sequence(self.p, pOp)
+    def python_OP_Sequence(self, op):
+        capi.impl_OP_Sequence(self.p, op.pOp)
 
-    def python_OP_OpenPseudo(self, pc, rc, pOp):
-        return capi.impl_OP_OpenPseudo(self.p, self.db, pc, rc, pOp)
+    def python_OP_OpenPseudo(self, pc, rc, op):
+        return capi.impl_OP_OpenPseudo(self.p, self.db, pc, rc, op.pOp)
 
-    def python_OP_SorterSort_Sort(self, pc, pOp):
+    def python_OP_SorterSort_Sort(self, pc, op):
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        rc = capi.impl_OP_SorterSort_Sort(self.p, self.db, self.internalPc, pOp)
+        rc = capi.impl_OP_SorterSort_Sort(self.p, self.db, self.internalPc, op.pOp)
         retPc = self.internalPc[0]
         return retPc, rc        
 
-    def python_OP_SorterData(self, pOp):
-        return capi.impl_OP_SorterData(self.p, pOp)
+    def python_OP_SorterData(self, op):
+        return capi.impl_OP_SorterData(self.p, op.pOp)
 
-    def python_OP_SorterNext(self, pc, pOp):
+    def python_OP_SorterNext(self, pc, op):
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        rc = capi.impl_OP_SorterNext(self.p, self.db, self.internalPc, pOp)
+        rc = capi.impl_OP_SorterNext(self.p, self.db, self.internalPc, op.pOp)
         retPc = self.internalPc[0]
         return retPc, rc        
 
-    def python_OP_Noop_Explain(self, pOp):
-        translated.python_OP_Noop_Explain_translated(pOp)
+    def python_OP_Noop_Explain(self, op):
+        translated.python_OP_Noop_Explain_translated(op)
 
-    def python_OP_Compare(self, pOp):
-        capi.impl_OP_Compare(self.p, pOp)
+    def python_OP_Compare(self, op):
+        capi.impl_OP_Compare(self.p, op.pOp)
 
-    def python_OP_Jump(self, pOp):
-        return capi.impl_OP_Jump(pOp)
+    def python_OP_Jump(self, op):
+        return capi.impl_OP_Jump(op.pOp)
 
-    def python_OP_IfPos(self, pc, pOp):
-        return translated.python_OP_IfPos(self, pc, pOp)
+    def python_OP_IfPos(self, pc, op):
+        return translated.python_OP_IfPos(self, pc, op)
 
-    def python_OP_CollSeq(self, pOp):
-        capi.impl_OP_CollSeq(self.p, pOp)
+    def python_OP_CollSeq(self, op):
+        capi.impl_OP_CollSeq(self.p, op.pOp)
 
-    def python_OP_NotNull(self, pc, pOp):
-        # return capi.impl_OP_NotNull(self.p, pc, pOp)
-        return translated.python_OP_NotNull(self, pc, pOp)
+    def python_OP_NotNull(self, pc, op):
+        # return capi.impl_OP_NotNull(self.p, pc, op.pOp)
+        return translated.python_OP_NotNull(self, pc, op)
 
-    def python_OP_InitCoroutine(self, pc, pOp):
-        return capi.impl_OP_InitCoroutine(self.p, pc, pOp)
+    def python_OP_InitCoroutine(self, pc, op):
+        return capi.impl_OP_InitCoroutine(self.p, pc, op.pOp)
 
-    def python_OP_Yield(self, pc, pOp):
-        return capi.impl_OP_Yield(self.p, pc, pOp)
+    def python_OP_Yield(self, pc, op):
+        return capi.impl_OP_Yield(self.p, pc, op.pOp)
 
-    def python_OP_NullRow(self, pOp):
-        capi.impl_OP_NullRow(self.p, pOp)
+    def python_OP_NullRow(self, op):
+        capi.impl_OP_NullRow(self.p, op.pOp)
 
-    def python_OP_EndCoroutine(self, pOp):
-        return capi.impl_OP_EndCoroutine(self.p, pOp)
+    def python_OP_EndCoroutine(self, op):
+        return capi.impl_OP_EndCoroutine(self.p, op.pOp)
 
-    def python_OP_ReadCookie(self, pOp):
-        capi.impl_OP_ReadCookie(self.p, self.db, pOp)
+    def python_OP_ReadCookie(self, op):
+        capi.impl_OP_ReadCookie(self.p, self.db, op.pOp)
 
-    def python_OP_NewRowid(self, pc, rc, pOp):
-        return capi.impl_OP_NewRowid(self.p, self.db, pc, rc, pOp)
+    def python_OP_NewRowid(self, pc, rc, op):
+        return capi.impl_OP_NewRowid(self.p, self.db, pc, rc, op.pOp)
 
-    def python_OP_Insert_InsertInt(self, pOp):
-        return capi.impl_OP_Insert_InsertInt(self.p, self.db, pOp)
+    def python_OP_Insert_InsertInt(self, op):
+        return capi.impl_OP_Insert_InsertInt(self.p, self.db, op.pOp)
 
-    def python_OP_SetCookie(self, pOp):
-        return capi.impl_OP_SetCookie(self.p, self.db, pOp)
+    def python_OP_SetCookie(self, op):
+        return capi.impl_OP_SetCookie(self.p, self.db, op.pOp)
 
-    def python_OP_ParseSchema(self, pc, rc, pOp):
-        return capi.impl_OP_ParseSchema(self.p, self.db, pc, rc, pOp)
+    def python_OP_ParseSchema(self, pc, rc, op):
+        return capi.impl_OP_ParseSchema(self.p, self.db, pc, rc, op.pOp)
 
-    def python_OP_RowSetAdd(self, pc, rc, pOp):
-        return capi.impl_OP_RowSetAdd(self.p, self.db, pc, rc, pOp)
+    def python_OP_RowSetAdd(self, pc, rc, op):
+        return capi.impl_OP_RowSetAdd(self.p, self.db, pc, rc, op.pOp)
 
-    def python_OP_RowSetRead(self, pc, rc, pOp):
+    def python_OP_RowSetRead(self, pc, rc, op):
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        retRc = capi.impl_OP_RowSetRead(self.p, self.db, self.internalPc, rc, pOp)
+        retRc = capi.impl_OP_RowSetRead(self.p, self.db, self.internalPc, rc, op.pOp)
         retPc = self.internalPc[0]
         return retPc, retRc   
 
-    def python_OP_Delete(self, pc, pOp):
-        return capi.impl_OP_Delete(self.p, self.db, pc, pOp)
+    def python_OP_Delete(self, pc, op):
+        return capi.impl_OP_Delete(self.p, self.db, pc, op.pOp)
 
-    def python_OP_DropTable(self, pOp):
-        return capi.impl_OP_DropTable(self.db, pOp)
+    def python_OP_DropTable(self, op):
+        return capi.impl_OP_DropTable(self.db, op.pOp)
 
 
     def python_sqlite3_column_text(self, iCol):
@@ -371,77 +374,17 @@ class Sqlite3Query(object):
     def get_opcode_str(self, opcode):
         return capi.opnames_dict.get(opcode, '')
 
-    @jit.elidable
-    def get_opcode(self, pOp):
-        return rffi.cast(lltype.Unsigned, pOp.opcode)
 
     @jit.elidable
     def get_aOp(self):
         return self.p.aOp
 
     @jit.elidable
-    def p_Signed(self, pOp, i):
-        if i == 1:
-            return rffi.cast(lltype.Signed, pOp.p1)
-        if i == 2:
-            return rffi.cast(lltype.Signed, pOp.p2)
-        if i == 3:
-            return rffi.cast(lltype.Signed, pOp.p3)
-        if i == 5:
-            return rffi.cast(lltype.Signed, pOp.p5)
-        assert 0
-
-    @jit.elidable
-    def p_Unsigned(self, pOp, i):
-        if i == 1:
-            return rffi.cast(lltype.Unsigned, pOp.p1)
-        if i == 2:
-            return rffi.cast(lltype.Unsigned, pOp.p2)
-        if i == 3:
-            return rffi.cast(lltype.Unsigned, pOp.p3)
-        if i == 5:
-            return rffi.cast(lltype.Unsigned, pOp.p5)
-        assert 0
-
-    @jit.elidable
-    def p4type(self, pOp):
-        return pOp.p4type
-
-    @jit.elidable
-    def p4_z(self, pOp):
-        return rffi.charp2str(pOp.p4.z)
-
-    @jit.elidable
-    def p4_pFunc(self, pOp):
-        return pOp.p4.pFunc
-
-    @jit.elidable
-    def p4_pColl(self, pOp):
-        return pOp.p4.pColl
-
-    def p2as_pc(self, pOp):
-        return self.p_Signed(pOp, 2) - 1
+    def enc(self):
+        return self.db.aDb[0].pSchema.enc
 
     def mem_with_index(self, i):
         return self._mem_as_python_list[i]
-
-    def mem_of_p(self, pOp, i):
-        return self._mem_as_python_list[self.p_Signed(pOp, i)]
-
-    def mem_and_flags_of_p(self, pOp, i, promote=False):
-        mem = self.mem_of_p(pOp, i)
-        flags = rffi.cast(lltype.Unsigned, mem.flags)
-        if promote:
-            jit.promote(flags)
-        return mem, flags
-
-    @jit.elidable
-    def opflags(self, pOp):
-        return rffi.cast(lltype.Unsigned, pOp.opflags)
-
-    @jit.elidable
-    def enc(self):
-        return self.db.aDb[0].pSchema.enc
 
     def VdbeMemDynamic(self, x):
         return (x.flags & (CConfig.MEM_Agg|CConfig.MEM_Dyn|CConfig.MEM_RowSet|CConfig.MEM_Frame))!=0
@@ -451,7 +394,6 @@ class Sqlite3Query(object):
             capi.sqlite3VdbeMemReleaseExternal(x)
 
     def mainloop(self):
-        ops = self.get_aOp()
         rc = CConfig.SQLITE_OK
         pc = jit.promote(rffi.cast(lltype.Signed, self.p.pc))
         if pc < 0:
@@ -459,48 +401,48 @@ class Sqlite3Query(object):
 
         i = 0
         while True:
-            jitdriver.jit_merge_point(pc=pc, self_=self, ops=ops, rc=rc)
+            jitdriver.jit_merge_point(pc=pc, self_=self, rc=rc)
             if rc != CConfig.SQLITE_OK:
                 break
-            pOp = ops[pc]
-            opcode = self.get_opcode(pOp)
+            op = self._hlops[pc]
+            opcode = op.get_opcode()
             oldpc = pc
             self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
 
-            opflags = self.opflags(pOp)
+            opflags = op.opflags()
             if opflags & CConfig.OPFLG_OUT2_PRERELEASE:
-                pOut = self.mem_of_p(pOp, 2)
+                pOut = op.mem_of_p(2)
                 self.VdbeMemRelease(pOut)
                 pOut.flags = rffi.cast(CConfig.u16, CConfig.MEM_Int)
 
             if opcode == CConfig.OP_Init:
-                pc = self.python_OP_Init(pc, pOp)
+                pc = self.python_OP_Init(pc, op)
             elif (opcode == CConfig.OP_OpenRead or
                   opcode == CConfig.OP_OpenWrite):
-                rc = self.python_OP_OpenRead_OpenWrite(pc, pOp)
+                rc = self.python_OP_OpenRead_OpenWrite(pc, op)
             elif opcode == CConfig.OP_Rewind:
-                pc, rc = self.python_OP_Rewind(pc, pOp)
+                pc, rc = self.python_OP_Rewind(pc, op)
             elif opcode == CConfig.OP_Transaction:
-                rc = self.python_OP_Transaction(pc, pOp)
+                rc = self.python_OP_Transaction(pc, op)
                 if rc == CConfig.SQLITE_BUSY:
                     print 'ERROR: in OP_Transaction SQLITE_BUSY'
                     return rc
             elif opcode == CConfig.OP_TableLock:
-                rc = self.python_OP_TableLock(rc, pOp)
+                rc = self.python_OP_TableLock(rc, op)
             elif opcode == CConfig.OP_Goto:
-                pc, rc = self.python_OP_Goto(pc, rc, pOp)
+                pc, rc = self.python_OP_Goto(pc, rc, op)
             elif opcode == CConfig.OP_Column:
-                rc = self.python_OP_Column(pc, pOp)
+                rc = self.python_OP_Column(pc, op)
             elif opcode == CConfig.OP_ResultRow:
-                rc = self.python_OP_ResultRow(pc, pOp)
+                rc = self.python_OP_ResultRow(pc, op)
                 if rc == CConfig.SQLITE_ROW:
                     return rc
             elif opcode == CConfig.OP_Next:
-                pc, rc = self.python_OP_Next(pc, pOp)
+                pc, rc = self.python_OP_Next(pc, op)
             elif opcode == CConfig.OP_Close:
-                self.python_OP_Close(pOp)
+                self.python_OP_Close(op)
             elif opcode == CConfig.OP_Halt:
-                pc, rc = self.python_OP_Halt(pc, pOp)
+                pc, rc = self.python_OP_Halt(pc, op)
                 return rc
             elif (opcode == CConfig.OP_Eq or 
                   opcode == CConfig.OP_Ne or 
@@ -508,148 +450,214 @@ class Sqlite3Query(object):
                   opcode == CConfig.OP_Le or 
                   opcode == CConfig.OP_Gt or 
                   opcode == CConfig.OP_Ge):
-                pc, rc = self.python_OP_Ne_Eq_Gt_Le_Lt_Ge(pc, rc, pOp)
+                pc, rc = self.python_OP_Ne_Eq_Gt_Le_Lt_Ge(pc, rc, op)
             elif opcode == CConfig.OP_Integer:
-                self.python_OP_Integer(pOp)
+                self.python_OP_Integer(op)
             elif opcode == CConfig.OP_Null:
-                self.python_OP_Null(pOp)
+                self.python_OP_Null(op)
             elif opcode == CConfig.OP_AggStep:
-                rc = self.python_OP_AggStep(rc, pc, pOp)
+                rc = self.python_OP_AggStep(rc, pc, op)
             elif opcode == CConfig.OP_AggFinal:
-                rc = self.python_OP_AggFinal(pc, rc, pOp)
+                rc = self.python_OP_AggFinal(pc, rc, op)
             elif opcode == CConfig.OP_Copy:
-                rc = self.python_OP_Copy(pc, rc, pOp)
+                rc = self.python_OP_Copy(pc, rc, op)
             elif opcode == CConfig.OP_MustBeInt:
-                pc, rc = self.python_OP_MustBeInt(pc, rc, pOp)
+                pc, rc = self.python_OP_MustBeInt(pc, rc, op)
             elif opcode == CConfig.OP_NotExists:
-                pc, rc = self.python_OP_NotExists(pc, pOp)
+                pc, rc = self.python_OP_NotExists(pc, op)
             elif opcode == CConfig.OP_String:
-                self.python_OP_String(pOp)
+                self.python_OP_String(op)
             elif opcode == CConfig.OP_String8:
-                rc = self.python_OP_String8(pc, rc, pOp)
+                rc = self.python_OP_String8(pc, rc, op)
             elif opcode == CConfig.OP_Function:
-                rc = self.python_OP_Function(pc, rc, pOp)
+                rc = self.python_OP_Function(pc, rc, op)
             elif opcode == CConfig.OP_Real:
-                self.python_OP_Real(pOp)
+                self.python_OP_Real(op)
             elif opcode == CConfig.OP_RealAffinity:
-                self.python_OP_RealAffinity(pOp)
+                self.python_OP_RealAffinity(op)
             elif (opcode == CConfig.OP_Add or 
                   opcode == CConfig.OP_Subtract or 
                   opcode == CConfig.OP_Multiply or 
                   opcode == CConfig.OP_Divide or 
                   opcode == CConfig.OP_Remainder):
-                self.python_OP_Add_Subtract_Multiply_Divide_Remainder(pOp)
+                self.python_OP_Add_Subtract_Multiply_Divide_Remainder(op)
             elif (opcode == CConfig.OP_If or
                   opcode == CConfig.OP_IfNot):
-                pc = self.python_OP_If_IfNot(pc, pOp)
+                pc = self.python_OP_If_IfNot(pc, op)
             elif opcode == CConfig.OP_Rowid:
-                rc = self.python_OP_Rowid(pc, rc, pOp)
+                rc = self.python_OP_Rowid(pc, rc, op)
             elif opcode == CConfig.OP_IsNull:
-                pc = self.python_OP_IsNull(pc, pOp)
+                pc = self.python_OP_IsNull(pc, op)
             elif (opcode == CConfig.OP_SeekLT or 
                   opcode == CConfig.OP_SeekLE or 
                   opcode == CConfig.OP_SeekGE or 
                   opcode == CConfig.OP_SeekGT):
-                pc, rc = self.python_OP_SeekLT_SeekLE_SeekGE_SeekGT(pc, rc, pOp)
+                pc, rc = self.python_OP_SeekLT_SeekLE_SeekGE_SeekGT(pc, rc, op)
             elif opcode == CConfig.OP_Move:
-                self.python_OP_Move(pOp)
+                self.python_OP_Move(op)
             elif opcode == CConfig.OP_IfZero:
-                pc = self.python_OP_IfZero(pc, pOp)
+                pc = self.python_OP_IfZero(pc, op)
             elif opcode == CConfig.OP_IdxRowid:
-                rc = self.python_OP_IdxRowid(pc, rc, pOp)
+                rc = self.python_OP_IdxRowid(pc, rc, op)
             elif (opcode == CConfig.OP_IdxLE or 
                   opcode == CConfig.OP_IdxGT or 
                   opcode == CConfig.OP_IdxLT or 
                   opcode == CConfig.OP_IdxGE):
-                pc, rc = self.python_OP_IdxLE_IdxGT_IdxLT_IdxGE(pc, pOp)
+                pc, rc = self.python_OP_IdxLE_IdxGT_IdxLT_IdxGE(pc, op)
             elif opcode == CConfig.OP_Seek:
-                self.python_OP_Seek(pOp)
+                self.python_OP_Seek(op)
             elif opcode == CConfig.OP_Once:
-                pc = self.python_OP_Once(pc, pOp)
+                pc = self.python_OP_Once(pc, op)
             elif opcode == CConfig.OP_SCopy:
-                self.python_OP_SCopy(pOp)
+                self.python_OP_SCopy(op)
             elif opcode == CConfig.OP_Affinity:
-                self.python_OP_Affinity(pOp)
+                self.python_OP_Affinity(op)
             elif (opcode == CConfig.OP_OpenAutoindex or 
                   opcode == CConfig.OP_OpenEphemeral):
-                rc = self.python_OP_OpenAutoindex_OpenEphemeral(pc, pOp)
+                rc = self.python_OP_OpenAutoindex_OpenEphemeral(pc, op)
             elif opcode == CConfig.OP_MakeRecord:
-                rc = self.python_OP_MakeRecord(pc, rc, pOp)
+                rc = self.python_OP_MakeRecord(pc, rc, op)
             elif (opcode == CConfig.OP_SorterInsert or 
                   opcode == CConfig.OP_IdxInsert):
-                rc = self.python_OP_SorterInsert_IdxInsert(pOp)
+                rc = self.python_OP_SorterInsert_IdxInsert(op)
             elif (opcode == CConfig.OP_NoConflict or 
                   opcode == CConfig.OP_NotFound or 
                   opcode == CConfig.OP_Found):
-                pc, rc = self.python_OP_NoConflict_NotFound_Found(pc, rc, pOp)
+                pc, rc = self.python_OP_NoConflict_NotFound_Found(pc, rc, op)
             elif opcode == CConfig.OP_RowSetTest:
-                pc, rc = self.python_OP_RowSetTest(pc, rc, pOp)
+                pc, rc = self.python_OP_RowSetTest(pc, rc, op)
             elif opcode == CConfig.OP_Gosub:
-                pc = self.python_OP_Gosub(pc, pOp)
+                pc = self.python_OP_Gosub(pc, op)
             elif opcode == CConfig.OP_Return:
-                pc = self.python_OP_Return(pc, pOp)
+                pc = self.python_OP_Return(pc, op)
             elif opcode == CConfig.OP_SorterOpen:
-                rc = self.python_OP_SorterOpen(pc, pOp)
+                rc = self.python_OP_SorterOpen(pc, op)
             elif opcode == CConfig.OP_NextIfOpen:
-                pc, rc = self.python_OP_NextIfOpen(pc, rc, pOp)
+                pc, rc = self.python_OP_NextIfOpen(pc, rc, op)
             elif opcode == CConfig.OP_Sequence:
-                self.python_OP_Sequence(pOp)
+                self.python_OP_Sequence(op)
             elif opcode == CConfig.OP_OpenPseudo:
-                rc = self.python_OP_OpenPseudo(pc, rc, pOp)
+                rc = self.python_OP_OpenPseudo(pc, rc, op)
             elif (opcode == CConfig.OP_SorterSort or 
                   opcode == CConfig.OP_Sort):
-                pc, rc = self.python_OP_SorterSort_Sort(pc, pOp)
+                pc, rc = self.python_OP_SorterSort_Sort(pc, op)
             elif opcode == CConfig.OP_SorterData:
-                rc = self.python_OP_SorterData(pOp)
+                rc = self.python_OP_SorterData(op)
             elif opcode == CConfig.OP_SorterNext:
-                pc, rc = self.python_OP_SorterNext(pc, pOp)
+                pc, rc = self.python_OP_SorterNext(pc, op)
             elif (opcode == CConfig.OP_Noop or 
                   opcode == CConfig.OP_Explain):
-                self.python_OP_Noop_Explain(pOp)
+                self.python_OP_Noop_Explain(op)
             elif opcode == CConfig.OP_Compare:
-                self.python_OP_Compare(pOp)
+                self.python_OP_Compare(op)
             elif opcode == CConfig.OP_Jump:
-                pc = self.python_OP_Jump(pOp)
+                pc = self.python_OP_Jump(op)
             elif opcode == CConfig.OP_IfPos:
-                pc = self.python_OP_IfPos(pc, pOp)
+                pc = self.python_OP_IfPos(pc, op)
             elif opcode == CConfig.OP_CollSeq:
-                self.python_OP_CollSeq(pOp)
+                self.python_OP_CollSeq(op)
             elif opcode == CConfig.OP_NotNull:
-                pc = self.python_OP_NotNull(pc, pOp)
+                pc = self.python_OP_NotNull(pc, op)
             elif opcode == CConfig.OP_InitCoroutine:
-                pc = self.python_OP_InitCoroutine(pc, pOp)
+                pc = self.python_OP_InitCoroutine(pc, op)
             elif opcode == CConfig.OP_Yield:
-                pc = self.python_OP_Yield(pc, pOp)
+                pc = self.python_OP_Yield(pc, op)
             elif opcode == CConfig.OP_NullRow:
-                self.python_OP_NullRow(pOp)
+                self.python_OP_NullRow(op)
             elif opcode == CConfig.OP_EndCoroutine:
-                pc = self.python_OP_EndCoroutine(pOp)
+                pc = self.python_OP_EndCoroutine(op)
             elif opcode == CConfig.OP_ReadCookie:
-                self.python_OP_ReadCookie(pOp)
+                self.python_OP_ReadCookie(op)
             elif opcode == CConfig.OP_NewRowid:
-                rc = self.python_OP_NewRowid(pc, rc, pOp)
+                rc = self.python_OP_NewRowid(pc, rc, op)
             elif (opcode == CConfig.OP_Insert or 
                   opcode == CConfig.OP_InsertInt):
-                rc = self.python_OP_Insert_InsertInt(pOp)
+                rc = self.python_OP_Insert_InsertInt(op)
             elif opcode == CConfig.OP_SetCookie:
-                rc = self.python_OP_SetCookie(pOp)
+                rc = self.python_OP_SetCookie(op)
             elif opcode == CConfig.OP_ParseSchema:
-                rc = self.python_OP_ParseSchema(pc, rc, pOp)
+                rc = self.python_OP_ParseSchema(pc, rc, op)
             elif opcode == CConfig.OP_RowSetAdd:
-                rc = self.python_OP_RowSetAdd(pc, rc, pOp)
+                rc = self.python_OP_RowSetAdd(pc, rc, op)
             elif opcode == CConfig.OP_RowSetRead:
-                pc, rc = self.python_OP_RowSetRead(pc, rc, pOp)
+                pc, rc = self.python_OP_RowSetRead(pc, rc, op)
             elif opcode == CConfig.OP_Delete:
-                rc = self.python_OP_Delete(pc, pOp)
+                rc = self.python_OP_Delete(pc, op)
             elif opcode == CConfig.OP_DropTable:
-                self.python_OP_DropTable(pOp)
+                self.python_OP_DropTable(op)
             else:
                 raise SQPyteException("SQPyteException: Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))
             pc += 1
             if pc <= oldpc:
-                jitdriver.can_enter_jit(pc=pc, self_=self, ops=ops, rc=rc)
+                jitdriver.can_enter_jit(pc=pc, self_=self, rc=rc)
         return rc
+
+class Op(object):
+    def __init__(self, hlquery, pOp):
+        self.hlquery = hlquery
+        self.pOp = pOp
+
+    @jit.elidable
+    def get_opcode(self):
+        return rffi.cast(lltype.Unsigned, self.pOp.opcode)
+
+    @jit.elidable
+    def p_Signed(self, i):
+        if i == 1:
+            return rffi.cast(lltype.Signed, self.pOp.p1)
+        if i == 2:
+            return rffi.cast(lltype.Signed, self.pOp.p2)
+        if i == 3:
+            return rffi.cast(lltype.Signed, self.pOp.p3)
+        if i == 5:
+            return rffi.cast(lltype.Signed, self.pOp.p5)
+        assert 0
+
+    @jit.elidable
+    def p_Unsigned(self, i):
+        if i == 1:
+            return rffi.cast(lltype.Unsigned, self.pOp.p1)
+        if i == 2:
+            return rffi.cast(lltype.Unsigned, self.pOp.p2)
+        if i == 3:
+            return rffi.cast(lltype.Unsigned, self.pOp.p3)
+        if i == 5:
+            return rffi.cast(lltype.Unsigned, self.pOp.p5)
+        assert 0
+
+    @jit.elidable
+    def p4type(self):
+        return self.pOp.p4type
+
+    @jit.elidable
+    def p4_z(self):
+        return rffi.charp2str(self.pOp.p4.z)
+
+    @jit.elidable
+    def p4_pFunc(self):
+        return self.pOp.p4.pFunc
+
+    @jit.elidable
+    def p4_pColl(self):
+        return self.pOp.p4.pColl
+
+    def p2as_pc(self):
+        return self.p_Signed(2) - 1
+
+    def mem_of_p(self, i):
+        return self.hlquery._mem_as_python_list[self.p_Signed(i)]
+
+    def mem_and_flags_of_p(self, i, promote=False):
+        mem = self.mem_of_p(i)
+        flags = rffi.cast(lltype.Unsigned, mem.flags)
+        if promote:
+            jit.promote(flags)
+        return mem, flags
+
+    @jit.elidable
+    def opflags(self):
+        return rffi.cast(lltype.Unsigned, self.pOp.opflags)
 
 
 def main_work(query):
