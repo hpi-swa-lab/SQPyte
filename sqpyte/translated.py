@@ -124,7 +124,17 @@ def _applyNumericAffinity_flags_read(mem, flags):
     capi.sqlite3_applyNumericAffinity(mem)
     return mem.flags
 
+def sqlite3VdbeMemRelease(hlquery, pMem):
+    hlquery.VdbeMemRelease(pMem)
+    if pMem.zMalloc:
+        capi.sqlite3DbFree(hlquery.db, pMem.zMalloc);
+        pMem.zMalloc = lltype.nullptr(rffi.CCHARP.TO)
+    pMem.z = lltype.nullptr(rffi.CCHARP.TO)
 
+def sqlite3VdbeMemSetInt64(hlquery, pMem, val):
+    sqlite3VdbeMemRelease(hlquery, pMem)
+    pMem.u.i = val
+    rffi.setintfield(pMem, 'flags', CConfig.MEM_Int)
 
 def MemSetTypeFlag(mem, flags):
     mem.flags = rffi.cast(CConfig.u16, (mem.flags & ~(CConfig.MEM_TypeMask | CConfig.MEM_Zero)) | flags)
@@ -1208,3 +1218,57 @@ def python_OP_Seek(hlquery, pOp):
     pC.movetoTarget = _sqlite3VdbeIntValue_flags(pIn2, flags)
     rffi.setintfield(pC, 'rowidIsValid', 0)
     rffi.setintfield(pC, 'deferredMoveto', 1)
+
+
+
+# Opcode: AggStep * P2 P3 P4 P5
+# Synopsis: accum=r[P3] step(r[P2@P5])
+#
+# Execute the step function for an aggregate.  The
+# function has P5 arguments.   P4 is a pointer to the FuncDef
+# structure that specifies the function.  Use register
+# P3 as the accumulator.
+#
+# The P5 arguments are taken from register P2 and its
+# successors.
+
+def python_OP_AggStep(hlquery, rc, pc, pOp):
+    p = hlquery.p
+    db = hlquery.db
+    n = hlquery.p_Signed(pOp, 5)
+    apVal = p.apArg
+    assert apVal or n == 0
+    index = hlquery.p_Signed(pOp, 2)
+    for i in range(n):
+        apVal[i] = hlquery.mem_with_index(index + i)
+    pMem = hlquery.mem_of_p(pOp, 3)
+    with lltype.scoped_alloc(capi.CONTEXT) as ctx:
+        ctx.pFunc = pFunc = hlquery.p4_pFunc(pOp)
+        #assert( pOp.p3>0 && pOp.p3<=(p.nMem-p.nCursor) );
+        ctx.pMem = pMem
+        rffi.setintfield(pMem, 'n', rffi.getintfield(pMem, 'n') + 1)
+        rffi.setintfield(ctx.s, 'flags', CConfig.MEM_Null)
+        ctx.s.z = lltype.nullptr(lltype.typeOf(ctx).TO.s.z.TO)
+        ctx.s.zMalloc = lltype.nullptr(lltype.typeOf(ctx).TO.s.zMalloc.TO)
+        ctx.s.xDel = lltype.nullptr(lltype.typeOf(ctx).TO.s.xDel.TO)
+        ctx.s.db = db
+        rffi.setintfield(ctx, 'isError', 0)
+        ctx.pColl = lltype.nullptr(lltype.typeOf(ctx).TO.pColl.TO)
+        rffi.setintfield(ctx, 'skipFlag', 0)
+        if rffi.getintfield(ctx.pFunc, 'funcFlags') & CConfig.SQLITE_FUNC_NEEDCOLL:
+            ops = hlquery.get_aOp()
+            ctx.pColl = hlquery.p4_pColl(ops[pc - 1])
+        xStep = rffi.cast(capi.FUNCTYPESTEPP, pFunc.xStep)
+        xStep(ctx, rffi.cast(rffi.INT, n), apVal)  # /* IMP: R-24505-23230 */
+        if rffi.getintfield(ctx, 'isError'):
+            assert 0
+            # XXX fix error handling
+            rc = rffi.cast(lltype.Signed, ctx.isError)
+        if rffi.getintfield(ctx, 'skipFlag'):
+            ops = hlquery.get_aOp()
+            assert rffi.getintfield(ops[pc - 1], 'opcode') == CConfig.OP_CollSeq
+            i = hlquery.p_Signed(ops[pc - 1], 1)
+            if i:
+                sqlite3VdbeMemSetInt64(hlquery, hlquery.mem_with_index(i), 1)
+        sqlite3VdbeMemRelease(hlquery, ctx.s)
+        return rc

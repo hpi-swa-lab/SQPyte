@@ -59,13 +59,16 @@ opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite', 'OP_Rewind',
 p4names = ['P4_INT32', 'P4_KEYINFO', 'P4_COLLSEQ']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR', 'OPFLAG_CLEARCACHE', 'OPFLAG_LENGTHARG', 'OPFLAG_TYPEOFARG', 'OPFLG_OUT2_PRERELEASE']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW', 'SQLITE_BUSY', 'SQLITE_CORRUPT_BKPT']
-sqlite_codes = ['SQLITE_NULLEQ', 'SQLITE_JUMPIFNULL', 'SQLITE_STOREP2', 'SQLITE_AFF_MASK']
+sqlite_codes = ['SQLITE_NULLEQ', 'SQLITE_JUMPIFNULL', 'SQLITE_STOREP2', 'SQLITE_AFF_MASK', 'SQLITE_FUNC_NEEDCOLL']
 affinity_codes = ['SQLITE_AFF_TEXT', 'SQLITE_AFF_NONE', 'SQLITE_AFF_INTEGER', 'SQLITE_AFF_REAL', 'SQLITE_AFF_NUMERIC']
 btree_values = ['BTCURSOR_MAX_DEPTH', 'BTREE_BULKLOAD']
 other_constants = ['SQLITE_MAX_VARIABLE_NUMBER', 'CACHE_STALE']
+encodings = ['SQLITE_UTF8']
 memValues = ['MEM_Null', 'MEM_Real', 'MEM_Cleared', 'MEM_TypeMask', 'MEM_Zero', 'MEM_Int', 'MEM_Str', 'MEM_RowSet', 'MEM_Blob', 'MEM_Agg', 'MEM_Dyn', 'MEM_Frame']
 
-for name in p4names + opnames + p5flags + result_codes + sqlite_codes + btree_values + other_constants + memValues + affinity_codes:
+for name in (p4names + opnames + p5flags + result_codes + sqlite_codes +
+             btree_values + other_constants + memValues + affinity_codes +
+             encodings):
     setattr(CConfig, name, platform.DefinedConstantInteger(name))
 
 
@@ -97,6 +100,8 @@ BTCURSOR = lltype.ForwardReference()
 BTCURSORP = lltype.Ptr(BTCURSOR)
 FUNCDEF = lltype.ForwardReference()
 FUNCDEFP = lltype.Ptr(FUNCDEF)
+CONTEXT = lltype.ForwardReference()
+CONTEXTP = lltype.Ptr(CONTEXT)
 
 HASH = lltype.Struct("Hash",                # src/hash.h: 43
     ("htsize", rffi.UINT),                  # Number of buckets in the hash table
@@ -390,6 +395,9 @@ MEM = lltype.Struct("Mem",          # src/vdbeInt.h: 159
 MEMP = lltype.Ptr(MEM)
 MEMPP = rffi.CArrayPtr(MEMP)
 
+FUNCTYPESTEPP = lltype.Ptr(lltype.FuncType([CONTEXTP, rffi.INT, MEMPP], lltype.Void))
+FUNCTYPEFINALIZEP = lltype.Ptr(lltype.FuncType([CONTEXTP], lltype.Void))
+
 
 FUNCDEF.become(lltype.Struct("FuncDef",     # src/sqliteInt.h: 1165
     ("nArg", CConfig.i16),                  # Number of arguments.  -1 means unlimited
@@ -552,6 +560,31 @@ VDBECURSOR.become(lltype.Struct("VdbeCursor",   # src/vdbeInt.h: 63
     #   ** static element declared in the structure.  nField total array slots for
     #   ** aType[] and nField+1 array slots for aOffset[] */
     ))
+
+
+# The "context" argument for a installable function.  A pointer to an
+# instance of this structure is the first argument to the routines used
+# implement the SQL functions.
+#
+# There is a typedef for this structure in sqlite.h.  So all routines,
+# even the public interface to SQLite, can use a pointer to this structure.
+# But this file is the only place where the internal details of this
+# structure are known.
+#
+# This structure is defined inside of vdbeInt.h because it uses substructures
+# (Mem) which are only defined there.
+
+CONTEXT.become(lltype.Struct("CONTEXT",
+    ("pFunc", FUNCDEFP),           # Pointer to function information.  MUST BE FIRST
+    ("s", MEM),                    # The return value is stored here
+    ("pMem", MEMP),                # Memory cell used to store aggregate context
+    ("pColl", COLLSEQP),           # Collating sequence
+    ("pVdbe", VDBEP),              # The VM that owns this context
+    ("iOp", rffi.INT),             # Instruction number of OP_Function
+    ("isError", rffi.INT),         # Error code returned by the function.
+    ("skipFlag", CConfig.u8),      # Skip skip accumulator loading if true
+    ("fErrorOrAux", CConfig.u8)    # isError!=0 or pVdbe->pAuxData modified
+))
 
 
 sqlite3_open = rffi.llexternal('sqlite3_open', [rffi.CCHARP, SQLITE3PP],
@@ -735,7 +768,14 @@ sqlite3VdbeMemReleaseExternal = rffi.llexternal('sqlite3VdbeMemReleaseExternal',
     lltype.Void, compilation_info=CConfig._compilation_info_)
 sqlite3VdbeIdxRowid = rffi.llexternal('sqlite3VdbeIdxRowid', [SQLITE3P, BTCURSORP, rffi.LONGP],
     rffi.INT, compilation_info=CConfig._compilation_info_)
+sqlite3DbFree = rffi.llexternal('sqlite3DbFree', [SQLITE3P, rffi.VOIDP],
+    lltype.Void, compilation_info=CConfig._compilation_info_)
+sqlite3ValueText = rffi.llexternal('sqlite3ValueText', [MEMP, CConfig.u8],
+    rffi.VOIDP, compilation_info=CConfig._compilation_info_)
 
+# (char **, sqlite3*, const char*, ...);
+sqlite3SetString1 = rffi.llexternal('sqlite3SetString', [rffi.CCHARPP, SQLITE3P, rffi.CCHARP, rffi.VOIDP],
+    lltype.Void, compilation_info=CConfig._compilation_info_)
 
 sqlite3_sqlite3MemCompare = rffi.llexternal('sqlite3MemCompare', [MEMP, MEMP, COLLSEQP],
     rffi.INT, compilation_info=CConfig._compilation_info_)
@@ -747,4 +787,5 @@ gotoAbortDueToError = rffi.llexternal('gotoAbortDueToError', [VDBEP, SQLITE3P, r
     rffi.INT, compilation_info=CConfig._compilation_info_)
 sqlite3_gotoNoMem = rffi.llexternal('gotoNoMem', [VDBEP, SQLITE3P, rffi.INT],
     rffi.INT, compilation_info=CConfig._compilation_info_)
+
 

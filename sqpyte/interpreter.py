@@ -136,8 +136,9 @@ class Sqlite3Query(object):
     def python_OP_Null(self, pOp):
         capi.impl_OP_Null(self.p, pOp)
 
-    def python_OP_AggStep(self, rc, pOp):
-        return capi.impl_OP_AggStep(self.p, self.db, rc, pOp)
+    def python_OP_AggStep(self, rc, pc, pOp):
+        #return capi.impl_OP_AggStep(self.p, self.db, rc, pOp)
+        return translated.python_OP_AggStep(self, rc, pc, pOp)
 
     def python_OP_AggFinal(self, pc, rc, pOp):
         return capi.impl_OP_AggFinal(self.p, self.db, pc, rc, pOp)
@@ -410,8 +411,19 @@ class Sqlite3Query(object):
     def p4_z(self, pOp):
         return rffi.charp2str(pOp.p4.z)
 
+    @jit.elidable
+    def p4_pFunc(self, pOp):
+        return pOp.p4.pFunc
+
+    @jit.elidable
+    def p4_pColl(self, pOp):
+        return pOp.p4.pColl
+
     def p2as_pc(self, pOp):
         return self.p_Signed(pOp, 2) - 1
+
+    def mem_with_index(self, i):
+        return self._mem_as_python_list[i]
 
     def mem_of_p(self, pOp, i):
         return self._mem_as_python_list[self.p_Signed(pOp, i)]
@@ -502,7 +514,7 @@ class Sqlite3Query(object):
             elif opcode == CConfig.OP_Null:
                 self.python_OP_Null(pOp)
             elif opcode == CConfig.OP_AggStep:
-                rc = self.python_OP_AggStep(rc, pOp)
+                rc = self.python_OP_AggStep(rc, pc, pOp)
             elif opcode == CConfig.OP_AggFinal:
                 rc = self.python_OP_AggFinal(pc, rc, pOp)
             elif opcode == CConfig.OP_Copy:
