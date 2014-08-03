@@ -586,6 +586,7 @@ def python_OP_MustBeInt(hlquery, pc, rc, op):
     pIn1, flags1 = op.mem_and_flags_of_p(1, promote=True)
     if not flags1 & CConfig.MEM_Int:
         hlquery.internalPc[0] = rffi.cast(rffi.LONG, pc)
+        pIn1.invalidate_cache()
         rc = capi.impl_OP_MustBeInt(hlquery.p, hlquery.db, hlquery.internalPc, rc, op.pOp)
         retPc = hlquery.internalPc[0]
         return retPc, rc

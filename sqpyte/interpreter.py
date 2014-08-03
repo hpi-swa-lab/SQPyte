@@ -62,7 +62,7 @@ def cache_safe(opcodes=None):
 class Sqlite3Query(object):
 
     _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]', '_llmem_as_python_list[*]', 'intp',
-                          '_hlops[*]']
+                          '_hlops[*]', '_mem_caches']
 
     def __init__(self, db, query):
         self.db = db
@@ -87,8 +87,9 @@ class Sqlite3Query(object):
     def _init_python_data(self):
         from sqpyte.mem import Mem
         self._llmem_as_python_list = [self.p.aMem[i] for i in range(self.p.nMem)]
-        self._mem_as_python_list = [Mem(self, self.p.aMem[i], can_cache=True)
+        self._mem_as_python_list = [Mem(self, self.p.aMem[i], i)
                 for i in range(self.p.nMem)]
+        self._mem_caches = [None] * len(self._mem_as_python_list)
         self._hlops = [Op(self, self.p.aOp[i]) for i in range(self.p.nOp)]
 
     @jit.unroll_safe

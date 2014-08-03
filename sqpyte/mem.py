@@ -12,26 +12,33 @@ class Cache(object):
         self.r = pMem.r
 
 class Mem(object):
-    _immutable_fields_ = ['hlquery', 'pMem', 'can_cache']
-    _attrs_ = ['hlquery', 'pMem', 'can_cache', '_cache']
+    _immutable_fields_ = ['hlquery', 'pMem', '_cache_index']
+    _attrs_ = ['hlquery', 'pMem', '_cache_index', '_cache']
 
-    def __init__(self, hlquery, pMem, can_cache=False):
+    def __init__(self, hlquery, pMem, _cache_index=-1):
         self.hlquery = hlquery
         self.pMem = pMem
-        self.can_cache = can_cache
-        self._cache = None
+        self._cache_index = _cache_index
 
     def invalidate_cache(self):
-        if self.can_cache:
-            self._cache = None
+        if self._cache_index != -1:
+            self.hlquery._mem_caches[self._cache_index] = None
 
     def _get_cache(self):
-        if self._cache:
-            return self._cache
+        if self._cache_index != -1:
+            cache = self.hlquery._mem_caches[self._cache_index]
+            if cache:
+                return cache
         cache = Cache(self.pMem)
-        if self.can_cache:
-            self._cache = cache
+        if self._cache_index != -1:
+            self.hlquery._mem_caches[self._cache_index] = cache
         return cache
+
+    def _get_cache_dont_create(self):
+        if self._cache_index != -1:
+            return self.hlquery._mem_caches[self._cache_index]
+        return None
+
 
     def get_flags(self, promote=False):
         flags = self._get_cache().flags
@@ -40,10 +47,11 @@ class Mem(object):
         return flags
 
     def set_flags(self, newflags):
-        if self._cache:
-            if self._cache.flags == newflags:
+        cache = self._get_cache_dont_create()
+        if cache:
+            if cache.flags == newflags:
                 return
-            self._cache.flags = newflags
+            cache.flags = newflags
         self.pMem.flags = rffi.cast(CConfig.u16, newflags)
 
     def get_r(self):
@@ -51,8 +59,9 @@ class Mem(object):
 
     def set_r(self, val):
         self.pMem.r = val
-        if self._cache:
-            self._cache.r = val
+        cache = self._get_cache_dont_create()
+        if cache:
+            cache.r = val
 
 
     def get_u_i(self):
@@ -60,8 +69,9 @@ class Mem(object):
 
     def set_u_i(self, val):
         self.pMem.u.i = val
-        if self._cache:
-            self._cache.u_i = val
+        cache = self._get_cache_dont_create()
+        if cache:
+            cache.u_i = val
 
 
     def get_n(self):

@@ -3,13 +3,17 @@ from sqpyte import capi
 CConfig = capi.CConfig
 from sqpyte.mem import Mem
 
+class FakeHLQuery(object):
+    def __init__(self):
+        self._mem_caches = [None]
+
 
 def test_caching():
     with lltype.scoped_alloc(capi.MEM) as pMem:
         rffi.setintfield(pMem, 'flags', CConfig.MEM_Int)
         pMem.u.i = 17
         pMem.r = 2.3
-        mem = Mem(None, pMem, can_cache=True)
+        mem = Mem(FakeHLQuery(), pMem, 0)
         assert mem.get_flags() == CConfig.MEM_Int
         assert mem.get_u_i() == 17
         assert mem.get_r() == 2.3
@@ -50,7 +54,7 @@ def test_dont_do_superfluous_writes():
         rffi.setintfield(pMem, 'flags', CConfig.MEM_Int)
         pMem.u.i = 17
         pMem.r = 2.3
-        mem = Mem(None, pMem, can_cache=True)
+        mem = Mem(FakeHLQuery(), pMem, 0)
         assert mem.get_flags() == CConfig.MEM_Int
         mem.pMem = None
         mem.set_flags(CConfig.MEM_Int) # works, because unnecessary
