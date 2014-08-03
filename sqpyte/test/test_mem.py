@@ -49,7 +49,7 @@ def test_caching():
         assert mem.get_r() == -0.1
 
 
-def test_dont_do_superfluous_writes():
+def test_dont_do_superfluous_flag_writes():
     with lltype.scoped_alloc(capi.MEM) as pMem:
         rffi.setintfield(pMem, 'flags', CConfig.MEM_Int)
         pMem.u.i = 17
@@ -58,3 +58,18 @@ def test_dont_do_superfluous_writes():
         assert mem.get_flags() == CConfig.MEM_Int
         mem.pMem = None
         mem.set_flags(CConfig.MEM_Int) # works, because unnecessary
+
+def test_cache_on_write():
+    class FakeMem(object):
+        flags = CConfig.MEM_Int
+        r = 12
+        class u:
+            pass
+    pMem = FakeMem()
+    mem = Mem(FakeHLQuery(), pMem, 0)
+    mem.set_u_i(14) # does not crash
+    assert pMem.u.i == 14
+
+    mem.pMem = None
+    assert mem.get_u_i() == 14
+

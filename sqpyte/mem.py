@@ -4,12 +4,21 @@ from sqpyte.capi import CConfig
 from sqpyte import capi
 import sys
 
+class DontRead(object):
+    pass
+
+dont_read_flags = DontRead()
+dont_read_u_i = DontRead()
+dont_read_r = DontRead()
 
 class Cache(object):
-    def __init__(self, pMem):
-        self.flags = rffi.cast(lltype.Unsigned, pMem.flags)
-        self.u_i = pMem.u.i
-        self.r = pMem.r
+    def __init__(self, pMem, dont_read=None):
+        if dont_read is not dont_read_flags:
+            self.flags = rffi.cast(lltype.Unsigned, pMem.flags)
+        if dont_read is not dont_read_u_i:
+            self.u_i = pMem.u.i
+        if dont_read is not dont_read_r:
+            self.r = pMem.r
 
 class Mem(object):
     _immutable_fields_ = ['hlquery', 'pMem', '_cache_index']
@@ -24,12 +33,12 @@ class Mem(object):
         if self._cache_index != -1:
             self.hlquery._mem_caches[self._cache_index] = None
 
-    def _get_cache(self):
+    def _get_cache(self, dont_read=None):
         if self._cache_index != -1:
             cache = self.hlquery._mem_caches[self._cache_index]
             if cache:
                 return cache
-        cache = Cache(self.pMem)
+        cache = Cache(self.pMem, dont_read)
         if self._cache_index != -1:
             self.hlquery._mem_caches[self._cache_index] = cache
         return cache
@@ -38,7 +47,6 @@ class Mem(object):
         if self._cache_index != -1:
             return self.hlquery._mem_caches[self._cache_index]
         return None
-
 
     def get_flags(self, promote=False):
         flags = self._get_cache().flags
@@ -51,17 +59,17 @@ class Mem(object):
         if cache:
             if cache.flags == newflags:
                 return
-            cache.flags = newflags
         self.pMem.flags = rffi.cast(CConfig.u16, newflags)
+        cache = self._get_cache(dont_read_flags)
+        cache.flags = newflags
 
     def get_r(self):
         return self._get_cache().r
 
     def set_r(self, val):
         self.pMem.r = val
-        cache = self._get_cache_dont_create()
-        if cache:
-            cache.r = val
+        cache = self._get_cache(dont_read_r)
+        cache.r = val
 
 
     def get_u_i(self):
@@ -69,9 +77,8 @@ class Mem(object):
 
     def set_u_i(self, val):
         self.pMem.u.i = val
-        cache = self._get_cache_dont_create()
-        if cache:
-            cache.u_i = val
+        cache = self._get_cache(dont_read_u_i)
+        cache.u_i = val
 
 
     def get_n(self):
@@ -263,7 +270,7 @@ class Mem(object):
         capi.sqlite3VdbeMemSetNull(self.pMem)
 
     def MemSetTypeFlag(self, flags):
-        self.set_flags((self.get_flags() & ~(CConfig.MEM_TypeMask | CConfig.MEM_Zero)) | flags)
+        self.set_flags((self.get_flags(promote=True) & ~(CConfig.MEM_TypeMask | CConfig.MEM_Zero)) | flags)
 
 
     def _MemSetTypeFlag_flags(self, oldflags, flags):
