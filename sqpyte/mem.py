@@ -1,39 +1,67 @@
 from rpython.rlib import jit, rarithmetic
-from rpython.rtyper.lltypesystem import rffi
+from rpython.rtyper.lltypesystem import rffi, lltype
 from sqpyte.capi import CConfig
 from sqpyte import capi
-from rpython.rtyper.lltypesystem import lltype
 import sys
 
-class Mem(object):
-    _immutable_fields_ = ['hlquery', 'pMem']
-    _attrs_ = ['hlquery', 'pMem']
 
-    def __init__(self, hlquery, pMem):
+class Cache(object):
+    def __init__(self, pMem):
+        self.flags = rffi.cast(lltype.Unsigned, pMem.flags)
+        self.u_i = pMem.u.i
+        self.r = pMem.r
+
+class Mem(object):
+    _immutable_fields_ = ['hlquery', 'pMem', 'can_cache']
+    _attrs_ = ['hlquery', 'pMem', 'can_cache', '_cache']
+
+    def __init__(self, hlquery, pMem, can_cache=False):
         self.hlquery = hlquery
         self.pMem = pMem
+        self.can_cache = can_cache
+        self._cache = None
+
+    def invalidate_cache(self):
+        if self.can_cache:
+            self._cache = None
+
+    def _get_cache(self):
+        if self._cache:
+            return self._cache
+        cache = Cache(self.pMem)
+        if self.can_cache:
+            self._cache = cache
+        return cache
 
     def get_flags(self, promote=False):
-        flags = rffi.cast(lltype.Unsigned, self.pMem.flags)
+        flags = self._get_cache().flags
         if promote:
             jit.promote(flags)
         return flags
 
     def set_flags(self, newflags):
+        if self._cache:
+            if self._cache.flags == newflags:
+                return
+            self._cache.flags = newflags
         self.pMem.flags = rffi.cast(CConfig.u16, newflags)
 
     def get_r(self):
-        return self.pMem.r
+        return self._get_cache().r
 
     def set_r(self, val):
         self.pMem.r = val
+        if self._cache:
+            self._cache.r = val
 
 
     def get_u_i(self):
-        return self.pMem.u.i
+        return self._get_cache().u_i
 
     def set_u_i(self, val):
         self.pMem.u.i = val
+        if self._cache:
+            self._cache.u_i = val
 
 
     def get_n(self):
@@ -144,6 +172,7 @@ class Mem(object):
             # representation.
 
             if not (flags & CConfig.MEM_Str) and flags & (CConfig.MEM_Real|CConfig.MEM_Int):
+                self.invalidate_cache()
                 capi.sqlite3_sqlite3VdbeMemStringify(self.pMem, enc)
                 flags = self.get_flags()
             flags = flags & ~(CConfig.MEM_Real|CConfig.MEM_Int)
@@ -158,6 +187,7 @@ class Mem(object):
         return flags
 
     def sqlite3VdbeMemIntegerify(self):
+        self.invalidate_cache()
         return capi.sqlite3_sqlite3VdbeMemIntegerify(self)
 
     def applyNumericAffinity(self):
@@ -175,6 +205,7 @@ class Mem(object):
         if not flags & CConfig.MEM_Str:
             return flags
         # use the C function as a slow path for now
+        self.invalidate_cache()
         capi.sqlite3_applyNumericAffinity(self.pMem)
         return self.get_flags()
 
@@ -235,6 +266,7 @@ class Mem(object):
 
     def VdbeMemRelease(self):
         if self.VdbeMemDynamic():
+            self.invalidate_cache()
             capi.sqlite3VdbeMemReleaseExternal(self.pMem)
 
 
@@ -302,4 +334,6 @@ class Mem(object):
 
 
     def sqlite3MemCompare(self, other, coll):
+        self.invalidate_cache()
+        other.invalidate_cache()
         return capi.sqlite3_sqlite3MemCompare(self.pMem, other.pMem, coll)

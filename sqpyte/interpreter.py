@@ -69,8 +69,17 @@ class Sqlite3Query(object):
     def _init_python_data(self):
         from sqpyte.mem import Mem
         self._llmem_as_python_list = [self.p.aMem[i] for i in range(self.p.nMem)]
-        self._mem_as_python_list = [Mem(self, self.p.aMem[i]) for i in range(self.p.nMem)]
+        self._mem_as_python_list = [Mem(self, self.p.aMem[i], can_cache=True)
+                for i in range(self.p.nMem)]
         self._hlops = [Op(self, self.p.aOp[i]) for i in range(self.p.nOp)]
+
+    @jit.unroll_safe
+    def invalidate_caches(self):
+        for mem in self._mem_as_python_list:
+            mem.invalidate_cache()
+
+    def is_op_cache_safe(self, opcode):
+        return False # for now
 
     def reset_query(self):
         capi.sqlite3_reset(self.p)
@@ -410,6 +419,8 @@ class Sqlite3Query(object):
                 pOut.VdbeMemRelease()
                 pOut.set_flags(CConfig.MEM_Int)
 
+            if not self.is_op_cache_safe(opcode):
+                self.invalidate_caches()
             if opcode == CConfig.OP_Init:
                 pc = self.python_OP_Init(pc, op)
             elif (opcode == CConfig.OP_OpenRead or
