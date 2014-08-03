@@ -594,6 +594,8 @@ class Sqlite3Query(object):
         return rc
 
 class Op(object):
+    _immutable_fields_ = ['hlquery', 'pOp']
+
     def __init__(self, hlquery, pOp):
         self.hlquery = hlquery
         self.pOp = pOp
