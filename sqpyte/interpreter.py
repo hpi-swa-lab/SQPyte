@@ -216,6 +216,9 @@ class Sqlite3Query(object):
         # capi.impl_OP_RealAffinity(self.p, op.pOp)
         translated.python_OP_RealAffinity(self, op)
 
+    @cache_safe(
+        opcodes=[CConfig.OP_Add, CConfig.OP_Subtract, CConfig.OP_Multiply,
+                 CConfig.OP_Divide, CConfig.OP_Remainder])
     def python_OP_Add_Subtract_Multiply_Divide_Remainder(self, op):
         # capi.impl_OP_Add_Subtract_Multiply_Divide_Remainder(self.p, op.pOp)
         translated.python_OP_Add_Subtract_Multiply_Divide_Remainder(self, op)
