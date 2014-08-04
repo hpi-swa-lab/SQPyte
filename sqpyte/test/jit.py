@@ -27,7 +27,7 @@ class TestLLtype(LLJitMixin):
 
         def interp_w():
             db = Sqlite3DB(testdb).db
-            query = Sqlite3Query(db, 'select name from contacts where age > 1;')
+            query = Sqlite3Query(db, 'select name from contacts where age * 2 - 5 > 1 * 2 - 5;')
 
             rc = query.mainloop()
             i = 0
