@@ -23,7 +23,7 @@ def get_printable_location(pc, rc, self):
 
 jitdriver = jit.JitDriver(
     greens=['pc', 'rc', 'self_'],
-    reds=[],
+    reds=['_mem_caches'],
     should_unroll_one_iteration=lambda *args: True,
     get_printable_location=get_printable_location)
 
@@ -45,7 +45,7 @@ class Sqlite3DB(object):
 
 _cache_safe_opcodes = [False] * 256
 
-def cache_safe(opcodes=None):
+def cache_safe(opcodes=None, hide=False, mutates=None):
     def decorate(func):
         ops = opcodes
         if ops is None:
@@ -55,14 +55,46 @@ def cache_safe(opcodes=None):
             ops = [getattr(CConfig, opcodename)]
         for opcode in ops:
             _cache_safe_opcodes[opcode] = True
+        if hide:
+            func = hide_cache(func)
+        if mutates is not None:
+            func = mutate_func(func, mutates)
         return func
     return decorate
 
+def mutate_func(func, mutates):
+    if mutates == "p3":
+        def p3_mutation(hlquery, *args):
+            result = func(hlquery, *args)
+            op = args[-1]
+            i = op.p_Signed(3)
+            hlquery._mem_caches[i] = None
+            return result
+        return p3_mutation
+    if mutates == "p1@p2":
+        @jit.unroll_safe
+        def p1_p2_mutation(hlquery, *args):
+            result = func(hlquery, *args)
+            op = args[-1]
+            for i in range(op.p_Signed(1), op.p_Signed(1) + op.p_Signed(2)):
+                hlquery._mem_caches[i] = None
+            return result
+        return p1_p2_mutation
+    raise ValueError("unknown mutation %s" % mutates)
+
+def hide_cache(func):
+    def newfunc(hlquery, *args):
+        _mem_caches = hlquery._mem_caches
+        hlquery._mem_caches = None
+        result = func(hlquery, *args)
+        hlquery._mem_caches = _mem_caches
+        return result
+    return newfunc
 
 class Sqlite3Query(object):
 
     _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]', '_llmem_as_python_list[*]', 'intp',
-                          '_hlops[*]', '_mem_caches']
+                          '_hlops[*]']
 
     def __init__(self, db, query):
         self.db = db
@@ -131,10 +163,11 @@ class Sqlite3Query(object):
         return capi.impl_OP_OpenRead_OpenWrite(self.p, self.db, pc, op.pOp)
         # translated.python_OP_OpenRead_OpenWrite_translated(self, self.db, pc, op)
 
+    @cache_safe(hide=True, mutates="p3")
     def python_OP_Column(self, pc, op):
         return capi.impl_OP_Column(self.p, self.db, pc, op.pOp)
-        # return translated.python_OP_Column_translated(self, self.db, pc, op)
 
+    @cache_safe(hide=True, mutates="p1@p2")
     def python_OP_ResultRow(self, pc, op):
         return capi.impl_OP_ResultRow(self.p, self.db, pc, op.pOp)
 
@@ -167,6 +200,7 @@ class Sqlite3Query(object):
 
         return translated.python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(self, pc, rc, op)
 
+    @cache_safe()
     def python_OP_Integer(self, op):
         translated.python_OP_Integer(self, op)
         #capi.impl_OP_Integer(self.p, op.pOp)
@@ -424,16 +458,18 @@ class Sqlite3Query(object):
         pc = jit.promote(rffi.cast(lltype.Signed, self.p.pc))
         if pc < 0:
             pc = 0 # XXX maybe more to do, see vdbeapi.c:418
+        _mem_caches = [None] * len(self._mem_as_python_list)
 
-        i = 0
         while True:
-            jitdriver.jit_merge_point(pc=pc, self_=self, rc=rc)
+            jitdriver.jit_merge_point(pc=pc, self_=self, rc=rc, _mem_caches=_mem_caches)
             if rc != CConfig.SQLITE_OK:
                 break
             op = self._hlops[pc]
             opcode = op.get_opcode()
             oldpc = pc
             self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
+            _mem_caches = [_mem_caches[j] for j in range(len(self._mem_as_python_list))]
+            self._mem_caches = _mem_caches
 
             opflags = op.opflags()
             if opflags & CConfig.OPFLG_OUT2_PRERELEASE:
@@ -442,7 +478,8 @@ class Sqlite3Query(object):
                 pOut.set_flags(CConfig.MEM_Int)
 
             if not self.is_op_cache_safe(opcode):
-                self.invalidate_caches()
+                self._mem_caches = None
+
             if opcode == CConfig.OP_Init:
                 pc = self.python_OP_Init(pc, op)
             elif (opcode == CConfig.OP_OpenRead or
@@ -617,8 +654,12 @@ class Sqlite3Query(object):
                 raise SQPyteException("SQPyteException: Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))
             pc += 1
+            if not self.is_op_cache_safe(opcode):
+                _mem_caches = [None] * len(self._mem_as_python_list)
+            else:
+                self._mem_caches = None
             if pc <= oldpc:
-                jitdriver.can_enter_jit(pc=pc, self_=self, rc=rc)
+                jitdriver.can_enter_jit(pc=pc, self_=self, rc=rc, _mem_caches=_mem_caches)
         return rc
 
 class Op(object):

@@ -1,9 +1,9 @@
 from rpython.rlib import jit, rarithmetic
 from rpython.rlib.objectmodel import specialize
 from rpython.rtyper.lltypesystem import rffi
-from capi import CConfig
+from sqpyte.capi import CConfig
 from rpython.rtyper.lltypesystem import lltype
-import capi
+from sqpyte import capi
 import sys
 import math
 
