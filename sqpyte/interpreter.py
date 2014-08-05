@@ -228,9 +228,11 @@ class Sqlite3Query(object):
     def python_OP_Copy(self, pc, rc, op):
         return capi.impl_OP_Copy(self.p, self.db, pc, rc, op.pOp)
 
+    @cache_safe()
     def python_OP_MustBeInt(self, pc, rc, op):
         return translated.python_OP_MustBeInt(self, pc, rc, op)
 
+    @cache_safe()
     def python_OP_NotExists(self, pc, op):
         return translated.python_OP_NotExists(self, pc, op)
         #self.internalPc[0] = rffi.cast(rffi.LONG, pc)
@@ -267,6 +269,8 @@ class Sqlite3Query(object):
         # capi.impl_OP_Add_Subtract_Multiply_Divide_Remainder(self.p, op.pOp)
         translated.python_OP_Add_Subtract_Multiply_Divide_Remainder(self, op)
 
+    @cache_safe(
+        opcodes=[CConfig.OP_If, CConfig.OP_IfNot])
     def python_OP_If_IfNot(self, pc, op):
         # return capi.impl_OP_If_IfNot(self.p, pc, op.pOp)
         return translated.python_OP_If_IfNot(self, pc, op)
