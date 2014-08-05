@@ -3403,7 +3403,6 @@ void impl_OP_Compare(Vdbe *p, Op *pOp) {
   int *aPermute = 0;         /* Permutation of columns for OP_Compare */
 
   // From OP_Permutation
-  assert( pOp->p4type==P4_INTARRAY );
   assert( pOp->p4.ai );
   aPermute = pOp->p4.ai;
 
