@@ -1214,7 +1214,6 @@ def python_OP_Compare(hlquery, op):
     aMem = p.aMem
 
     # From OP_Permutation
-    assert op.p4type() == CConfig.P4_INTARRAY
     assert op.p4_ai()
     aPermute = op.p4_ai()
 

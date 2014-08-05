@@ -310,8 +310,8 @@ class Sqlite3Query(object):
         translated.python_OP_Compare(self, op)
 
     def python_OP_Jump(self, op):
-        return capi.impl_OP_Jump(op.pOp)
-        # return translated.python_OP_Jump(self, op)
+        # return capi.impl_OP_Jump(op.pOp)
+        return translated.python_OP_Jump(self, op)
 
     def python_OP_IfPos(self, pc, op):
         return translated.python_OP_IfPos(self, pc, op)
@@ -320,8 +320,8 @@ class Sqlite3Query(object):
         capi.impl_OP_CollSeq(self.p, op.pOp)
 
     def python_OP_NotNull(self, pc, op):
-        return capi.impl_OP_NotNull(self.p, pc, op.pOp)
-        # return translated.python_OP_NotNull(self, pc, op)
+        # return capi.impl_OP_NotNull(self.p, pc, op.pOp)
+        return translated.python_OP_NotNull(self, pc, op)
 
     def python_OP_InitCoroutine(self, pc, op):
         return capi.impl_OP_InitCoroutine(self.p, pc, op.pOp)
