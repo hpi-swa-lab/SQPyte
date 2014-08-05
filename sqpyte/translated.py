@@ -1027,14 +1027,13 @@ def python_OP_Seek(hlquery, op):
     p = hlquery.p
     pC = p.apCsr[op.p_Signed(1)]
     assert pC
-    # assert( pC.pCursor!=0 );
+    assert pC.pCursor
     # assert( pC.isTable );
     rffi.setintfield(pC, 'nullRow', 0)
     pIn2, flags = op.mem_and_flags_of_p(2, promote=True)
     pC.movetoTarget = pIn2._sqlite3VdbeIntValue_flags(flags)
     rffi.setintfield(pC, 'rowidIsValid', 0)
     rffi.setintfield(pC, 'deferredMoveto', 1)
-
 
 
 # Opcode: AggStep * P2 P3 P4 P5
@@ -1063,7 +1062,7 @@ def python_OP_AggStep(hlquery, rc, pc, op):
     with lltype.scoped_alloc(capi.CONTEXT) as ctx:
         mems = Mem(hlquery, ctx.s)
         ctx.pFunc = pFunc = op.p4_pFunc()
-        #assert( pOp.p3>0 && pOp.p3<=(p.nMem-p.nCursor) );
+        assert op.p_Signed(3) > 0 and op.p_Signed(3) <= (rffi.getintfield(p, 'nMem') - rffi.getintfield(p, 'nCursor'))
         ctx.pMem = mem.pMem
         mem.set_n(mem.get_n() + 1)
         mems.set_flags(CConfig.MEM_Null)
@@ -1091,6 +1090,7 @@ def python_OP_AggStep(hlquery, rc, pc, op):
                 hlquery.mem_with_index(i).sqlite3VdbeMemSetInt64(1)
         mems.sqlite3VdbeMemRelease()
         return rc
+
 
 # Opcode: IdxGE P1 P2 P3 P4 P5
 # Synopsis: key=r[P3@P4]
@@ -1137,46 +1137,45 @@ def python_OP_AggStep(hlquery, rc, pc, op):
 # to P2. Otherwise fall through to the next instruction.
 
 def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(hlquery, pc, op):
-    pOp = op.pOp
     p = hlquery.p
     aMem = p.aMem
-    r = UnpackedRecord()
-    
-    assert pOp.p1 >= 0 and pOp.p1 < p.nCursor
-    pC = p.apCsr[pOp.p1]
-    assert pC != 0
+
+    assert op.p_Unsigned(1) >= 0 and op.p_Signed(1) < rffi.getintfield(p, 'nCursor')
+    pC = p.apCsr[op.p_Unsigned(1)]
+    assert pC
     # assert pC.isOrdered
-    assert pC.pCursor != 0
-    assert pC.deferredMoveto == 0
-    assert pOp.p5 == 0 or pOp.p5 == 1
-    assert pOp.p4type == CConfig.P4_INT32
-    r.pKeyInfo = pC.pKeyInfo
-    r.nField = pOp.p4.i
-    if pOp.opcode < CConfig.OP_IdxLT:
-        assert pOp.opcode == CConfig.OP_IdxLE or pOp.opcode == CConfig.OP_IdxGT
-        r.default_rc = -1
-    else:
-        assert pOp.opcode == CConfig.OP_IdxGE or pOp.opcode == CConfig.OP_IdxLT
-        r.default_rc = 0
-    r.aMem = aMem[pOp.p3]
+    assert pC.pCursor
+    assert rffi.getintfield(pC, 'deferredMoveto') == 0
+    assert op.p_Unsigned(5) == 0 or op.p_Unsigned(5) == 1
+    assert op.p4type() == CConfig.P4_INT32
+    with lltype.scoped_alloc(capi.UNPACKEDRECORD) as r:
+        r.pKeyInfo = pC.pKeyInfo
+        r.nField = rffi.cast(CConfig.u16, op.p4_i())
+        if op.get_opcode() < CConfig.OP_IdxLT:
+            assert op.get_opcode() == CConfig.OP_IdxLE or op.get_opcode() == CConfig.OP_IdxGT
+            r.default_rc = rffi.cast(CConfig.i8, -1)
+        else:
+            assert op.get_opcode() == CConfig.OP_IdxGE or op.get_opcode() == CConfig.OP_IdxLT
+            r.default_rc = rffi.cast(CConfig.i8, 0)
+        r.aMem = aMem[op.p_Unsigned(3)]
 
-    # Used only for debugging.
-    #ifdef SQLITE_DEBUG
-      # { int i; for(i=0; i<r.nField; i++) assert( memIsValid(&r.aMem[i]) ); }
-    #endif
+        # Used only for debugging.
+        #ifdef SQLITE_DEBUG
+          # { int i; for(i=0; i<r.nField; i++) assert( memIsValid(&r.aMem[i]) ); }
+        #endif
 
-    res = 0     # /* Not needed.  Only used to silence a warning. */
-    resMem = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
-    resMem[0] = rffi.cast(rffi.INT, res)
-    rc = capi.sqlite3VdbeIdxKeyCompare(pC, r, res);
-    res = resMem[0]
+        res = 0     # /* Not needed.  Only used to silence a warning. */
+        resMem = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
+        resMem[0] = rffi.cast(rffi.INT, res)
+        rc = capi.sqlite3VdbeIdxKeyCompare(pC, r, resMem);
+        res = rffi.cast(lltype.Unsigned, resMem[0])
 
     assert (CConfig.OP_IdxLE & 1) == (CConfig.OP_IdxLT & 1) and (CConfig.OP_IdxGE & 1) == (CConfig.OP_IdxGT & 1)
-    if (pOp.opcode & 1) == (CConfig.OP_IdxLT & 1):
-        assert pOp.opcode == CConfig.OP_IdxLE or pOp.opcode == CConfig.OP_IdxLT
+    if (op.get_opcode() & 1) == (CConfig.OP_IdxLT & 1):
+        assert op.get_opcode() == CConfig.OP_IdxLE or op.get_opcode() == CConfig.OP_IdxLT
         res = -res
     else:
-        assert pOp.opcode == CConfig.OP_IdxGE or pOp.opcode == CConfig.OP_IdxGT
+        assert op.get_opcode() == CConfig.OP_IdxGE or op.get_opcode() == CConfig.OP_IdxGT
         res += 1
 
     # VdbeBranchTaken() is used for test suite validation only and 
@@ -1185,10 +1184,6 @@ def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(hlquery, pc, op):
     # VdbeBranchTaken(res>0,2);
 
     if res > 0:
-        pc = pOp.p2 - 1
+        pc = op.p_Signed(2) - 1
 
     return pc, rc
-
-
-class UnpackedRecord:
-    pass

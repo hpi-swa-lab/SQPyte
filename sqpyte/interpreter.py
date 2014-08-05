@@ -220,12 +220,12 @@ class Sqlite3Query(object):
         #return capi.impl_OP_IdxRowid(self.p, self.db, pc, rc, op.pOp)
 
     def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(self, pc, op):
-        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        rc = capi.impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(self.p, self.internalPc, op.pOp)
-        retPc = self.internalPc[0]
-        return retPc, rc
+        # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
+        # rc = capi.impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(self.p, self.internalPc, op.pOp)
+        # retPc = self.internalPc[0]
+        # return retPc, rc
 
-        # return translated.python_OP_IdxLE_IdxGT_IdxLT_IdxGE(self, pc, op)
+        return translated.python_OP_IdxLE_IdxGT_IdxLT_IdxGE(self, pc, op)
 
     def python_OP_Seek(self, op):
         #capi.impl_OP_Seek(self.p, op.pOp)
@@ -640,6 +640,10 @@ class Op(object):
     @jit.elidable
     def p4_pColl(self):
         return self.pOp.p4.pColl
+
+    @jit.elidable
+    def p4_i(self):
+        return self.pOp.p4.i
 
     def p2as_pc(self):
         return self.p_Signed(2) - 1

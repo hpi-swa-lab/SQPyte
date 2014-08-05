@@ -533,7 +533,7 @@ VDBECURSOR.become(lltype.Struct("VdbeCursor",   # src/vdbeInt.h: 63
     #("isEphemeral", lltype.Bool),               #   Bool isEphemeral:1;   /* True for an ephemeral table */
     #("useRandomRowid", lltype.Bool),            #   Bool useRandomRowid:1;/* Generate new record numbers semi-randomly */
     #("isTable", lltype.Bool),                   #   Bool isTable:1;       /* True if a table requiring integer keys */
-    # ("isOrdered", lltype.Bool),                 #   Bool isOrdered:1;     /* True if the underlying table is BTREE_UNORDERED */
+    #("isOrdered", lltype.Bool),                 #   Bool isOrdered:1;     /* True if the underlying table is BTREE_UNORDERED */
     ("pVtabCursor", rffi.VOIDP),                #   sqlite3_vtab_cursor *pVtabCursor;  /* The cursor for a virtual table */
     ("seqCount", CConfig.i64),                  # Sequence counter
     ("movetoTarget", CConfig.i64),              # Argument to the deferred sqlite3BtreeMoveto()
