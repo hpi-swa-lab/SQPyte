@@ -52,6 +52,7 @@ class Sqlite3Query(object):
         self.intp = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
         self.longp = lltype.malloc(rffi.LONGP.TO, 1, flavor='raw')
         self.prepare(query)
+        self.iCompare = 0
 
     def __del__(self):
         lltype.free(self.internalPc, flavor='raw')
@@ -305,12 +306,12 @@ class Sqlite3Query(object):
         translated.python_OP_Noop_Explain_translated(op)
 
     def python_OP_Compare(self, op):
-        capi.impl_OP_Compare(self.p, op.pOp)
-        # translated.python_OP_Compare(self, op)
+        # capi.impl_OP_Compare(self.p, op.pOp)
+        translated.python_OP_Compare(self, op)
 
     def python_OP_Jump(self, op):
         return capi.impl_OP_Jump(op.pOp)
-        # return translated.python_OP_Jump(op)
+        # return translated.python_OP_Jump(self, op)
 
     def python_OP_IfPos(self, pc, op):
         return translated.python_OP_IfPos(self, pc, op)
@@ -319,8 +320,8 @@ class Sqlite3Query(object):
         capi.impl_OP_CollSeq(self.p, op.pOp)
 
     def python_OP_NotNull(self, pc, op):
-        # return capi.impl_OP_NotNull(self.p, pc, op.pOp)
-        return translated.python_OP_NotNull(self, pc, op)
+        return capi.impl_OP_NotNull(self.p, pc, op.pOp)
+        # return translated.python_OP_NotNull(self, pc, op)
 
     def python_OP_InitCoroutine(self, pc, op):
         return capi.impl_OP_InitCoroutine(self.p, pc, op.pOp)
