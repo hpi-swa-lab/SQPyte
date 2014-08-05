@@ -101,6 +101,7 @@ class Sqlite3Query(object):
         self.intp = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
         self.longp = lltype.malloc(rffi.LONGP.TO, 1, flavor='raw')
         self.prepare(query)
+        self.iCompare = 0
 
     def __del__(self):
         lltype.free(self.internalPc, flavor='raw')
@@ -299,12 +300,12 @@ class Sqlite3Query(object):
         #return capi.impl_OP_IdxRowid(self.p, self.db, pc, rc, op.pOp)
 
     def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(self, pc, op):
-        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        rc = capi.impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(self.p, self.internalPc, op.pOp)
-        retPc = self.internalPc[0]
-        return retPc, rc
+        # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
+        # rc = capi.impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(self.p, self.internalPc, op.pOp)
+        # retPc = self.internalPc[0]
+        # return retPc, rc
 
-        # return translated.python_OP_IdxLE_IdxGT_IdxLT_IdxGE(self, pc, op)
+        return translated.python_OP_IdxLE_IdxGT_IdxLT_IdxGE(self, pc, op)
 
     def python_OP_Seek(self, op):
         #capi.impl_OP_Seek(self.p, op.pOp)
@@ -384,10 +385,12 @@ class Sqlite3Query(object):
         translated.python_OP_Noop_Explain_translated(op)
 
     def python_OP_Compare(self, op):
-        capi.impl_OP_Compare(self.p, op.pOp)
+        # capi.impl_OP_Compare(self.p, op.pOp)
+        translated.python_OP_Compare(self, op)
 
     def python_OP_Jump(self, op):
-        return capi.impl_OP_Jump(op.pOp)
+        # return capi.impl_OP_Jump(op.pOp)
+        return translated.python_OP_Jump(self, op)
 
     def python_OP_IfPos(self, pc, op):
         return translated.python_OP_IfPos(self, pc, op)
@@ -726,6 +729,18 @@ class Op(object):
     @jit.elidable
     def p4_pColl(self):
         return self.pOp.p4.pColl
+
+    @jit.elidable
+    def p4_i(self):
+        return self.pOp.p4.i
+
+    @jit.elidable
+    def p4_ai(self):
+        return self.pOp.p4.ai
+
+    @jit.elidable
+    def p4_pKeyInfo(self):
+        return self.pOp.p4.pKeyInfo
 
     def p2as_pc(self):
         return self.p_Signed(2) - 1
