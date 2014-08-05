@@ -300,6 +300,8 @@ class Sqlite3Query(object):
         retPc = self.internalPc[0]
         return retPc, rc
 
+        # return translated.python_OP_IdxLE_IdxGT_IdxLT_IdxGE(self, pc, op)
+
     def python_OP_Seek(self, op):
         #capi.impl_OP_Seek(self.p, op.pOp)
         translated.python_OP_Seek(self, op)
