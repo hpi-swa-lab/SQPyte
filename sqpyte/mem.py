@@ -231,8 +231,13 @@ class Mem(object):
         self.set_flags(CConfig.MEM_Int)
 
     def sqlite3VdbeMemSetNull(self):
-        self.invalidate_cache()
-        capi.sqlite3VdbeMemSetNull(self.pMem)
+        """ Delete any previous value and set the value stored in *pMem to NULL. """
+        if self.get_flags() & CConfig.MEM_Frame or self.get_flags() & CConfig.MEM_RowSet:
+            self.invalidate_cache()
+            capi.sqlite3VdbeMemSetNull(self.pMem)
+        else:
+            # fast path
+            self.MemSetTypeFlag(CConfig.MEM_Null)
 
     def MemSetTypeFlag(self, flags):
         self.set_flags((self.get_flags(promote=True) & ~(CConfig.MEM_TypeMask | CConfig.MEM_Zero)) | flags)
