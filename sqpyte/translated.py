@@ -14,6 +14,8 @@ SMALLEST_INT64 = -1 - LARGEST_INT64
 TWOPOWER32 = 1 << 32
 TWOPOWER31 = 1 << 31
 
+iCompare = 0
+
 
 def allocateCursor(vdbe_struct, p1, nField, iDb, isBtreeCursor):
     return capi.sqlite3_allocateCursor(vdbe_struct, p1, nField, iDb, isBtreeCursor) 
@@ -1187,3 +1189,104 @@ def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(hlquery, pc, op):
         pc = op.p_Signed(2) - 1
 
     return pc, rc
+
+
+# Opcode: Compare P1 P2 P3 P4 P5
+# Synopsis: r[P1@P3] <-> r[P2@P3]
+#
+# Compare two vectors of registers in reg(P1)..reg(P1+P3-1) (call this
+# vector "A") and in reg(P2)..reg(P2+P3-1) ("B").  Save the result of
+# the comparison for use by the next OP_Jump instruct.
+#
+# If P5 has the OPFLAG_PERMUTE bit set, then the order of comparison is
+# determined by the most recent OP_Permutation operator.  If the
+# OPFLAG_PERMUTE bit is clear, then register are compared in sequential
+# order.
+#
+# P4 is a KeyInfo structure that defines collating sequences and sort
+# orders for the comparison.  The permutation applies to registers
+# only.  The KeyInfo elements are used sequentially.
+#
+# The comparison is a sort comparison, so NULLs compare equal,
+# NULLs are less than numbers, numbers are less than strings,
+# and strings are less than blobs.
+
+def python_OP_Compare(hlquery, op):
+    p = hlquery.p
+    aMem = p.aMem
+
+    # From OP_Permutation
+    assert op.p4type() == CConfig.P4_INTARRAY
+    assert op.p4_ai()
+    aPermute = op.p4_ai()
+
+    if (op.p_Unsigned(5) & CConfig.OPFLAG_PERMUTE) == 0:
+        aPermute = lltype.nullptr(rffi.INTP.TO)
+    n = op.p_Signed(3)
+    pKeyInfo = op.p4_pKeyInfo()
+    assert n > 0
+    assert pKeyInfo
+    p1 = op.p_Signed(1)
+    p2 = op.p_Signed(2)
+
+    #if SQLITE_DEBUG
+      # if( aPermute ){
+      #   int k, mx = 0;
+      #   for(k=0; k<n; k++) if( aPermute[k]>mx ) mx = aPermute[k];
+      #   assert( p1>0 && p1+mx<=(p->nMem-p->nCursor)+1 );
+      #   assert( p2>0 && p2+mx<=(p->nMem-p->nCursor)+1 );
+      # }else{
+      #   assert( p1>0 && p1+n<=(p->nMem-p->nCursor)+1 );
+      #   assert( p2>0 && p2+n<=(p->nMem-p->nCursor)+1 );
+      # }
+    #endif /* SQLITE_DEBUG */
+
+    for i in range(0, n - 1):
+        if aPermute:
+            idx = rffi.cast(lltype.Signed, aPermute[i])
+        else:
+            idx = i
+        # assert( memIsValid(&aMem[p1+idx]) );
+        # assert( memIsValid(&aMem[p2+idx]) );
+
+        # REGISTER_TRACE() is used only for debugging,
+        # i.e., not in production.
+        # See vdbe.c lines 451-455.
+        # REGISTER_TRACE(p1+idx, &aMem[p1+idx]);
+        # REGISTER_TRACE(p2+idx, &aMem[p2+idx]);
+
+        assert i < rffi.getintfield(pKeyInfo, 'nField')
+        pColl = pKeyInfo.aColl[i]
+        bRev = rffi.cast(lltype.Unsigned, pKeyInfo.aSortOrder[i])
+        iCompare = capi.sqlite3_sqlite3MemCompare(aMem[p1 + idx], aMem[p2 + idx], pColl)
+        if iCompare:
+            if bRev:
+                iCompare = -iCompare
+            return
+    aPermute = lltype.nullptr(rffi.INTP.TO)
+    return
+
+
+# Opcode: Jump P1 P2 P3 * *
+#
+# Jump to the instruction at address P1, P2, or P3 depending on whether
+# in the most recent OP_Compare instruction the P1 vector was less than
+# equal to, or greater than the P2 vector, respectively.
+
+def python_OP_Jump(op):
+
+    # VdbeBranchTaken() is used for test suite validation only and 
+    # does not appear an production builds.
+    # See vdbe.c lines 110-136.
+
+    if iCompare < 0:
+        pc = op.p_Signed(1) - 1
+        # VdbeBranchTaken(0,3);
+    elif iCompare == 0:
+        pc = op.p_Signed(2) - 1
+        # VdbeBranchTaken(1,3);
+    else:
+        pc = op.p_Signed(3) - 1
+        # VdbeBranchTaken(2,3);
+    return pc
+

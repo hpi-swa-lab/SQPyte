@@ -56,8 +56,8 @@ opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite', 'OP_Rewind',
            'OP_ReadCookie', 'OP_NewRowid', 'OP_Insert', 'OP_InsertInt',
            'OP_SetCookie', 'OP_ParseSchema', 'OP_RowSetAdd', 'OP_RowSetRead',
            'OP_Delete', 'OP_DropTable']
-p4names = ['P4_INT32', 'P4_KEYINFO', 'P4_COLLSEQ']
-p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR', 'OPFLAG_CLEARCACHE', 'OPFLAG_LENGTHARG', 'OPFLAG_TYPEOFARG', 'OPFLG_OUT2_PRERELEASE']
+p4names = ['P4_INT32', 'P4_KEYINFO', 'P4_COLLSEQ', 'P4_INTARRAY']
+p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR', 'OPFLAG_CLEARCACHE', 'OPFLAG_LENGTHARG', 'OPFLAG_TYPEOFARG', 'OPFLG_OUT2_PRERELEASE', 'OPFLAG_PERMUTE']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW', 'SQLITE_BUSY', 'SQLITE_CORRUPT_BKPT']
 sqlite_codes = ['SQLITE_NULLEQ', 'SQLITE_JUMPIFNULL', 'SQLITE_STOREP2', 'SQLITE_AFF_MASK', 'SQLITE_FUNC_NEEDCOLL']
 affinity_codes = ['SQLITE_AFF_TEXT', 'SQLITE_AFF_NONE', 'SQLITE_AFF_INTEGER', 'SQLITE_AFF_REAL', 'SQLITE_AFF_NUMERIC']
@@ -324,14 +324,14 @@ SQLITE3.become(lltype.Struct("sqlite3",         # src/sqliteInt.h: 960
     ))
 
 
-KEYINFO = lltype.Struct("KeyInfo",  # src/sqliteInt.h: 1616
-    ("nRef", CConfig.u32),          # Number of references to this KeyInfo object
-    ("enc", CConfig.u8),            # Text encoding - one of the SQLITE_UTF* values
-    ("nField", CConfig.u16),        # Number of key columns in the index
-    ("nXField", CConfig.u16),       # Number of columns beyond the key columns
-    ("db", SQLITE3P),               # The database connection
-    ("aSortOrder", CConfig.u8),     # Sort order for each column.
-    ("aColl", rffi.VOIDP)           #   CollSeq *aColl[1];  /* Collating sequence for each term of the key */
+KEYINFO = lltype.Struct("KeyInfo",                  # src/sqliteInt.h: 1616
+    ("nRef", CConfig.u32),                          # Number of references to this KeyInfo object
+    ("enc", CConfig.u8),                            # Text encoding - one of the SQLITE_UTF* values
+    ("nField", CConfig.u16),                        # Number of key columns in the index
+    ("nXField", CConfig.u16),                       # Number of columns beyond the key columns
+    ("db", SQLITE3P),                               # The database connection
+    ("aSortOrder", rffi.UCHARP),                    # Sort order for each column.
+    ("aColl", lltype.FixedSizeArray(COLLSEQP, 1))   # Collating sequence for each term of the key
     )
 KEYINFOP = lltype.Ptr(KEYINFO)
 

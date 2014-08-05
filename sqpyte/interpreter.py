@@ -306,9 +306,11 @@ class Sqlite3Query(object):
 
     def python_OP_Compare(self, op):
         capi.impl_OP_Compare(self.p, op.pOp)
+        # translated.python_OP_Compare(self, op)
 
     def python_OP_Jump(self, op):
         return capi.impl_OP_Jump(op.pOp)
+        # return translated.python_OP_Jump(op)
 
     def python_OP_IfPos(self, pc, op):
         return translated.python_OP_IfPos(self, pc, op)
@@ -644,6 +646,14 @@ class Op(object):
     @jit.elidable
     def p4_i(self):
         return self.pOp.p4.i
+
+    @jit.elidable
+    def p4_ai(self):
+        return self.pOp.p4.ai
+
+    @jit.elidable
+    def p4_pKeyInfo(self):
+        return self.pOp.p4.pKeyInfo
 
     def p2as_pc(self):
         return self.p_Signed(2) - 1
