@@ -597,208 +597,213 @@ UNPACKEDRECORD = lltype.Struct("UnpackedRecord",    # src/sqliteInt.h: 1643
     )
 UNPACKEDRECORDP = lltype.Ptr(UNPACKEDRECORD)
 
-
-sqlite3_open = rffi.llexternal('sqlite3_open', [rffi.CCHARP, SQLITE3PP],
-                               rffi.INT, compilation_info=CConfig._compilation_info_)
-sqlite3_prepare = rffi.llexternal('sqlite3_prepare', [rffi.VOIDP, rffi.CCHARP, rffi.INT, rffi.VOIDPP, rffi.CCHARPP],
-                                  rffi.INT, compilation_info=CConfig._compilation_info_)
-sqlite3_allocateCursor = rffi.llexternal('allocateCursor', [lltype.Ptr(VDBE), rffi.INT, rffi.INT, rffi.INT, rffi.INT],
-    VDBECURSORP, compilation_info=CConfig._compilation_info_)
-sqlite3_sqlite3VdbeMemIntegerify = rffi.llexternal('sqlite3VdbeMemIntegerify', [lltype.Ptr(MEM)],
-    rffi.INT, compilation_info=CConfig._compilation_info_)
-sqlite3_sqlite3BtreeCursor = rffi.llexternal('sqlite3BtreeCursor', [rffi.VOIDP, rffi.INT, rffi.INT, rffi.VOIDP, rffi.VOIDP],
-    rffi.INT, compilation_info=CConfig._compilation_info_)
-sqlite3_sqlite3BtreeCursorHints = rffi.llexternal('sqlite3BtreeCursorHints', [BTCURSORP, rffi.UINT],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
-sqlite3VdbeCursorMoveto = rffi.llexternal('sqlite3VdbeCursorMoveto', [VDBECURSORP],
-    rffi.INT, compilation_info=CConfig._compilation_info_)
-sqlite3_sqlite3VdbeSorterRewind = rffi.llexternal('sqlite3VdbeSorterRewind', [SQLITE3P, VDBECURSORP, rffi.INTP],
-    rffi.INT, compilation_info=CConfig._compilation_info_)
-
-impl_OP_Transaction = rffi.llexternal('impl_OP_Transaction', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_TableLock = rffi.llexternal('impl_OP_TableLock', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_Goto = rffi.llexternal('impl_OP_Goto', [VDBEP, SQLITE3P, rffi.LONGP, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_OpenRead_OpenWrite = rffi.llexternal('impl_OP_OpenRead_OpenWrite', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_Rewind = rffi.llexternal('impl_OP_Rewind', [VDBEP, SQLITE3P, rffi.LONGP, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_Column = rffi.llexternal('impl_OP_Column', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_ResultRow = rffi.llexternal('impl_OP_ResultRow', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_Next = rffi.llexternal('impl_OP_Next', [VDBEP, SQLITE3P, rffi.LONGP, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_Close = rffi.llexternal('impl_OP_Close', [VDBEP, VDBEOPP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
-impl_OP_Halt = rffi.llexternal('impl_OP_Halt', [VDBEP, SQLITE3P, rffi.LONGP, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_Ne_Eq_Gt_Le_Lt_Ge = rffi.llexternal('impl_OP_Ne_Eq_Gt_Le_Lt_Ge', [VDBEP, SQLITE3P, rffi.LONGP, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_Integer = rffi.llexternal('impl_OP_Integer', [VDBEP, VDBEOPP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
-impl_OP_Null = rffi.llexternal('impl_OP_Null', [VDBEP, VDBEOPP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
-impl_OP_AggStep = rffi.llexternal('impl_OP_AggStep', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_AggFinal = rffi.llexternal('impl_OP_AggFinal', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_Copy = rffi.llexternal('impl_OP_Copy', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_MustBeInt = rffi.llexternal('impl_OP_MustBeInt', [VDBEP, SQLITE3P, rffi.LONGP, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_NotExists = rffi.llexternal('impl_OP_NotExists', [VDBEP, SQLITE3P, rffi.LONGP, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_String = rffi.llexternal('impl_OP_String', [VDBEP, SQLITE3P, VDBEOPP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
-impl_OP_String8 = rffi.llexternal('impl_OP_String8', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_Function = rffi.llexternal('impl_OP_Function', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_Real = rffi.llexternal('impl_OP_Real', [VDBEP, VDBEOPP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
-impl_OP_RealAffinity = rffi.llexternal('impl_OP_RealAffinity', [VDBEP, VDBEOPP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
-impl_OP_Add_Subtract_Multiply_Divide_Remainder = rffi.llexternal('impl_OP_Add_Subtract_Multiply_Divide_Remainder', [VDBEP, VDBEOPP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
-impl_OP_If_IfNot = rffi.llexternal('impl_OP_If_IfNot', [VDBEP, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_Rowid = rffi.llexternal('impl_OP_Rowid', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_IsNull = rffi.llexternal('impl_OP_IsNull', [VDBEP, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_SeekLT_SeekLE_SeekGE_SeekGT = rffi.llexternal('impl_OP_SeekLT_SeekLE_SeekGE_SeekGT', [VDBEP, SQLITE3P, rffi.LONGP, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_Move = rffi.llexternal('impl_OP_Move', [VDBEP, VDBEOPP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
-impl_OP_IfZero = rffi.llexternal('impl_OP_IfZero', [VDBEP, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_IdxRowid = rffi.llexternal('impl_OP_IdxRowid', [DBP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_IdxLE_IdxGT_IdxLT_IdxGE = rffi.llexternal('impl_OP_IdxLE_IdxGT_IdxLT_IdxGE', [VDBEP, rffi.LONGP, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_Seek = rffi.llexternal('impl_OP_Seek', [VDBEP, VDBEOPP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
-impl_OP_Once = rffi.llexternal('impl_OP_Once', [VDBEP, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_SCopy = rffi.llexternal('impl_OP_SCopy', [VDBEP, VDBEOPP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
-impl_OP_Affinity = rffi.llexternal('impl_OP_Affinity', [VDBEP, SQLITE3P, VDBEOPP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
-impl_OP_OpenAutoindex_OpenEphemeral = rffi.llexternal('impl_OP_OpenAutoindex_OpenEphemeral', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_MakeRecord = rffi.llexternal('impl_OP_MakeRecord', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_SorterInsert_IdxInsert = rffi.llexternal('impl_OP_SorterInsert_IdxInsert', [VDBEP, SQLITE3P, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_NoConflict_NotFound_Found = rffi.llexternal('impl_OP_NoConflict_NotFound_Found', [VDBEP, SQLITE3P, rffi.LONGP, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_RowSetTest = rffi.llexternal('impl_OP_RowSetTest', [VDBEP, SQLITE3P, rffi.LONGP, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_Gosub = rffi.llexternal('impl_OP_Gosub', [VDBEP, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_Return = rffi.llexternal('impl_OP_Return', [VDBEP, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_SorterOpen = rffi.llexternal('impl_OP_SorterOpen', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_NextIfOpen = rffi.llexternal('impl_OP_NextIfOpen', [VDBEP, SQLITE3P, rffi.LONGP, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_Sequence = rffi.llexternal('impl_OP_Sequence', [VDBEP, VDBEOPP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
-impl_OP_OpenPseudo = rffi.llexternal('impl_OP_OpenPseudo', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_SorterSort_Sort = rffi.llexternal('impl_OP_SorterSort_Sort', [VDBEP, SQLITE3P, rffi.LONGP, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_SorterData = rffi.llexternal('impl_OP_SorterData', [VDBEP, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_SorterNext = rffi.llexternal('impl_OP_SorterNext', [VDBEP, SQLITE3P, rffi.LONGP, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_Compare = rffi.llexternal('impl_OP_Compare', [VDBEP, VDBEOPP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
-impl_OP_Jump = rffi.llexternal('impl_OP_Jump', [VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_IfPos = rffi.llexternal('impl_OP_IfPos', [VDBEP, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_CollSeq = rffi.llexternal('impl_OP_CollSeq', [VDBEP, VDBEOPP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
-impl_OP_NotNull = rffi.llexternal('impl_OP_NotNull', [VDBEP, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_InitCoroutine = rffi.llexternal('impl_OP_InitCoroutine', [VDBEP, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_Yield = rffi.llexternal('impl_OP_Yield', [VDBEP, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_NullRow = rffi.llexternal('impl_OP_NullRow', [VDBEP, VDBEOPP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
-impl_OP_EndCoroutine = rffi.llexternal('impl_OP_EndCoroutine', [VDBEP, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_ReadCookie = rffi.llexternal('impl_OP_ReadCookie', [VDBEP, SQLITE3P, VDBEOPP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
-impl_OP_NewRowid = rffi.llexternal('impl_OP_NewRowid', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_Insert_InsertInt = rffi.llexternal('impl_OP_Insert_InsertInt', [VDBEP, SQLITE3P, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_SetCookie = rffi.llexternal('impl_OP_SetCookie', [VDBEP, SQLITE3P, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_ParseSchema = rffi.llexternal('impl_OP_ParseSchema', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_RowSetAdd = rffi.llexternal('impl_OP_RowSetAdd', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_RowSetRead = rffi.llexternal('impl_OP_RowSetRead', [VDBEP, SQLITE3P, rffi.LONGP, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_Delete = rffi.llexternal('impl_OP_Delete', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
-    rffi.LONG, compilation_info=CConfig._compilation_info_)
-impl_OP_DropTable = rffi.llexternal('impl_OP_DropTable', [SQLITE3P, VDBEOPP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
+def llexternal(name, args, result, **kwargs):
+    return rffi.llexternal(
+        name, args, result, compilation_info=CConfig._compilation_info_,
+        releasegil=False, **kwargs)
 
 
-sqlite3_reset = rffi.llexternal('sqlite3_reset', [VDBEP],
-    rffi.INT, compilation_info=CConfig._compilation_info_)
+sqlite3_open = llexternal('sqlite3_open', [rffi.CCHARP, SQLITE3PP],
+                               rffi.INT)
+sqlite3_prepare = llexternal('sqlite3_prepare', [rffi.VOIDP, rffi.CCHARP, rffi.INT, rffi.VOIDPP, rffi.CCHARPP],
+                                  rffi.INT)
+sqlite3_allocateCursor = llexternal('allocateCursor', [lltype.Ptr(VDBE), rffi.INT, rffi.INT, rffi.INT, rffi.INT],
+    VDBECURSORP)
+sqlite3_sqlite3VdbeMemIntegerify = llexternal('sqlite3VdbeMemIntegerify', [lltype.Ptr(MEM)],
+    rffi.INT)
+sqlite3_sqlite3BtreeCursor = llexternal('sqlite3BtreeCursor', [rffi.VOIDP, rffi.INT, rffi.INT, rffi.VOIDP, rffi.VOIDP],
+    rffi.INT)
+sqlite3_sqlite3BtreeCursorHints = llexternal('sqlite3BtreeCursorHints', [BTCURSORP, rffi.UINT],
+    lltype.Void)
+sqlite3VdbeCursorMoveto = llexternal('sqlite3VdbeCursorMoveto', [VDBECURSORP],
+    rffi.INT)
+sqlite3_sqlite3VdbeSorterRewind = llexternal('sqlite3VdbeSorterRewind', [SQLITE3P, VDBECURSORP, rffi.INTP],
+    rffi.INT)
 
-sqlite3_column_text = rffi.llexternal('sqlite3_column_text', [VDBEP, rffi.INT],
-    rffi.UCHARP, compilation_info=CConfig._compilation_info_)
-sqlite3_column_bytes = rffi.llexternal('sqlite3_column_bytes', [VDBEP, rffi.INT],
-    rffi.INT, compilation_info=CConfig._compilation_info_)
+impl_OP_Transaction = llexternal('impl_OP_Transaction', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_TableLock = llexternal('impl_OP_TableLock', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_Goto = llexternal('impl_OP_Goto', [VDBEP, SQLITE3P, rffi.LONGP, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_OpenRead_OpenWrite = llexternal('impl_OP_OpenRead_OpenWrite', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_Rewind = llexternal('impl_OP_Rewind', [VDBEP, SQLITE3P, rffi.LONGP, VDBEOPP],
+    rffi.LONG)
+impl_OP_Column = llexternal('impl_OP_Column', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_ResultRow = llexternal('impl_OP_ResultRow', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_Next = llexternal('impl_OP_Next', [VDBEP, SQLITE3P, rffi.LONGP, VDBEOPP],
+    rffi.LONG)
+impl_OP_Close = llexternal('impl_OP_Close', [VDBEP, VDBEOPP],
+    lltype.Void)
+impl_OP_Halt = llexternal('impl_OP_Halt', [VDBEP, SQLITE3P, rffi.LONGP, VDBEOPP],
+    rffi.LONG)
+impl_OP_Ne_Eq_Gt_Le_Lt_Ge = llexternal('impl_OP_Ne_Eq_Gt_Le_Lt_Ge', [VDBEP, SQLITE3P, rffi.LONGP, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_Integer = llexternal('impl_OP_Integer', [VDBEP, VDBEOPP],
+    lltype.Void)
+impl_OP_Null = llexternal('impl_OP_Null', [VDBEP, VDBEOPP],
+    lltype.Void)
+impl_OP_AggStep = llexternal('impl_OP_AggStep', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_AggFinal = llexternal('impl_OP_AggFinal', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_Copy = llexternal('impl_OP_Copy', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_MustBeInt = llexternal('impl_OP_MustBeInt', [VDBEP, SQLITE3P, rffi.LONGP, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_NotExists = llexternal('impl_OP_NotExists', [VDBEP, SQLITE3P, rffi.LONGP, VDBEOPP],
+    rffi.LONG)
+impl_OP_String = llexternal('impl_OP_String', [VDBEP, SQLITE3P, VDBEOPP],
+    lltype.Void)
+impl_OP_String8 = llexternal('impl_OP_String8', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_Function = llexternal('impl_OP_Function', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_Real = llexternal('impl_OP_Real', [VDBEP, VDBEOPP],
+    lltype.Void)
+impl_OP_RealAffinity = llexternal('impl_OP_RealAffinity', [VDBEP, VDBEOPP],
+    lltype.Void)
+impl_OP_Add_Subtract_Multiply_Divide_Remainder = llexternal('impl_OP_Add_Subtract_Multiply_Divide_Remainder', [VDBEP, VDBEOPP],
+    lltype.Void)
+impl_OP_If_IfNot = llexternal('impl_OP_If_IfNot', [VDBEP, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_Rowid = llexternal('impl_OP_Rowid', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_IsNull = llexternal('impl_OP_IsNull', [VDBEP, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_SeekLT_SeekLE_SeekGE_SeekGT = llexternal('impl_OP_SeekLT_SeekLE_SeekGE_SeekGT', [VDBEP, SQLITE3P, rffi.LONGP, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_Move = llexternal('impl_OP_Move', [VDBEP, VDBEOPP],
+    lltype.Void)
+impl_OP_IfZero = llexternal('impl_OP_IfZero', [VDBEP, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_IdxRowid = llexternal('impl_OP_IdxRowid', [DBP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_IdxLE_IdxGT_IdxLT_IdxGE = llexternal('impl_OP_IdxLE_IdxGT_IdxLT_IdxGE', [VDBEP, rffi.LONGP, VDBEOPP],
+    rffi.LONG)
+impl_OP_Seek = llexternal('impl_OP_Seek', [VDBEP, VDBEOPP],
+    lltype.Void)
+impl_OP_Once = llexternal('impl_OP_Once', [VDBEP, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_SCopy = llexternal('impl_OP_SCopy', [VDBEP, VDBEOPP],
+    lltype.Void)
+impl_OP_Affinity = llexternal('impl_OP_Affinity', [VDBEP, SQLITE3P, VDBEOPP],
+    lltype.Void)
+impl_OP_OpenAutoindex_OpenEphemeral = llexternal('impl_OP_OpenAutoindex_OpenEphemeral', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_MakeRecord = llexternal('impl_OP_MakeRecord', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_SorterInsert_IdxInsert = llexternal('impl_OP_SorterInsert_IdxInsert', [VDBEP, SQLITE3P, VDBEOPP],
+    rffi.LONG)
+impl_OP_NoConflict_NotFound_Found = llexternal('impl_OP_NoConflict_NotFound_Found', [VDBEP, SQLITE3P, rffi.LONGP, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_RowSetTest = llexternal('impl_OP_RowSetTest', [VDBEP, SQLITE3P, rffi.LONGP, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_Gosub = llexternal('impl_OP_Gosub', [VDBEP, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_Return = llexternal('impl_OP_Return', [VDBEP, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_SorterOpen = llexternal('impl_OP_SorterOpen', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_NextIfOpen = llexternal('impl_OP_NextIfOpen', [VDBEP, SQLITE3P, rffi.LONGP, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_Sequence = llexternal('impl_OP_Sequence', [VDBEP, VDBEOPP],
+    lltype.Void)
+impl_OP_OpenPseudo = llexternal('impl_OP_OpenPseudo', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_SorterSort_Sort = llexternal('impl_OP_SorterSort_Sort', [VDBEP, SQLITE3P, rffi.LONGP, VDBEOPP],
+    rffi.LONG)
+impl_OP_SorterData = llexternal('impl_OP_SorterData', [VDBEP, VDBEOPP],
+    rffi.LONG)
+impl_OP_SorterNext = llexternal('impl_OP_SorterNext', [VDBEP, SQLITE3P, rffi.LONGP, VDBEOPP],
+    rffi.LONG)
+impl_OP_Compare = llexternal('impl_OP_Compare', [VDBEP, VDBEOPP],
+    lltype.Void)
+impl_OP_Jump = llexternal('impl_OP_Jump', [VDBEOPP],
+    rffi.LONG)
+impl_OP_IfPos = llexternal('impl_OP_IfPos', [VDBEP, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_CollSeq = llexternal('impl_OP_CollSeq', [VDBEP, VDBEOPP],
+    lltype.Void)
+impl_OP_NotNull = llexternal('impl_OP_NotNull', [VDBEP, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_InitCoroutine = llexternal('impl_OP_InitCoroutine', [VDBEP, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_Yield = llexternal('impl_OP_Yield', [VDBEP, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_NullRow = llexternal('impl_OP_NullRow', [VDBEP, VDBEOPP],
+    lltype.Void)
+impl_OP_EndCoroutine = llexternal('impl_OP_EndCoroutine', [VDBEP, VDBEOPP],
+    rffi.LONG)
+impl_OP_ReadCookie = llexternal('impl_OP_ReadCookie', [VDBEP, SQLITE3P, VDBEOPP],
+    lltype.Void)
+impl_OP_NewRowid = llexternal('impl_OP_NewRowid', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_Insert_InsertInt = llexternal('impl_OP_Insert_InsertInt', [VDBEP, SQLITE3P, VDBEOPP],
+    rffi.LONG)
+impl_OP_SetCookie = llexternal('impl_OP_SetCookie', [VDBEP, SQLITE3P, VDBEOPP],
+    rffi.LONG)
+impl_OP_ParseSchema = llexternal('impl_OP_ParseSchema', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_RowSetAdd = llexternal('impl_OP_RowSetAdd', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_RowSetRead = llexternal('impl_OP_RowSetRead', [VDBEP, SQLITE3P, rffi.LONGP, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_Delete = llexternal('impl_OP_Delete', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
+    rffi.LONG)
+impl_OP_DropTable = llexternal('impl_OP_DropTable', [SQLITE3P, VDBEOPP],
+    lltype.Void)
 
-sqlite3_sqlite3BtreeNext = rffi.llexternal('sqlite3BtreeNext', [BTCURSORP, rffi.INTP],
-    rffi.INT, compilation_info=CConfig._compilation_info_)
-sqlite3BtreeMovetoUnpacked = rffi.llexternal('sqlite3BtreeMovetoUnpacked', [BTCURSORP, rffi.VOIDP, CConfig.i64, rffi.INT, rffi.INTP],
-    rffi.INT, compilation_info=CConfig._compilation_info_)
 
-sqlite3_applyNumericAffinity = rffi.llexternal('applyNumericAffinity', [MEMP],
-    lltype.Void, compilation_info=CConfig._compilation_info_, macro=True)
+sqlite3_reset = llexternal('sqlite3_reset', [VDBEP],
+    rffi.INT)
 
-sqlite3AtoF = rffi.llexternal('sqlite3AtoF', [rffi.CCHARP, rffi.DOUBLEP, rffi.INT, CConfig.u8],
-    rffi.INT, compilation_info=CConfig._compilation_info_)
-sqlite3Atoi64 = rffi.llexternal('sqlite3Atoi64', [rffi.CCHARP, rffi.LONGLONGP, rffi.INT, CConfig.u8],
-    rffi.INT, compilation_info=CConfig._compilation_info_)
-sqlite3VdbeMemSetNull = rffi.llexternal('sqlite3VdbeMemSetNull', [MEMP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
-sqlite3VdbeMemReleaseExternal = rffi.llexternal('sqlite3VdbeMemReleaseExternal', [MEMP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
-sqlite3VdbeIdxRowid = rffi.llexternal('sqlite3VdbeIdxRowid', [SQLITE3P, BTCURSORP, rffi.LONGP],
-    rffi.INT, compilation_info=CConfig._compilation_info_)
-sqlite3DbFree = rffi.llexternal('sqlite3DbFree', [SQLITE3P, rffi.VOIDP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
-sqlite3ValueText = rffi.llexternal('sqlite3ValueText', [MEMP, CConfig.u8],
-    rffi.VOIDP, compilation_info=CConfig._compilation_info_)
-sqlite3VdbeIdxKeyCompare = rffi.llexternal('sqlite3VdbeIdxKeyCompare', [VDBECURSORP, UNPACKEDRECORDP, rffi.INTP],
-    rffi.INT, compilation_info=CConfig._compilation_info_)
+sqlite3_column_text = llexternal('sqlite3_column_text', [VDBEP, rffi.INT],
+    rffi.UCHARP)
+sqlite3_column_bytes = llexternal('sqlite3_column_bytes', [VDBEP, rffi.INT],
+    rffi.INT)
+
+sqlite3_sqlite3BtreeNext = llexternal('sqlite3BtreeNext', [BTCURSORP, rffi.INTP],
+    rffi.INT)
+sqlite3BtreeMovetoUnpacked = llexternal('sqlite3BtreeMovetoUnpacked', [BTCURSORP, rffi.VOIDP, CConfig.i64, rffi.INT, rffi.INTP],
+    rffi.INT)
+
+sqlite3_applyNumericAffinity = llexternal('applyNumericAffinity', [MEMP],
+    lltype.Void, macro=True)
+
+sqlite3AtoF = llexternal('sqlite3AtoF', [rffi.CCHARP, rffi.DOUBLEP, rffi.INT, CConfig.u8],
+    rffi.INT)
+sqlite3Atoi64 = llexternal('sqlite3Atoi64', [rffi.CCHARP, rffi.LONGLONGP, rffi.INT, CConfig.u8],
+    rffi.INT)
+sqlite3VdbeMemSetNull = llexternal('sqlite3VdbeMemSetNull', [MEMP],
+    lltype.Void)
+sqlite3VdbeMemReleaseExternal = llexternal('sqlite3VdbeMemReleaseExternal', [MEMP],
+    lltype.Void)
+sqlite3VdbeIdxRowid = llexternal('sqlite3VdbeIdxRowid', [SQLITE3P, BTCURSORP, rffi.LONGP],
+    rffi.INT)
+sqlite3DbFree = llexternal('sqlite3DbFree', [SQLITE3P, rffi.VOIDP],
+    lltype.Void)
+sqlite3ValueText = llexternal('sqlite3ValueText', [MEMP, CConfig.u8],
+    rffi.VOIDP)
+sqlite3VdbeIdxKeyCompare = llexternal('sqlite3VdbeIdxKeyCompare', [VDBECURSORP, UNPACKEDRECORDP, rffi.INTP],
+    rffi.INT)
 
 # (char **, sqlite3*, const char*, ...);
-sqlite3SetString1 = rffi.llexternal('sqlite3SetString', [rffi.CCHARPP, SQLITE3P, rffi.CCHARP, rffi.VOIDP],
-    lltype.Void, compilation_info=CConfig._compilation_info_)
+sqlite3SetString1 = llexternal('sqlite3SetString', [rffi.CCHARPP, SQLITE3P, rffi.CCHARP, rffi.VOIDP],
+    lltype.Void)
 
-sqlite3_sqlite3MemCompare = rffi.llexternal('sqlite3MemCompare', [MEMP, MEMP, COLLSEQP],
-    rffi.INT, compilation_info=CConfig._compilation_info_)
-sqlite3_sqlite3VdbeMemStringify = rffi.llexternal('sqlite3VdbeMemStringify', [MEMP, rffi.INT],
-    rffi.INT, compilation_info=CConfig._compilation_info_)
-sqlite3_gotoAbortDueToInterrupt = rffi.llexternal('gotoAbortDueToInterrupt', [VDBEP, SQLITE3P, rffi.INT, rffi.INT],
-    rffi.INT, compilation_info=CConfig._compilation_info_)
-gotoAbortDueToError = rffi.llexternal('gotoAbortDueToError', [VDBEP, SQLITE3P, rffi.INT, rffi.INT],
-    rffi.INT, compilation_info=CConfig._compilation_info_)
-sqlite3_gotoNoMem = rffi.llexternal('gotoNoMem', [VDBEP, SQLITE3P, rffi.INT],
-    rffi.INT, compilation_info=CConfig._compilation_info_)
+sqlite3_sqlite3MemCompare = llexternal('sqlite3MemCompare', [MEMP, MEMP, COLLSEQP],
+    rffi.INT)
+sqlite3_sqlite3VdbeMemStringify = llexternal('sqlite3VdbeMemStringify', [MEMP, rffi.INT],
+    rffi.INT)
+sqlite3_gotoAbortDueToInterrupt = llexternal('gotoAbortDueToInterrupt', [VDBEP, SQLITE3P, rffi.INT, rffi.INT],
+    rffi.INT)
+gotoAbortDueToError = llexternal('gotoAbortDueToError', [VDBEP, SQLITE3P, rffi.INT, rffi.INT],
+    rffi.INT)
+sqlite3_gotoNoMem = llexternal('gotoNoMem', [VDBEP, SQLITE3P, rffi.INT],
+    rffi.INT)
 
 
