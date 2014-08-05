@@ -221,7 +221,7 @@ class Mem(object):
     def sqlite3VdbeMemRelease(self):
         self.VdbeMemRelease()
         if self.get_zMalloc():
-            capi.sqlite3DbFree(self.hlquery.db, self.get_zMalloc());
+            capi.sqlite3DbFree(self.hlquery.db, rffi.cast(rffi.VOIDP, self.get_zMalloc()))
             self.set_zMalloc(lltype.nullptr(rffi.CCHARP.TO))
         self.set_z(lltype.nullptr(rffi.CCHARP.TO))
 
@@ -347,10 +347,9 @@ class CacheHolder(object):
 
     def invalidate(self, i):
         self._cache_state = self.cache_state().set_unknown(i)
-        pass
 
-    def set(self, i, val):
-        pass
+    def invalidate_all(self):
+        self._cache_state = self._invalid_cache_state
 
     def get_flags(self, mem):
         i = mem._cache_index
@@ -358,7 +357,7 @@ class CacheHolder(object):
             return rffi.cast(lltype.Unsigned, mem.pMem.flags)
         state = self.cache_state()
         if state.is_flag_known(i):
-            if not objectmodel.we_are_translated():
+            if not objectmodel.we_are_translated() and mem.pMem:
                 assert state.get_flags(i) == rffi.cast(lltype.Unsigned, mem.pMem.flags)
             return state.get_flags(i)
         flags = rffi.cast(lltype.Unsigned, mem.pMem.flags)
@@ -375,7 +374,7 @@ class CacheHolder(object):
             return
         rffi.setintfield(mem.pMem, 'flags', newflags)
         self._cache_state = state.change_flags(i, newflags)
-        if not objectmodel.we_are_translated():
+        if not objectmodel.we_are_translated() and mem.pMem:
             assert self._cache_state.get_flags(i) == rffi.cast(lltype.Unsigned, mem.pMem.flags) == newflags
 
     def get_r(self, mem):
@@ -384,7 +383,7 @@ class CacheHolder(object):
             return mem.pMem.r
         state = self.cache_state()
         if state.is_r_known(i):
-            if not objectmodel.we_are_translated():
+            if not objectmodel.we_are_translated() and mem.pMem:
                 assert self.floats[i] == mem.pMem.r
             return self.floats[i]
         r = mem.pMem.r
@@ -429,27 +428,54 @@ STATE_FLAG_KNOWN = 1
 STATE_INT_KNOWN = 2
 STATE_FLOAT_KNOWN = 4
 
+def state_eq(self, other):
+    return self.eq(other)
+
+def state_hash(self):
+    return self.hash()
+
 class CacheState(object):
     _immutable_fields_ = ['all_flags[*]', 'cache_states[*]']
+    _cache = objectmodel.r_dict(state_eq, state_hash)
 
     def __init__(self, all_flags, cache_states):
         self.all_flags = all_flags
         self.cache_states = cache_states
-        self._flags_cache = {}
-        self._state_cache = {}
+
+    def __repr__(self):
+        return "CacheState(%r, %r)" % (self.all_flags, self.cache_states)
+    def eq(self, other):
+        return self.all_flags == other.all_flags and self.cache_states == other.cache_states
+
+    def hash(self):
+        from rpython.rlib.rarithmetic import intmask
+        x = 0x345678
+        for item in self.all_flags:
+            y = rffi.cast(lltype.Signed, item)
+            x = intmask((1000003 * x) ^ y)
+        for item in self.cache_states:
+            y = rffi.cast(lltype.Signed, item)
+            x = intmask((1000003 * x) ^ y)
+        return x
+
+    def unique(self):
+        if self in self._cache:
+            newself = self._cache[self]
+            assert newself.all_flags == self.all_flags
+            assert newself.cache_states == self.cache_states
+            return newself
+        self._cache[self] = self
+        return self
 
     @jit.elidable_promote('all')
     def change_flags(self, i, new_flags):
         if self.is_flag_known(i) and self.all_flags[i] == new_flags:
             return self
-        result = self._flags_cache.get((i, new_flags), None)
-        if not result:
-            all_flags = self.all_flags[:]
-            all_flags[i] = new_flags
-            cache_states = self.cache_states[:]
-            result = CacheState(all_flags, cache_states)
-            self._flags_cache[(i, new_flags)] = result
-        return result.add_knowledge(i, STATE_FLAG_KNOWN)
+        self = self.add_knowledge(i, STATE_FLAG_KNOWN)
+        all_flags = self.all_flags[:]
+        all_flags[i] = new_flags
+        cache_states = self.cache_states[:]
+        return CacheState(all_flags, cache_states).unique()
 
     def add_knowledge(self, i, statusbits):
         status = self.cache_states[i] | statusbits
@@ -459,26 +485,22 @@ class CacheState(object):
     def change_cache_state(self, i, status):
         if self.cache_states[i] == status:
             return self
-        result = self._state_cache.get((i, status), None)
-        if not result:
-            all_flags = self.all_flags[:]
-            cache_states = self.cache_states[:]
-            cache_states[i] = status
-            result = CacheState(all_flags, cache_states)
-            self._state_cache[(i, status)] = result
-        return result
+        all_flags = self.all_flags[:]
+        cache_states = self.cache_states[:]
+        cache_states[i] = status
+        return CacheState(all_flags, cache_states).unique()
 
     def set_unknown(self, i):
         return self.change_cache_state(i, STATE_UNKNOWN)
 
     def is_flag_known(self, i):
-        return self.cache_states[i] & STATE_FLAG_KNOWN
+        return bool(self.cache_states[i] & STATE_FLAG_KNOWN)
 
     def is_r_known(self, i):
-        return self.cache_states[i] & STATE_FLOAT_KNOWN
+        return bool(self.cache_states[i] & STATE_FLOAT_KNOWN)
 
     def is_u_i_known(self, i):
-        return self.cache_states[i] & STATE_INT_KNOWN
+        return bool(self.cache_states[i] & STATE_INT_KNOWN)
 
     def get_flags(self, i):
         assert self.is_flag_known(i)
