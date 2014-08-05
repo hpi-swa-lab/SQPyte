@@ -1,4 +1,4 @@
-from rpython.rlib import jit
+from rpython.rlib import jit, objectmodel
 from rpython.rtyper.lltypesystem import rffi, lltype
 from capi import CConfig
 from rpython.rlib.rarithmetic import intmask
@@ -11,7 +11,7 @@ import math
 testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test/test.db")
 # testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test/big-test.db")
 
-def get_printable_location(pc, rc, self):
+def get_printable_location(pc, rc, self, cache_state):
     op = self._hlops[pc]
     opcode = op.get_opcode()
     name = self.get_opcode_str(opcode)
@@ -22,8 +22,8 @@ def get_printable_location(pc, rc, self):
 
 
 jitdriver = jit.JitDriver(
-    greens=['pc', 'rc', 'self_'],
-    reds=['_mem_caches'],
+    greens=['pc', 'rc', 'self_', 'cache_state'],
+    reds=[],#['_mem_caches'],
     should_unroll_one_iteration=lambda *args: True,
     get_printable_location=get_printable_location)
 
@@ -68,7 +68,7 @@ def mutate_func(func, mutates):
             result = func(hlquery, *args)
             op = args[-1]
             i = op.p_Signed(3)
-            hlquery._mem_caches[i] = None
+            hlquery.mem_cache.invalidate(i)
             return result
         return p3_mutation
     if mutates == "p1@p2":
@@ -77,24 +77,23 @@ def mutate_func(func, mutates):
             result = func(hlquery, *args)
             op = args[-1]
             for i in range(op.p_Signed(1), op.p_Signed(1) + op.p_Signed(2)):
-                hlquery._mem_caches[i] = None
+                hlquery.mem_cache.invalidate(i)
             return result
         return p1_p2_mutation
     raise ValueError("unknown mutation %s" % mutates)
 
 def hide_cache(func):
     def newfunc(hlquery, *args):
-        _mem_caches = hlquery._mem_caches
-        hlquery._mem_caches = None
+        data = hlquery.mem_cache.hide()
         result = func(hlquery, *args)
-        hlquery._mem_caches = _mem_caches
+        hlquery.mem_cache.reveal(data)
         return result
     return newfunc
 
 class Sqlite3Query(object):
 
     _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]', '_llmem_as_python_list[*]', 'intp',
-                          '_hlops[*]']
+                          '_hlops[*]', 'mem_cache']
 
     def __init__(self, db, query):
         self.db = db
@@ -121,8 +120,19 @@ class Sqlite3Query(object):
         self._llmem_as_python_list = [self.p.aMem[i] for i in range(self.p.nMem)]
         self._mem_as_python_list = [Mem(self, self.p.aMem[i], i)
                 for i in range(self.p.nMem)]
-        self._mem_caches = [None] * len(self._mem_as_python_list)
         self._hlops = [Op(self, self.p.aOp[i]) for i in range(self.p.nOp)]
+        self.init_mem_cache()
+
+    def init_mem_cache(self):
+        from sqpyte.mem import CacheHolder
+        self.mem_cache = CacheHolder(len(self._mem_as_python_list))
+
+    def check_cache_consistency(self):
+        if objectmodel.we_are_translated():
+            return
+        for mem in self._mem_as_python_list:
+            mem.check_cache_consistency()
+
 
     @jit.unroll_safe
     def invalidate_caches(self):
@@ -458,18 +468,15 @@ class Sqlite3Query(object):
         pc = jit.promote(rffi.cast(lltype.Signed, self.p.pc))
         if pc < 0:
             pc = 0 # XXX maybe more to do, see vdbeapi.c:418
-        _mem_caches = [None] * len(self._mem_as_python_list)
 
         while True:
-            jitdriver.jit_merge_point(pc=pc, self_=self, rc=rc, _mem_caches=_mem_caches)
+            jitdriver.jit_merge_point(pc=pc, self_=self, rc=rc, cache_state=self.mem_cache.cache_state)
             if rc != CConfig.SQLITE_OK:
                 break
             op = self._hlops[pc]
             opcode = op.get_opcode()
             oldpc = pc
             self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
-            _mem_caches = [_mem_caches[j] for j in range(len(self._mem_as_python_list))]
-            self._mem_caches = _mem_caches
 
             opflags = op.opflags()
             if opflags & CConfig.OPFLG_OUT2_PRERELEASE:
@@ -477,8 +484,10 @@ class Sqlite3Query(object):
                 pOut.VdbeMemRelease()
                 pOut.set_flags(CConfig.MEM_Int)
 
+            self.check_cache_consistency()
             if not self.is_op_cache_safe(opcode):
-                self._mem_caches = None
+                self.invalidate_caches()
+            self.check_cache_consistency()
 
             if opcode == CConfig.OP_Init:
                 pc = self.python_OP_Init(pc, op)
@@ -655,11 +664,10 @@ class Sqlite3Query(object):
             pc = jit.promote(rffi.cast(lltype.Signed, pc))
             pc += 1
             if not self.is_op_cache_safe(opcode):
-                _mem_caches = [None] * len(self._mem_as_python_list)
-            else:
-                self._mem_caches = None
+                self.invalidate_caches()
             if pc <= oldpc:
-                jitdriver.can_enter_jit(pc=pc, self_=self, rc=rc, _mem_caches=_mem_caches)
+                jitdriver.can_enter_jit(pc=pc, self_=self, rc=rc, cache_state=self.mem_cache.cache_state)
+            self.check_cache_consistency()
         return rc
 
 class Op(object):

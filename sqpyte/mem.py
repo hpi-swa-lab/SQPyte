@@ -1,24 +1,8 @@
-from rpython.rlib import jit, rarithmetic
+from rpython.rlib import jit, rarithmetic, objectmodel
 from rpython.rtyper.lltypesystem import rffi, lltype
 from sqpyte.capi import CConfig
 from sqpyte import capi
 import sys
-
-class DontRead(object):
-    pass
-
-dont_read_flags = DontRead()
-dont_read_u_i = DontRead()
-dont_read_r = DontRead()
-
-class Cache(object):
-    def __init__(self, pMem, dont_read=None):
-        if dont_read is not dont_read_flags:
-            self.flags = rffi.cast(lltype.Unsigned, pMem.flags)
-        if dont_read is not dont_read_u_i:
-            self.u_i = pMem.u.i
-        if dont_read is not dont_read_r:
-            self.r = pMem.r
 
 class Mem(object):
     _immutable_fields_ = ['hlquery', 'pMem', '_cache_index']
@@ -31,54 +15,34 @@ class Mem(object):
 
     def invalidate_cache(self):
         if self._cache_index != -1:
-            self.hlquery._mem_caches[self._cache_index] = None
+            self.hlquery.mem_cache.invalidate(self._cache_index)
 
-    def _get_cache(self, dont_read=None):
-        if self._cache_index != -1:
-            cache = self.hlquery._mem_caches[self._cache_index]
-            if cache:
-                return cache
-        cache = Cache(self.pMem, dont_read)
-        if self._cache_index != -1:
-            self.hlquery._mem_caches[self._cache_index] = cache
-        return cache
-
-    def _get_cache_dont_create(self):
-        if self._cache_index != -1:
-            return self.hlquery._mem_caches[self._cache_index]
-        return None
+    def check_cache_consistency(self):
+        assert rffi.cast(lltype.Unsigned, self.pMem.flags) == self.get_flags()
+        assert self.pMem.r == self.get_r()
+        assert self.pMem.u.i == self.get_u_i()
 
     def get_flags(self, promote=False):
-        flags = self._get_cache().flags
+        flags = self.hlquery.mem_cache.get_flags(self)
         if promote:
             jit.promote(flags)
         return flags
 
     def set_flags(self, newflags):
-        cache = self._get_cache_dont_create()
-        if cache:
-            if cache.flags == newflags:
-                return
-        self.pMem.flags = rffi.cast(CConfig.u16, newflags)
-        cache = self._get_cache(dont_read_flags)
-        cache.flags = newflags
+        self.hlquery.mem_cache.set_flags(self, newflags)
 
     def get_r(self):
-        return self._get_cache().r
+        return self.hlquery.mem_cache.get_r(self)
 
     def set_r(self, val):
-        self.pMem.r = val
-        cache = self._get_cache(dont_read_r)
-        cache.r = val
+        return self.hlquery.mem_cache.set_r(self, val)
 
 
     def get_u_i(self):
-        return self._get_cache().u_i
+        return self.hlquery.mem_cache.get_u_i(self)
 
     def set_u_i(self, val):
-        self.pMem.u.i = val
-        cache = self._get_cache(dont_read_u_i)
-        cache.u_i = val
+        return self.hlquery.mem_cache.set_u_i(self, val)
 
 
     def get_n(self):
@@ -267,6 +231,7 @@ class Mem(object):
         self.set_flags(CConfig.MEM_Int)
 
     def sqlite3VdbeMemSetNull(self):
+        self.invalidate_cache()
         capi.sqlite3VdbeMemSetNull(self.pMem)
 
     def MemSetTypeFlag(self, flags):
@@ -354,3 +319,165 @@ class Mem(object):
         self.invalidate_cache()
         other.invalidate_cache()
         return capi.sqlite3_sqlite3MemCompare(self.pMem, other.pMem, coll)
+
+
+
+
+class CacheHolder(object):
+    _immutable_fields_ = ['integers', 'floats']
+
+    def __init__(self, num_flags):
+        self._cache_state = all_unknown(num_flags)
+        self.integers = [0] * num_flags
+        self.floats = [0.0] * num_flags
+
+    def cache_state(self):
+        return jit.promote(self._cache_state)
+
+    def hide(self):
+        pass
+
+    def reveal(self, x):
+        pass
+
+    def invalidate(self, i):
+        self._cache_state = self.cache_state().set_unknown(i)
+        pass
+
+    def set(self, i, val):
+        pass
+
+    def get_flags(self, mem):
+        i = mem._cache_index
+        if i == -1:
+            return rffi.cast(lltype.Unsigned, mem.pMem.flags)
+        state = self.cache_state()
+        if state.is_flag_known(i):
+            if not objectmodel.we_are_translated():
+                assert state.get_flags(i) == rffi.cast(lltype.Unsigned, mem.pMem.flags)
+            return state.get_flags(i)
+        flags = rffi.cast(lltype.Unsigned, mem.pMem.flags)
+        self._cache_state = state.change_flags(i, flags)
+        return flags
+
+    def set_flags(self, mem, newflags):
+        i = mem._cache_index
+        if i == -1:
+            rffi.setintfield(mem.pMem, 'flags', newflags)
+            return
+        state = self.cache_state()
+        if state.is_flag_known(i) and state.get_flags(i) == newflags:
+            return
+        rffi.setintfield(mem.pMem, 'flags', newflags)
+        self._cache_state = state.change_flags(i, newflags)
+        if not objectmodel.we_are_translated():
+            assert self._cache_state.get_flags(i) == rffi.cast(lltype.Unsigned, mem.pMem.flags) == newflags
+
+    def get_r(self, mem):
+        i = mem._cache_index
+        if i == -1:
+            return mem.pMem.r
+        state = self.cache_state()
+        if state.is_r_known(i):
+            if not objectmodel.we_are_translated():
+                assert self.floats[i] == mem.pMem.r
+            return self.floats[i]
+        r = mem.pMem.r
+        self.floats[i] = r
+        self._cache_state = state.add_knowledge(i, STATE_FLOAT_KNOWN)
+        return r
+
+    def set_r(self, mem, r):
+        i = mem._cache_index
+        if i == -1:
+            mem.pMem.r = r
+            return
+        state = self.cache_state()
+        mem.pMem.r = r
+        self.floats[i] = r
+        self._cache_state = state.add_knowledge(i, STATE_FLOAT_KNOWN)
+
+    def get_u_i(self, mem):
+        i = mem._cache_index
+        if i == -1:
+            return mem.pMem.u.i
+        state = self.cache_state()
+        if state.is_u_i_known(i):
+            return self.integers[i]
+        u_i = mem.pMem.u.i
+        self.integers[i] = u_i
+        self._cache_state = state.add_knowledge(i, STATE_INT_KNOWN)
+        return u_i
+
+    def set_u_i(self, mem, u_i):
+        i = mem._cache_index
+        if i == -1:
+            mem.pMem.u.i = u_i
+            return
+        state = self.cache_state()
+        mem.pMem.u.i = u_i
+        self.integers[i] = u_i
+        self._cache_state = state.add_knowledge(i, STATE_INT_KNOWN)
+
+STATE_UNKNOWN = 0
+STATE_FLAG_KNOWN = 1
+STATE_INT_KNOWN = 2
+STATE_FLOAT_KNOWN = 4
+
+class CacheState(object):
+    _immutable_fields_ = ['all_flags[*]', 'cache_states[*]']
+
+    def __init__(self, all_flags, cache_states):
+        self.all_flags = all_flags
+        self.cache_states = cache_states
+        self._flags_cache = {}
+        self._state_cache = {}
+
+    @jit.elidable_promote('all')
+    def change_flags(self, i, new_flags):
+        if self.is_flag_known(i) and self.all_flags[i] == new_flags:
+            return self
+        result = self._flags_cache.get((i, new_flags), None)
+        if not result:
+            all_flags = self.all_flags[:]
+            all_flags[i] = new_flags
+            cache_states = self.cache_states[:]
+            result = CacheState(all_flags, cache_states)
+            self._flags_cache[(i, new_flags)] = result
+        return result.add_knowledge(i, STATE_FLAG_KNOWN)
+
+    def add_knowledge(self, i, statusbits):
+        status = self.cache_states[i] | statusbits
+        return self.change_cache_state(i, status)
+
+    @jit.elidable_promote('all')
+    def change_cache_state(self, i, status):
+        if self.cache_states[i] == status:
+            return self
+        result = self._state_cache.get((i, status), None)
+        if not result:
+            all_flags = self.all_flags[:]
+            cache_states = self.cache_states[:]
+            cache_states[i] = status
+            result = CacheState(all_flags, cache_states)
+            self._state_cache[(i, status)] = result
+        return result
+
+    def set_unknown(self, i):
+        return self.change_cache_state(i, STATE_UNKNOWN)
+
+    def is_flag_known(self, i):
+        return self.cache_states[i] & STATE_FLAG_KNOWN
+
+    def is_r_known(self, i):
+        return self.cache_states[i] & STATE_FLOAT_KNOWN
+
+    def is_u_i_known(self, i):
+        return self.cache_states[i] & STATE_INT_KNOWN
+
+    def get_flags(self, i):
+        assert self.is_flag_known(i)
+        return self.all_flags[i]
+
+def all_unknown(num_flags):
+    return CacheState([0] * num_flags, [0] * num_flags)

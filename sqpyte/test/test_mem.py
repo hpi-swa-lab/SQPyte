@@ -1,11 +1,11 @@
 from rpython.rtyper.lltypesystem import rffi, lltype
 from sqpyte import capi
 CConfig = capi.CConfig
-from sqpyte.mem import Mem
+from sqpyte.mem import Mem, CacheHolder
 
 class FakeHLQuery(object):
     def __init__(self):
-        self._mem_caches = [None]
+        self.mem_cache = CacheHolder(1)
 
 
 def test_caching():

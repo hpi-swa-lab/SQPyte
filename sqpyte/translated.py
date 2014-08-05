@@ -234,10 +234,8 @@ def python_OP_Next_translated(hlquery, pc, op):
     # Specifically for OP_Next, xAdvance() is always sqlite3BtreeNext()
     # as can be deduced from assertions above.
     # rc = pOp->p4.xAdvance(pC->pCursor, &res);
-    _mem_caches = hlquery._mem_caches
-    hlquery._mem_caches = None
     rc, resRet = sqlite3BtreeNext(hlquery, pC.pCursor, res)
-    hlquery._mem_caches = _mem_caches
+    jit.promote(rc)
 
     # next_tail:
     pC.cacheStatus = rffi.cast(rffi.UINT, CConfig.CACHE_STALE)
