@@ -14,8 +14,6 @@ SMALLEST_INT64 = -1 - LARGEST_INT64
 TWOPOWER32 = 1 << 32
 TWOPOWER31 = 1 << 31
 
-iCompare = 0
-
 
 def allocateCursor(vdbe_struct, p1, nField, iDb, isBtreeCursor):
     return capi.sqlite3_allocateCursor(vdbe_struct, p1, nField, iDb, isBtreeCursor) 
@@ -1241,7 +1239,7 @@ def python_OP_Compare(hlquery, op):
       # }
     #endif /* SQLITE_DEBUG */
 
-    for i in range(0, n - 1):
+    for i in range(n):
         if aPermute:
             idx = rffi.cast(lltype.Signed, aPermute[i])
         else:
@@ -1258,10 +1256,10 @@ def python_OP_Compare(hlquery, op):
         assert i < rffi.getintfield(pKeyInfo, 'nField')
         pColl = pKeyInfo.aColl[i]
         bRev = rffi.cast(lltype.Unsigned, pKeyInfo.aSortOrder[i])
-        iCompare = capi.sqlite3_sqlite3MemCompare(aMem[p1 + idx], aMem[p2 + idx], pColl)
-        if iCompare:
+        hlquery.iCompare = capi.sqlite3_sqlite3MemCompare(aMem[p1 + idx], aMem[p2 + idx], pColl)
+        if hlquery.iCompare:
             if bRev:
-                iCompare = -iCompare
+                hlquery.iCompare = -hlquery.iCompare
             return
     aPermute = lltype.nullptr(rffi.INTP.TO)
     return
@@ -1273,16 +1271,16 @@ def python_OP_Compare(hlquery, op):
 # in the most recent OP_Compare instruction the P1 vector was less than
 # equal to, or greater than the P2 vector, respectively.
 
-def python_OP_Jump(op):
+def python_OP_Jump(hlquery, op):
 
     # VdbeBranchTaken() is used for test suite validation only and 
     # does not appear an production builds.
     # See vdbe.c lines 110-136.
 
-    if iCompare < 0:
+    if hlquery.iCompare < 0:
         pc = op.p_Signed(1) - 1
         # VdbeBranchTaken(0,3);
-    elif iCompare == 0:
+    elif hlquery.iCompare == 0:
         pc = op.p_Signed(2) - 1
         # VdbeBranchTaken(1,3);
     else:
