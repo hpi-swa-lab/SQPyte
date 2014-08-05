@@ -1209,6 +1209,7 @@ def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(hlquery, pc, op):
 # NULLs are less than numbers, numbers are less than strings,
 # and strings are less than blobs.
 
+@jit.unroll_safe
 def python_OP_Compare(hlquery, op):
     p = hlquery.p
     aMem = p.aMem
