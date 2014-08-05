@@ -533,7 +533,7 @@ VDBECURSOR.become(lltype.Struct("VdbeCursor",   # src/vdbeInt.h: 63
     #("isEphemeral", lltype.Bool),               #   Bool isEphemeral:1;   /* True for an ephemeral table */
     #("useRandomRowid", lltype.Bool),            #   Bool useRandomRowid:1;/* Generate new record numbers semi-randomly */
     #("isTable", lltype.Bool),                   #   Bool isTable:1;       /* True if a table requiring integer keys */
-    #("isOrdered", lltype.Bool),                 #   Bool isOrdered:1;     /* True if the underlying table is BTREE_UNORDERED */
+    # ("isOrdered", lltype.Bool),                 #   Bool isOrdered:1;     /* True if the underlying table is BTREE_UNORDERED */
     ("pVtabCursor", rffi.VOIDP),                #   sqlite3_vtab_cursor *pVtabCursor;  /* The cursor for a virtual table */
     ("seqCount", CConfig.i64),                  # Sequence counter
     ("movetoTarget", CConfig.i64),              # Argument to the deferred sqlite3BtreeMoveto()
@@ -585,6 +585,17 @@ CONTEXT.become(lltype.Struct("CONTEXT",
     ("skipFlag", CConfig.u8),      # Skip skip accumulator loading if true
     ("fErrorOrAux", CConfig.u8)    # isError!=0 or pVdbe->pAuxData modified
 ))
+
+UNPACKEDRECORD = lltype.Struct("UnpackedRecord",    # src/sqliteInt.h: 1643
+    ("pKeyInfo", KEYINFOP),                         # Collation and sort-order information
+    ("nField", CConfig.u16),                        # Number of entries in apMem[]
+    ("default_rc", CConfig.i8),                     # Comparison result if keys are equal
+    ("isCorrupt", CConfig.u8),                      # Corruption detected by xRecordCompare()
+    ("aMem", MEMP),                                 # Values
+    ("r1", rffi.INT),                               # Value to return if (lhs > rhs)
+    ("r2", rffi.INT),                               # Value to return if (rhs < lhs)
+    )
+UNPACKEDRECORDP = lltype.Ptr(UNPACKEDRECORD)
 
 
 sqlite3_open = rffi.llexternal('sqlite3_open', [rffi.CCHARP, SQLITE3PP],
@@ -772,6 +783,8 @@ sqlite3DbFree = rffi.llexternal('sqlite3DbFree', [SQLITE3P, rffi.VOIDP],
     lltype.Void, compilation_info=CConfig._compilation_info_)
 sqlite3ValueText = rffi.llexternal('sqlite3ValueText', [MEMP, CConfig.u8],
     rffi.VOIDP, compilation_info=CConfig._compilation_info_)
+sqlite3VdbeIdxKeyCompare = rffi.llexternal('sqlite3VdbeIdxKeyCompare', [VDBECURSORP, UNPACKEDRECORDP, rffi.INTP],
+    rffi.INT, compilation_info=CConfig._compilation_info_)
 
 # (char **, sqlite3*, const char*, ...);
 sqlite3SetString1 = rffi.llexternal('sqlite3SetString', [rffi.CCHARPP, SQLITE3P, rffi.CCHARP, rffi.VOIDP],

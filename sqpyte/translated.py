@@ -1091,3 +1091,104 @@ def python_OP_AggStep(hlquery, rc, pc, op):
                 hlquery.mem_with_index(i).sqlite3VdbeMemSetInt64(1)
         mems.sqlite3VdbeMemRelease()
         return rc
+
+# Opcode: IdxGE P1 P2 P3 P4 P5
+# Synopsis: key=r[P3@P4]
+#
+# The P4 register values beginning with P3 form an unpacked index 
+# key that omits the PRIMARY KEY.  Compare this key value against the index 
+# that P1 is currently pointing to, ignoring the PRIMARY KEY or ROWID 
+# fields at the end.
+#
+# If the P1 index entry is greater than or equal to the key value
+# then jump to P2.  Otherwise fall through to the next instruction.
+#
+# Opcode: IdxGT P1 P2 P3 P4 P5
+# Synopsis: key=r[P3@P4]
+#
+# The P4 register values beginning with P3 form an unpacked index 
+# key that omits the PRIMARY KEY.  Compare this key value against the index 
+# that P1 is currently pointing to, ignoring the PRIMARY KEY or ROWID 
+# fields at the end.
+#
+# If the P1 index entry is greater than the key value
+# then jump to P2.  Otherwise fall through to the next instruction.
+#
+# Opcode: IdxLT P1 P2 P3 P4 P5
+# Synopsis: key=r[P3@P4]
+#
+# The P4 register values beginning with P3 form an unpacked index 
+# key that omits the PRIMARY KEY or ROWID.  Compare this key value against
+# the index that P1 is currently pointing to, ignoring the PRIMARY KEY or
+# ROWID on the P1 index.
+#
+# If the P1 index entry is less than the key value then jump to P2.
+# Otherwise fall through to the next instruction.
+#
+# Opcode: IdxLE P1 P2 P3 P4 P5
+# Synopsis: key=r[P3@P4]
+#
+# The P4 register values beginning with P3 form an unpacked index 
+# key that omits the PRIMARY KEY or ROWID.  Compare this key value against
+# the index that P1 is currently pointing to, ignoring the PRIMARY KEY or
+# ROWID on the P1 index.
+#
+# If the P1 index entry is less than or equal to the key value then jump
+# to P2. Otherwise fall through to the next instruction.
+
+def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(hlquery, pc, op):
+    pOp = op.pOp
+    p = hlquery.p
+    aMem = p.aMem
+    r = UnpackedRecord()
+    
+    assert pOp.p1 >= 0 and pOp.p1 < p.nCursor
+    pC = p.apCsr[pOp.p1]
+    assert pC != 0
+    # assert pC.isOrdered
+    assert pC.pCursor != 0
+    assert pC.deferredMoveto == 0
+    assert pOp.p5 == 0 or pOp.p5 == 1
+    assert pOp.p4type == CConfig.P4_INT32
+    r.pKeyInfo = pC.pKeyInfo
+    r.nField = pOp.p4.i
+    if pOp.opcode < CConfig.OP_IdxLT:
+        assert pOp.opcode == CConfig.OP_IdxLE or pOp.opcode == CConfig.OP_IdxGT
+        r.default_rc = -1
+    else:
+        assert pOp.opcode == CConfig.OP_IdxGE or pOp.opcode == CConfig.OP_IdxLT
+        r.default_rc = 0
+    r.aMem = aMem[pOp.p3]
+
+    # Used only for debugging.
+    #ifdef SQLITE_DEBUG
+      # { int i; for(i=0; i<r.nField; i++) assert( memIsValid(&r.aMem[i]) ); }
+    #endif
+
+    res = 0     # /* Not needed.  Only used to silence a warning. */
+    resMem = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
+    resMem[0] = rffi.cast(rffi.INT, res)
+    rc = capi.sqlite3VdbeIdxKeyCompare(pC, r, res);
+    res = resMem[0]
+
+    assert (CConfig.OP_IdxLE & 1) == (CConfig.OP_IdxLT & 1) and (CConfig.OP_IdxGE & 1) == (CConfig.OP_IdxGT & 1)
+    if (pOp.opcode & 1) == (CConfig.OP_IdxLT & 1):
+        assert pOp.opcode == CConfig.OP_IdxLE or pOp.opcode == CConfig.OP_IdxLT
+        res = -res
+    else:
+        assert pOp.opcode == CConfig.OP_IdxGE or pOp.opcode == CConfig.OP_IdxGT
+        res += 1
+
+    # VdbeBranchTaken() is used for test suite validation only and 
+    # does not appear an production builds.
+    # See vdbe.c lines 110-136.
+    # VdbeBranchTaken(res>0,2);
+
+    if res > 0:
+        pc = pOp.p2 - 1
+
+    return pc, rc
+
+
+class UnpackedRecord:
+    pass
