@@ -1214,12 +1214,10 @@ def python_OP_Compare(hlquery, op):
     p = hlquery.p
     aMem = p.aMem
 
-    # From OP_Permutation
-    assert op.p4_ai()
-    aPermute = op.p4_ai()
-
     if (op.p_Unsigned(5) & CConfig.OPFLAG_PERMUTE) == 0:
         aPermute = lltype.nullptr(rffi.INTP.TO)
+    else:
+        assert 0, "not implemented, need support for OP_Permutation"
     n = op.p_Signed(3)
     pKeyInfo = op.p4_pKeyInfo()
     assert n > 0
