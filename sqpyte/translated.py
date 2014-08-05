@@ -1168,7 +1168,7 @@ def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(hlquery, pc, op):
         resMem = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
         resMem[0] = rffi.cast(rffi.INT, res)
         rc = capi.sqlite3VdbeIdxKeyCompare(pC, r, resMem);
-        res = rffi.cast(lltype.Unsigned, resMem[0])
+        res = rffi.cast(lltype.Signed, resMem[0])
 
     assert (CConfig.OP_IdxLE & 1) == (CConfig.OP_IdxLT & 1) and (CConfig.OP_IdxGE & 1) == (CConfig.OP_IdxGT & 1)
     if (op.get_opcode() & 1) == (CConfig.OP_IdxLT & 1):
