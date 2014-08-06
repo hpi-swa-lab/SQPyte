@@ -18,9 +18,15 @@ class Mem(object):
             self.hlquery.mem_cache.invalidate(self._cache_index)
 
     def check_cache_consistency(self):
-        assert rffi.cast(lltype.Unsigned, self.pMem.flags) == self.get_flags()
-        assert self.pMem.r == self.get_r()
-        assert self.pMem.u.i == self.get_u_i()
+        if self._cache_index == -1:
+            return
+        state = self.hlquery.mem_cache.cache_state()
+        if state.is_flag_known(self._cache_index):
+            assert rffi.cast(lltype.Unsigned, self.pMem.flags) == self.get_flags()
+        if state.is_r_known(self._cache_index):
+            assert self.pMem.r == self.get_r()
+        if state.is_u_i_known(self._cache_index):
+            assert self.pMem.u.i == self.get_u_i()
 
     def get_flags(self, promote=False):
         flags = self.hlquery.mem_cache.get_flags(self)
