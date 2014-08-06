@@ -735,10 +735,6 @@ class Op(object):
         return self.pOp.p4.i
 
     @jit.elidable
-    def p4_ai(self):
-        return self.pOp.p4.ai
-
-    @jit.elidable
     def p4_pKeyInfo(self):
         return self.pOp.p4.pKeyInfo
 
