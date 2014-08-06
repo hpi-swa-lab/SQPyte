@@ -727,6 +727,7 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
         return
 
     bIntint = False
+    constant = pIn1.is_constant_u_i() and pIn2.is_constant_u_i()
     if opcode == CConfig.OP_Add:
         if (type1 & type2 & CConfig.MEM_Int) != 0:
             iA = pIn1.get_u_i()
@@ -736,7 +737,7 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
             except OverflowError:
                 pass
             else:
-                pOut.set_u_i(iB)
+                pOut.set_u_i(iB, constant=constant)
                 pOut.MemSetTypeFlag(CConfig.MEM_Int)
                 return
             bIntint = True
@@ -767,7 +768,7 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
             except OverflowError:
                 pass
             else:
-                pOut.set_u_i(iB)
+                pOut.set_u_i(iB, constant=constant)
                 pOut.MemSetTypeFlag(CConfig.MEM_Int)
                 return
             bIntint = True
@@ -798,7 +799,7 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
             except OverflowError:
                 pass
             else:
-                pOut.set_u_i(iB)
+                pOut.set_u_i(iB, constant=constant)
                 pOut.MemSetTypeFlag(CConfig.MEM_Int)
                 return
             bIntint = True
@@ -832,7 +833,7 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
             except OverflowError:
                 pass
             else:
-                pOut.set_u_i(iB)
+                pOut.set_u_i(iB, constant=constant)
                 pOut.MemSetTypeFlag(CConfig.MEM_Int)
                 return
             bIntint = True
@@ -920,7 +921,7 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
 
 def python_OP_Integer(hlquery, op):
     pOut = op.mem_of_p(2)
-    pOut.set_u_i(op.p_Signed(1))
+    pOut.set_u_i(op.p_Signed(1), constant=True)
 
 
 # Opcode: NotExists P1 P2 P3 * *

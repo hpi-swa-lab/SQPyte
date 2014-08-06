@@ -433,7 +433,8 @@ class CacheHolder(object):
         mem.pMem.u.i = u_i
         if not constant:
             self.integers[i] = u_i
-            self._cache_state = state.add_knowledge(i, STATE_INT_KNOWN)
+            status = (state.cache_states[i] & ~STATE_CONSTANT) | STATE_INT_KNOWN
+            self._cache_state = state.change_cache_state(i, status)
         else:
             self._cache_state = state.set_u_i_constant(i, u_i)
 
