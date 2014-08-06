@@ -209,7 +209,7 @@ class Mem(object):
     def sqlite3VdbeMemRelease(self):
         self.VdbeMemRelease()
         if self.get_zMalloc():
-            capi.sqlite3DbFree(self.hlquery.db, self.get_zMalloc());
+            capi.sqlite3DbFree(self.hlquery.db, rffi.cast(rffi.VOIDP, self.get_zMalloc()))
             self.set_zMalloc(lltype.nullptr(rffi.CCHARP.TO))
         self.set_z(lltype.nullptr(rffi.CCHARP.TO))
 
