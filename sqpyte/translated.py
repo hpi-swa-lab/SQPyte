@@ -1189,6 +1189,12 @@ def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(hlquery, pc, op):
     return pc, rc
 
 
+@jit.dont_look_inside
+def _define_pcoll_hidden_from_jit(pKeyInfo, i):
+    # the JIT can't deal with FixedSizeArrays
+    return pKeyInfo.aColl[i]
+
+
 # Opcode: Compare P1 P2 P3 P4 P5
 # Synopsis: r[P1@P3] <-> r[P2@P3]
 #
@@ -1217,7 +1223,7 @@ def python_OP_Compare(hlquery, op):
     if (op.p_Unsigned(5) & CConfig.OPFLAG_PERMUTE) == 0:
         aPermute = lltype.nullptr(rffi.INTP.TO)
     else:
-        assert 0, "not implemented, need support for OP_Permutation"
+        assert 0, "Not implemented, need support for OP_Permutation."
     n = op.p_Signed(3)
     pKeyInfo = op.p4_pKeyInfo()
     assert n > 0
@@ -1252,7 +1258,7 @@ def python_OP_Compare(hlquery, op):
         # REGISTER_TRACE(p2+idx, &aMem[p2+idx]);
 
         assert i < rffi.getintfield(pKeyInfo, 'nField')
-        pColl = pKeyInfo.aColl[i]
+        pColl = _define_pcoll_hidden_from_jit(pKeyInfo, i)
         bRev = rffi.cast(lltype.Unsigned, pKeyInfo.aSortOrder[i])
         hlquery.iCompare = capi.sqlite3_sqlite3MemCompare(aMem[p1 + idx], aMem[p2 + idx], pColl)
         if hlquery.iCompare:
