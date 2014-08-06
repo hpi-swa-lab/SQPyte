@@ -457,6 +457,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, op):
                 res = int(_cmp_depending_on_opcode(opcode, i3, i1))
             else:
                 # mixed int and real comparison, convert to real
+                # XXX this is wrong if one of them is not an int nor a float
                 n1 = pIn1.get_u_i() if flags1 & CConfig.MEM_Int else pIn1.get_r()
                 n3 = pIn3.get_u_i() if flags3 & CConfig.MEM_Int else pIn3.get_r()
 
