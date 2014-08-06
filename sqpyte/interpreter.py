@@ -71,6 +71,14 @@ def mutate_func(func, mutates):
             hlquery.mem_cache.invalidate(i)
             return result
         return p3_mutation
+    if mutates == "p2":
+        def p2_mutation(hlquery, *args):
+            result = func(hlquery, *args)
+            op = args[-1]
+            i = op.p_Signed(2)
+            hlquery.mem_cache.invalidate(i)
+            return result
+        return p2_mutation
     if mutates == "p1@p2":
         @jit.unroll_safe
         def p1_p2_mutation(hlquery, *args):
@@ -149,6 +157,7 @@ class Sqlite3Query(object):
     def python_OP_Init(self, pc, op):
         return translated.python_OP_Init_translated(self, pc, op)
 
+    @cache_safe()
     def python_OP_Rewind(self, pc, op):
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         rc = capi.impl_OP_Rewind(self.p, self.db, self.internalPc, op.pOp)
@@ -170,6 +179,7 @@ class Sqlite3Query(object):
 
         return translated.python_OP_Goto_translated(self, pc, rc, op)
 
+    @cache_safe(opcodes=[CConfig.OP_OpenRead, CConfig.OP_OpenWrite], mutates="p2")
     def python_OP_OpenRead_OpenWrite(self, pc, op):
         return capi.impl_OP_OpenRead_OpenWrite(self.p, self.db, pc, op.pOp)
         # translated.python_OP_OpenRead_OpenWrite_translated(self, self.db, pc, op)
@@ -479,7 +489,7 @@ class Sqlite3Query(object):
             pc = 0 # XXX maybe more to do, see vdbeapi.c:418
 
         while True:
-            jitdriver.jit_merge_point(pc=pc, self_=self, rc=rc, cache_state=self.mem_cache.cache_state)
+            jitdriver.jit_merge_point(pc=pc, self_=self, rc=rc, cache_state=self.mem_cache._cache_state)
             if rc != CConfig.SQLITE_OK:
                 break
             op = self._hlops[pc]
@@ -675,7 +685,7 @@ class Sqlite3Query(object):
             if not self.is_op_cache_safe(opcode):
                 self.invalidate_caches()
             if pc <= oldpc:
-                jitdriver.can_enter_jit(pc=pc, self_=self, rc=rc, cache_state=self.mem_cache.cache_state)
+                jitdriver.can_enter_jit(pc=pc, self_=self, rc=rc, cache_state=self.mem_cache._cache_state)
             self.check_cache_consistency()
         return rc
 
