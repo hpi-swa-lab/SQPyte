@@ -1164,9 +1164,8 @@ def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(hlquery, pc, op):
           # { int i; for(i=0; i<r.nField; i++) assert( memIsValid(&r.aMem[i]) ); }
         #endif
 
-        res = 0     # /* Not needed.  Only used to silence a warning. */
-        resMem = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
-        resMem[0] = rffi.cast(rffi.INT, res)
+        resMem = hlquery.intp
+        resMem[0] = rffi.cast(rffi.INT, 0)
         rc = capi.sqlite3VdbeIdxKeyCompare(pC, r, resMem);
         res = rffi.cast(lltype.Signed, resMem[0])
 
