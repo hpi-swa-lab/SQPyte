@@ -18,7 +18,7 @@ def get_printable_location(pc, rc, self, cache_state):
     unsafe = ''
     if not _cache_safe_opcodes[opcode]:
         unsafe = ' UNSAFE'
-    return "%s %s %s%s" % (pc, rc, name, unsafe)
+    return "%s %s %s %s %s" % (pc, rc, name, cache_state.repr(), unsafe)
 
 
 jitdriver = jit.JitDriver(

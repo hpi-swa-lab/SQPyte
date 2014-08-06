@@ -469,8 +469,10 @@ class CacheState(object):
     def copy(self):
         return CacheState(self.all_flags[:], self.cache_states[:], self.u_i_constants[:])
 
-    def __repr__(self):
-        return "CacheState(%r, %r, %r)" % (self.all_flags, self.cache_states, self.u_i_constants)
+    def repr(self):
+        return "CacheState(%s, %s, %s)" % (self.all_flags, self.cache_states, self.u_i_constants)
+    __repr__ = repr
+
     def eq(self, other):
         return (self.all_flags == other.all_flags and
                 self.cache_states == other.cache_states and
