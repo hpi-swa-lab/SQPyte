@@ -73,3 +73,18 @@ def test_cache_on_write():
     mem.pMem = None
     assert mem.get_u_i() == 14
 
+
+def test_track_constants():
+    class FakeMem(object):
+        flags = CConfig.MEM_Int
+        r = 12
+        class u:
+            pass
+    hlquery = FakeHLQuery()
+    pMem = FakeMem()
+    mem = Mem(hlquery, pMem, 0)
+    mem.set_u_i(14, constant=True)
+    assert mem.is_constant_u_i()
+    assert pMem.u.i == 14
+    hlquery.integers = None
+    assert mem.get_u_i() == 14 # does not crash

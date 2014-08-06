@@ -41,8 +41,11 @@ class Mem(object):
     def get_u_i(self):
         return self.hlquery.mem_cache.get_u_i(self)
 
-    def set_u_i(self, val):
-        return self.hlquery.mem_cache.set_u_i(self, val)
+    def set_u_i(self, val, constant=False):
+        return self.hlquery.mem_cache.set_u_i(self, val, constant)
+
+    def is_constant_u_i(self):
+        return self.hlquery.mem_cache.is_constant_u_i(self)
 
 
     def get_n(self):
@@ -406,6 +409,8 @@ class CacheHolder(object):
         if i == -1:
             return mem.pMem.u.i
         state = self.cache_state()
+        if state.is_constant_u_i(i):
+            return state.get_constant_u_i(i)
         if state.is_u_i_known(i):
             return self.integers[i]
         u_i = mem.pMem.u.i
@@ -413,20 +418,31 @@ class CacheHolder(object):
         self._cache_state = state.add_knowledge(i, STATE_INT_KNOWN)
         return u_i
 
-    def set_u_i(self, mem, u_i):
+    def set_u_i(self, mem, u_i, constant=False):
         i = mem._cache_index
         if i == -1:
             mem.pMem.u.i = u_i
             return
         state = self.cache_state()
         mem.pMem.u.i = u_i
-        self.integers[i] = u_i
-        self._cache_state = state.add_knowledge(i, STATE_INT_KNOWN)
+        if not constant:
+            self.integers[i] = u_i
+            self._cache_state = state.add_knowledge(i, STATE_INT_KNOWN)
+        else:
+            self._cache_state = state.set_u_i_constant(i, u_i)
+
+    def is_constant_u_i(self, mem):
+        i = mem._cache_index
+        if i == -1:
+            return False
+        return self.cache_state().is_constant_u_i(i)
+
 
 STATE_UNKNOWN = 0
 STATE_FLAG_KNOWN = 1
 STATE_INT_KNOWN = 2
 STATE_FLOAT_KNOWN = 4
+STATE_CONSTANT = 8
 
 def state_eq(self, other):
     return self.eq(other)
@@ -435,17 +451,25 @@ def state_hash(self):
     return self.hash()
 
 class CacheState(object):
-    _immutable_fields_ = ['all_flags[*]', 'cache_states[*]']
+    _immutable_fields_ = ['all_flags[*]', 'cache_states[*]', 'u_i_constants[*]']
     _cache = objectmodel.r_dict(state_eq, state_hash)
 
-    def __init__(self, all_flags, cache_states):
+    def __init__(self, all_flags, cache_states, u_i_constants):
         self.all_flags = all_flags
         self.cache_states = cache_states
+        self.u_i_constants = u_i_constants
+
+    def copy(self):
+        return CacheState(self.all_flags[:], self.cache_states[:], self.u_i_constants[:])
 
     def __repr__(self):
-        return "CacheState(%r, %r)" % (self.all_flags, self.cache_states)
+        return "CacheState(%r, %r, %r)" % (self.all_flags, self.cache_states, self.u_i_constants)
     def eq(self, other):
-        return self.all_flags == other.all_flags and self.cache_states == other.cache_states
+        return (self.all_flags == other.all_flags and
+                self.cache_states == other.cache_states and
+                self.u_i_constants == other.u_i_constants
+                )
+
 
     def hash(self):
         from rpython.rlib.rarithmetic import intmask
@@ -456,6 +480,9 @@ class CacheState(object):
         for item in self.cache_states:
             y = rffi.cast(lltype.Signed, item)
             x = intmask((1000003 * x) ^ y)
+        for item in self.u_i_constants:
+            y = rffi.cast(lltype.Signed, item)
+            x = intmask((1000003 * x) ^ y)
         return x
 
     def unique(self):
@@ -463,6 +490,7 @@ class CacheState(object):
             newself = self._cache[self]
             assert newself.all_flags == self.all_flags
             assert newself.cache_states == self.cache_states
+            assert newself.u_i_constants == self.u_i_constants
             return newself
         self._cache[self] = self
         return self
@@ -472,10 +500,9 @@ class CacheState(object):
         if self.is_flag_known(i) and self.all_flags[i] == new_flags:
             return self
         self = self.add_knowledge(i, STATE_FLAG_KNOWN)
-        all_flags = self.all_flags[:]
-        all_flags[i] = new_flags
-        cache_states = self.cache_states[:]
-        return CacheState(all_flags, cache_states).unique()
+        result = self.copy()
+        result.all_flags[i] = new_flags
+        return result.unique()
 
     def add_knowledge(self, i, statusbits):
         status = self.cache_states[i] | statusbits
@@ -485,10 +512,16 @@ class CacheState(object):
     def change_cache_state(self, i, status):
         if self.cache_states[i] == status:
             return self
-        all_flags = self.all_flags[:]
-        cache_states = self.cache_states[:]
-        cache_states[i] = status
-        return CacheState(all_flags, cache_states).unique()
+        result = self.copy()
+        result.cache_states[i] = status
+        return result.unique()
+
+    @jit.elidable_promote('all')
+    def set_u_i_constant(self, i, u_i):
+        self = self.add_knowledge(i, STATE_INT_KNOWN | STATE_CONSTANT)
+        result = self.copy()
+        result.u_i_constants[i] = u_i
+        return result.unique()
 
     def set_unknown(self, i):
         return self.change_cache_state(i, STATE_UNKNOWN)
@@ -502,9 +535,16 @@ class CacheState(object):
     def is_u_i_known(self, i):
         return bool(self.cache_states[i] & STATE_INT_KNOWN)
 
+    def is_constant_u_i(self, i):
+        return self.is_u_i_known(i) and bool(self.cache_states[i] & STATE_CONSTANT)
+
     def get_flags(self, i):
         assert self.is_flag_known(i)
         return self.all_flags[i]
 
+    def get_constant_u_i(self, i):
+        assert self.is_constant_u_i(i)
+        return self.u_i_constants[i]
+
 def all_unknown(num_flags):
-    return CacheState([0] * num_flags, [0] * num_flags)
+    return CacheState([0] * num_flags, [0] * num_flags, [0] * num_flags)
