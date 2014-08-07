@@ -360,6 +360,7 @@ class Sqlite3Query(object):
         # XXX port me?
         return capi.impl_OP_IfZero(self.p, pc, op.pOp)
 
+    @cache_safe()
     def python_OP_IdxRowid(self, pc, rc, op):
         return translated.python_OP_IdxRowid(self, pc, rc, op)
         #return capi.impl_OP_IdxRowid(self.p, self.db, pc, rc, op.pOp)
@@ -397,9 +398,12 @@ class Sqlite3Query(object):
     def python_OP_OpenAutoindex_OpenEphemeral(self, pc, op):
         return capi.impl_OP_OpenAutoindex_OpenEphemeral(self.p, self.db, pc, op.pOp)
 
+    @cache_safe(mutates=["p3", "p1@p2"])
     def python_OP_MakeRecord(self, pc, rc, op):
         return capi.impl_OP_MakeRecord(self.p, self.db, pc, rc, op.pOp)
 
+    @cache_safe(opcodes=[CConfig.OP_SorterInsert, CConfig.OP_IdxInsert],
+                mutates=["p2"])
     def python_OP_SorterInsert_IdxInsert(self, op):
         return capi.impl_OP_SorterInsert_IdxInsert(self.p, self.db, op.pOp)
 
@@ -435,6 +439,7 @@ class Sqlite3Query(object):
 
         return translated.python_OP_NextIfOpen_translated(self, pc, rc, op)
 
+    @cache_safe(mutates="p2")
     def python_OP_Sequence(self, op):
         capi.impl_OP_Sequence(self.p, op.pOp)
 
