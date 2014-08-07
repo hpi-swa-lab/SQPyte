@@ -1167,7 +1167,7 @@ def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(hlquery, pc, op):
 
         resMem = hlquery.intp
         resMem[0] = rffi.cast(rffi.INT, 0)
-        rc = capi.sqlite3VdbeIdxKeyCompare(pC, r, resMem);
+        rc = capi.sqlite3VdbeIdxKeyCompare(pC, r, resMem)
         res = rffi.cast(lltype.Signed, resMem[0])
 
     assert (CConfig.OP_IdxLE & 1) == (CConfig.OP_IdxLT & 1) and (CConfig.OP_IdxGE & 1) == (CConfig.OP_IdxGT & 1)
@@ -1224,6 +1224,7 @@ def python_OP_Compare(hlquery, op):
     p1 = op.p_Signed(1)
     p2 = op.p_Signed(2)
 
+    # Used only for debugging.
     #if SQLITE_DEBUG
       # if( aPermute ){
       #   int k, mx = 0;
@@ -1290,3 +1291,28 @@ def python_OP_Jump(hlquery, op):
     hlquery.iCompare = 0
     return pc
 
+# Opcode: SCopy P1 P2 * * *
+# Synopsis: r[P2]=r[P1]
+#
+# Make a shallow copy of register P1 into register P2.
+#
+# This instruction makes a shallow copy of the value.  If the value
+# is a string or blob, then the copy is only a pointer to the
+# original and hence if the original changes so will the copy.
+# Worse, if the original is deallocated, the copy becomes invalid.
+# Thus the program must guarantee that the original will not change
+# during the lifetime of the copy.  Use OP_Copy to make a complete
+# copy.
+
+def python_OP_SCopy(hlquery, op):
+    p = hlquery.p
+    aMem = p.aMem
+    pIn1 = op.mem_of_p(1)
+    pOut = op.mem_of_p(2)
+    assert pOut != pIn1
+    capi.sqlite3_sqlite3VdbeMemShallowCopy(pOut, pIn1, CConfig.MEM_Ephem)
+
+    # Used only for debugging.
+    #ifdef SQLITE_DEBUG
+      # if( pOut->pScopyFrom==0 ) pOut->pScopyFrom = pIn1;
+    #endif

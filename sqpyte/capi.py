@@ -64,7 +64,9 @@ affinity_codes = ['SQLITE_AFF_TEXT', 'SQLITE_AFF_NONE', 'SQLITE_AFF_INTEGER', 'S
 btree_values = ['BTCURSOR_MAX_DEPTH', 'BTREE_BULKLOAD']
 other_constants = ['SQLITE_MAX_VARIABLE_NUMBER', 'CACHE_STALE']
 encodings = ['SQLITE_UTF8']
-memValues = ['MEM_Null', 'MEM_Real', 'MEM_Cleared', 'MEM_TypeMask', 'MEM_Zero', 'MEM_Int', 'MEM_Str', 'MEM_RowSet', 'MEM_Blob', 'MEM_Agg', 'MEM_Dyn', 'MEM_Frame']
+memValues = ['MEM_Null', 'MEM_Real', 'MEM_Cleared', 'MEM_TypeMask', 'MEM_Zero',
+             'MEM_Int', 'MEM_Str', 'MEM_RowSet', 'MEM_Blob', 'MEM_Agg',
+             'MEM_Dyn', 'MEM_Frame', 'MEM_Ephem']
 
 for name in (p4names + opnames + p5flags + result_codes + sqlite_codes +
              btree_values + other_constants + memValues + affinity_codes +
@@ -797,6 +799,8 @@ sqlite3SetString1 = llexternal('sqlite3SetString', [rffi.CCHARPP, SQLITE3P, rffi
 
 sqlite3_sqlite3MemCompare = llexternal('sqlite3MemCompare', [MEMP, MEMP, COLLSEQP],
     rffi.INT)
+sqlite3_sqlite3VdbeMemShallowCopy = llexternal('sqlite3VdbeMemShallowCopy', [MEMP, MEMP, rffi.INT],
+    lltype.Void)
 sqlite3_sqlite3VdbeMemStringify = llexternal('sqlite3VdbeMemStringify', [MEMP, rffi.INT],
     rffi.INT)
 sqlite3_gotoAbortDueToInterrupt = llexternal('gotoAbortDueToInterrupt', [VDBEP, SQLITE3P, rffi.INT, rffi.INT],
