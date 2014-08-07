@@ -1139,7 +1139,6 @@ def python_OP_AggStep(hlquery, rc, pc, op):
 
 def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(hlquery, pc, op):
     p = hlquery.p
-    aMem = p.aMem
 
     assert op.p_Unsigned(1) >= 0 and op.p_Signed(1) < rffi.getintfield(p, 'nCursor')
     pC = p.apCsr[op.p_Unsigned(1)]
@@ -1149,26 +1148,27 @@ def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(hlquery, pc, op):
     assert rffi.getintfield(pC, 'deferredMoveto') == 0
     assert op.p_Unsigned(5) == 0 or op.p_Unsigned(5) == 1
     assert op.p4type() == CConfig.P4_INT32
-    with lltype.scoped_alloc(capi.UNPACKEDRECORD) as r:
-        r.pKeyInfo = pC.pKeyInfo
-        r.nField = rffi.cast(CConfig.u16, op.p4_i())
-        if op.get_opcode() < CConfig.OP_IdxLT:
-            assert op.get_opcode() == CConfig.OP_IdxLE or op.get_opcode() == CConfig.OP_IdxGT
-            r.default_rc = rffi.cast(CConfig.i8, -1)
-        else:
-            assert op.get_opcode() == CConfig.OP_IdxGE or op.get_opcode() == CConfig.OP_IdxLT
-            r.default_rc = rffi.cast(CConfig.i8, 0)
-        r.aMem = aMem[op.p_Unsigned(3)]
+    r = hlquery.unpackedrecordp
+    r.pKeyInfo = pC.pKeyInfo
+    r.nField = rffi.cast(CConfig.u16, op.p4_i())
+    if op.get_opcode() < CConfig.OP_IdxLT:
+        assert op.get_opcode() == CConfig.OP_IdxLE or op.get_opcode() == CConfig.OP_IdxGT
+        r.default_rc = rffi.cast(CConfig.i8, -1)
+    else:
+        assert op.get_opcode() == CConfig.OP_IdxGE or op.get_opcode() == CConfig.OP_IdxLT
+        r.default_rc = rffi.cast(CConfig.i8, 0)
+    r.aMem = hlquery.mem_of_p(3).pMem
 
-        # Used only for debugging.
-        #ifdef SQLITE_DEBUG
-          # { int i; for(i=0; i<r.nField; i++) assert( memIsValid(&r.aMem[i]) ); }
-        #endif
+    # Used only for debugging.
+    #ifdef SQLITE_DEBUG
+      # { int i; for(i=0; i<r.nField; i++) assert( memIsValid(&r.aMem[i]) ); }
+    #endif
 
-        resMem = hlquery.intp
-        resMem[0] = rffi.cast(rffi.INT, 0)
-        rc = capi.sqlite3VdbeIdxKeyCompare(pC, r, resMem)
-        res = rffi.cast(lltype.Signed, resMem[0])
+    resMem = hlquery.intp
+    resMem[0] = rffi.cast(rffi.INT, 0)
+    rc = capi.sqlite3VdbeIdxKeyCompare(pC, r, resMem)
+    res = rffi.cast(lltype.Signed, resMem[0])
+    jit.promote(res)
 
     assert (CConfig.OP_IdxLE & 1) == (CConfig.OP_IdxLT & 1) and (CConfig.OP_IdxGE & 1) == (CConfig.OP_IdxGT & 1)
     if (op.get_opcode() & 1) == (CConfig.OP_IdxLT & 1):

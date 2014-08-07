@@ -43,12 +43,13 @@ class Sqlite3DB(object):
 
 class Sqlite3Query(object):
 
-    _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]', '_llmem_as_python_list[*]', 'intp',
+    _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]', '_llmem_as_python_list[*]', 'intp', 'longp', 'unpackedrecordp',
                           '_hlops[*]']
 
     def __init__(self, db, query):
         self.db = db
         self.internalPc = lltype.malloc(rffi.LONGP.TO, 1, flavor='raw')
+        self.unpackedrecordp = lltype.malloc(capi.UNPACKEDRECORD, flavor='raw')
         self.intp = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
         self.longp = lltype.malloc(rffi.LONGP.TO, 1, flavor='raw')
         self.prepare(query)
@@ -58,6 +59,7 @@ class Sqlite3Query(object):
         lltype.free(self.internalPc, flavor='raw')
         lltype.free(self.intp, flavor='raw')
         lltype.free(self.longp, flavor='raw')
+        lltype.free(self.unpackedrecordp, flavor='raw')
 
     def prepare(self, query):
         length = len(query)
