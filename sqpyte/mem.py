@@ -585,7 +585,7 @@ class CacheState(object):
         return result.unique()
 
     def set_unknown(self, i):
-        return self.change_cache_state(i, STATE_UNKNOWN)
+        return self.change_flags(i, 0).change_cache_state(i, STATE_UNKNOWN)
 
     def is_flag_known(self, i):
         return bool(self.cache_states[i] & STATE_FLAG_KNOWN)
