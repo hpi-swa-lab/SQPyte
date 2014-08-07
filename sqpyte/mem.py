@@ -330,6 +330,43 @@ class Mem(object):
 
 
     def sqlite3MemCompare(self, other, coll):
+        flags1 = self.get_flags()
+        flags2 = other.get_flags()
+        combined_flags = flags1 | flags2
+        if combined_flags & CConfig.MEM_Null:
+            return rarithmetic.intmask(flags2 & CConfig.MEM_Null) - rarithmetic.intmask(flags1 & CConfig.MEM_Null)
+
+        # If one value is a number and the other is not, the number is less.
+        # If both are numbers, compare as reals if one is a real, or as integers
+        # if both values are integers.
+        if (flags1 | flags2) & (CConfig.MEM_Int | CConfig.MEM_Real):
+            # both are ints
+            if flags1 & flags2 & CConfig.MEM_Int:
+                i1 = self.get_u_i()
+                i2 = other.get_u_i()
+                if i1 < i2:
+                    return -1
+                if i1 > i2:
+                    return 1
+                return 0
+            else:
+                if flags1 & CConfig.MEM_Real:
+                    r1 = self.get_r()
+                elif flags1 & CConfig.MEM_Int:
+                    r1 = float(self.get_u_i())
+                else:
+                    return 1
+                if flags2 & CConfig.MEM_Real:
+                    r2 = other.get_r()
+                elif flags2 & CConfig.MEM_Int:
+                    r2 = float(other.get_u_i())
+                else:
+                    return 1
+                if r1 < r2:
+                    return -1
+                if r1 > r2:
+                    return 1
+                return 0
         self.invalidate_cache()
         other.invalidate_cache()
         return capi.sqlite3_sqlite3MemCompare(self.pMem, other.pMem, coll)
