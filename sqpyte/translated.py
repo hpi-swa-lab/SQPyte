@@ -1160,7 +1160,7 @@ def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(hlquery, pc, op):
     else:
         assert op.get_opcode() == CConfig.OP_IdxGE or op.get_opcode() == CConfig.OP_IdxLT
         r.default_rc = rffi.cast(CConfig.i8, 0)
-    r.aMem = hlquery.mem_of_p(3).pMem
+    r.aMem = op.mem_of_p(3).pMem
 
     # Used only for debugging.
     #ifdef SQLITE_DEBUG
