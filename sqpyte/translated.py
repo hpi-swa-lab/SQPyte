@@ -1307,8 +1307,8 @@ def python_OP_Jump(hlquery, op):
 def python_OP_SCopy(hlquery, op):
     p = hlquery.p
     aMem = p.aMem
-    pIn1 = op.mem_of_p(1)
-    pOut = op.mem_of_p(2)
+    pIn1 = aMem[op.p_Unsigned(1)]
+    pOut = aMem[op.p_Unsigned(2)]
     assert pOut != pIn1
     capi.sqlite3_sqlite3VdbeMemShallowCopy(pOut, pIn1, CConfig.MEM_Ephem)
 
