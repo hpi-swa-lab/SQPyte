@@ -46,6 +46,7 @@ class Sqlite3DB(object):
 _cache_safe_opcodes = [False] * 256
 
 def cache_safe(opcodes=None, hide=False, mutates=None):
+    assert opcodes is None or isinstance(opcodes, list)
     def decorate(func):
         ops = opcodes
         if ops is None:
@@ -58,19 +59,25 @@ def cache_safe(opcodes=None, hide=False, mutates=None):
         if hide:
             func = hide_cache(func)
         if mutates is not None:
-            func = mutate_func(func, mutates)
+            if not isinstance(mutates, list):
+                all_mutates = [mutates]
+            else:
+                all_mutates = mutates
+
+            for mut in all_mutates:
+                func = mutate_func(func, mut)
         return func
     return decorate
 
 def mutate_func(func, mutates):
-    if mutates == "p3":
-        def p3_mutation(hlquery, *args):
+    if mutates == "p1":
+        def p1_mutation(hlquery, *args):
             result = func(hlquery, *args)
             op = args[-1]
-            i = op.p_Signed(3)
+            i = op.p_Signed(1)
             hlquery.mem_cache.invalidate(i)
             return result
-        return p3_mutation
+        return p1_mutation
     if mutates == "p2":
         def p2_mutation(hlquery, *args):
             result = func(hlquery, *args)
@@ -79,6 +86,14 @@ def mutate_func(func, mutates):
             hlquery.mem_cache.invalidate(i)
             return result
         return p2_mutation
+    if mutates == "p3":
+        def p3_mutation(hlquery, *args):
+            result = func(hlquery, *args)
+            op = args[-1]
+            i = op.p_Signed(3)
+            hlquery.mem_cache.invalidate(i)
+            return result
+        return p3_mutation
     if mutates == "p1@p2":
         @jit.unroll_safe
         def p1_p2_mutation(hlquery, *args):
@@ -88,7 +103,38 @@ def mutate_func(func, mutates):
                 hlquery.mem_cache.invalidate(i)
             return result
         return p1_p2_mutation
-    raise ValueError("unknown mutation %s" % mutates)
+    if mutates == "p3@p4":
+        @jit.unroll_safe
+        def p3_p4_mutation(hlquery, *args):
+            result = func(hlquery, *args)
+            op = args[-1]
+            for i in range(op.p_Signed(3), op.p_Signed(3) + op.p4_i()):
+                hlquery.mem_cache.invalidate(i)
+            return result
+        return p3_p4_mutation
+    if mutates == "p3@p4 or p3":
+        @jit.unroll_safe
+        def p3_p4_mutation(hlquery, *args):
+            result = func(hlquery, *args)
+            op = args[-1]
+            length = op.p4_i()
+            if not length:
+                length = 1
+            for i in range(op.p_Signed(3), op.p_Signed(3) + length):
+                hlquery.mem_cache.invalidate(i)
+            return result
+        return p3_p4_mutation
+    if mutates == "p2@p5":
+        @jit.unroll_safe
+        def p2_p5_mutation(hlquery, *args):
+            result = func(hlquery, *args)
+            op = args[-1]
+            for i in range(op.p_Signed(2), op.p_Signed(2) + op.p_Signed(5)):
+                hlquery.mem_cache.invalidate(i)
+            return result
+        return p2_p5_mutation
+    else:
+        raise ValueError("unknown mutation %s" % mutates)
 
 def hide_cache(func):
     def newfunc(hlquery, *args):
@@ -179,8 +225,10 @@ class Sqlite3Query(object):
 
         return translated.python_OP_Goto_translated(self, pc, rc, op)
 
-    @cache_safe(opcodes=[CConfig.OP_OpenRead, CConfig.OP_OpenWrite], mutates="p2")
+    @cache_safe(opcodes=[CConfig.OP_OpenRead, CConfig.OP_OpenWrite])
     def python_OP_OpenRead_OpenWrite(self, pc, op):
+        if op.p_Signed(5):
+            self.mem_cache.invalidate(op.p_Signed(2))
         return capi.impl_OP_OpenRead_OpenWrite(self.p, self.db, pc, op.pOp)
         # translated.python_OP_OpenRead_OpenWrite_translated(self, self.db, pc, op)
 
@@ -257,6 +305,7 @@ class Sqlite3Query(object):
     def python_OP_String8(self, pc, rc, op):
         return capi.impl_OP_String8(self.p, self.db, pc, rc, op.pOp)
 
+    @cache_safe(mutates=["p3", "p2@p5"])
     def python_OP_Function(self, pc, rc, op):
         return capi.impl_OP_Function(self.p, self.db, pc, rc, op.pOp)
 
@@ -269,6 +318,7 @@ class Sqlite3Query(object):
 
         capi.impl_OP_Real(self.p, op.pOp)
 
+    @cache_safe()
     def python_OP_RealAffinity(self, op):
         # capi.impl_OP_RealAffinity(self.p, op.pOp)
         translated.python_OP_RealAffinity(self, op)
@@ -289,6 +339,7 @@ class Sqlite3Query(object):
     def python_OP_Rowid(self, pc, rc, op):
         return capi.impl_OP_Rowid(self.p, self.db, pc, rc, op.pOp)
 
+    @cache_safe()
     def python_OP_IsNull(self, pc, op):
         # return capi.impl_OP_IsNull(self.p, pc, op.pOp)
         return translated.python_OP_IsNull(self, pc, op)
@@ -302,13 +353,18 @@ class Sqlite3Query(object):
     def python_OP_Move(self, op):
         capi.impl_OP_Move(self.p, op.pOp)
 
+    @cache_safe()
     def python_OP_IfZero(self, pc, op):
+        # XXX port me?
         return capi.impl_OP_IfZero(self.p, pc, op.pOp)
 
     def python_OP_IdxRowid(self, pc, rc, op):
         return translated.python_OP_IdxRowid(self, pc, rc, op)
         #return capi.impl_OP_IdxRowid(self.p, self.db, pc, rc, op.pOp)
 
+    @cache_safe(
+        opcodes=[CConfig.OP_IdxLE, CConfig.OP_IdxGT, CConfig.OP_IdxLT, CConfig.OP_IdxGE],
+        mutates="p3@p4")
     def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(self, pc, op):
         # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         # rc = capi.impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(self.p, self.internalPc, op.pOp)
@@ -317,6 +373,7 @@ class Sqlite3Query(object):
 
         return translated.python_OP_IdxLE_IdxGT_IdxLT_IdxGE(self, pc, op)
 
+    @cache_safe()
     def python_OP_Seek(self, op):
         #capi.impl_OP_Seek(self.p, op.pOp)
         translated.python_OP_Seek(self, op)
@@ -325,9 +382,11 @@ class Sqlite3Query(object):
         # return capi.impl_OP_Once(self.p, pc, op.pOp)
         return translated.python_OP_Once(self, pc, op)
 
+    @cache_safe(mutates=["p1", "p2"])
     def python_OP_SCopy(self, op):
         capi.impl_OP_SCopy(self.p, op.pOp)
 
+    @cache_safe()
     def python_OP_Affinity(self, op):
         # capi.impl_OP_Affinity(self.p, self.db, op.pOp)
         translated.python_OP_Affinity(self, op)
@@ -341,6 +400,9 @@ class Sqlite3Query(object):
     def python_OP_SorterInsert_IdxInsert(self, op):
         return capi.impl_OP_SorterInsert_IdxInsert(self.p, self.db, op.pOp)
 
+    @cache_safe(
+        opcodes=[CConfig.OP_NoConflict, CConfig.OP_NotFound, CConfig.OP_Found],
+        mutates="p3@p4 or p3")
     def python_OP_NoConflict_NotFound_Found(self, pc, rc, op):
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         rc = capi.impl_OP_NoConflict_NotFound_Found(self.p, self.db, self.internalPc, rc, op.pOp)
@@ -382,10 +444,13 @@ class Sqlite3Query(object):
         retPc = self.internalPc[0]
         return retPc, rc        
 
+    @cache_safe(mutates="p2")
     def python_OP_SorterData(self, op):
         return capi.impl_OP_SorterData(self.p, op.pOp)
 
+    @cache_safe()
     def python_OP_SorterNext(self, pc, op):
+        # XXX would be very simple to port, it looks like half of OP_Next
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         rc = capi.impl_OP_SorterNext(self.p, self.db, self.internalPc, op.pOp)
         retPc = self.internalPc[0]
@@ -394,10 +459,12 @@ class Sqlite3Query(object):
     def python_OP_Noop_Explain(self, op):
         translated.python_OP_Noop_Explain_translated(op)
 
+    @cache_safe()
     def python_OP_Compare(self, op):
         # capi.impl_OP_Compare(self.p, op.pOp)
         translated.python_OP_Compare(self, op)
 
+    @cache_safe()
     def python_OP_Jump(self, op):
         # return capi.impl_OP_Jump(op.pOp)
         return translated.python_OP_Jump(self, op)
@@ -408,6 +475,7 @@ class Sqlite3Query(object):
     def python_OP_CollSeq(self, op):
         capi.impl_OP_CollSeq(self.p, op.pOp)
 
+    @cache_safe()
     def python_OP_NotNull(self, pc, op):
         # return capi.impl_OP_NotNull(self.p, pc, op.pOp)
         return translated.python_OP_NotNull(self, pc, op)
@@ -742,7 +810,7 @@ class Op(object):
 
     @jit.elidable
     def p4_i(self):
-        return self.pOp.p4.i
+        return rffi.cast(lltype.Signed, self.pOp.p4.i)
 
     @jit.elidable
     def p4_pKeyInfo(self):

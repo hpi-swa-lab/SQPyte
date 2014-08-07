@@ -42,7 +42,7 @@ class TestLLtype(LLJitMixin):
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True, inline=True)
 
 
-    def test_miniloop(self):
+    def test_tpch(self):
 
         def interp_w():
             db = Sqlite3DB(tpchdb).db
