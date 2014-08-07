@@ -146,12 +146,13 @@ def hide_cache(func):
 
 class Sqlite3Query(object):
 
-    _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]', '_llmem_as_python_list[*]', 'intp',
+    _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]', '_llmem_as_python_list[*]', 'intp', 'longp', 'unpackedrecordp',
                           '_hlops[*]', 'mem_cache']
 
     def __init__(self, db, query):
         self.db = db
         self.internalPc = lltype.malloc(rffi.LONGP.TO, 1, flavor='raw')
+        self.unpackedrecordp = lltype.malloc(capi.UNPACKEDRECORD, flavor='raw')
         self.intp = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
         self.longp = lltype.malloc(rffi.LONGP.TO, 1, flavor='raw')
         self.prepare(query)
@@ -161,6 +162,7 @@ class Sqlite3Query(object):
         lltype.free(self.internalPc, flavor='raw')
         lltype.free(self.intp, flavor='raw')
         lltype.free(self.longp, flavor='raw')
+        lltype.free(self.unpackedrecordp, flavor='raw')
 
     def prepare(self, query):
         length = len(query)
@@ -384,7 +386,8 @@ class Sqlite3Query(object):
 
     @cache_safe(mutates=["p1", "p2"])
     def python_OP_SCopy(self, op):
-        capi.impl_OP_SCopy(self.p, op.pOp)
+        # capi.impl_OP_SCopy(self.p, op.pOp)
+        translated.python_OP_SCopy(self, op)
 
     @cache_safe()
     def python_OP_Affinity(self, op):
