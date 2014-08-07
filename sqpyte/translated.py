@@ -458,6 +458,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, op):
                 res = int(_cmp_depending_on_opcode(opcode, i3, i1))
             else:
                 # mixed int and real comparison, convert to real
+                # XXX this is wrong if one of them is not an int nor a float
                 n1 = pIn1.get_u_i() if flags1 & CConfig.MEM_Int else pIn1.get_r()
                 n3 = pIn3.get_u_i() if flags3 & CConfig.MEM_Int else pIn3.get_r()
 
@@ -1167,9 +1168,8 @@ def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(hlquery, pc, op):
           # { int i; for(i=0; i<r.nField; i++) assert( memIsValid(&r.aMem[i]) ); }
         #endif
 
-        res = 0     # /* Not needed.  Only used to silence a warning. */
-        resMem = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
-        resMem[0] = rffi.cast(rffi.INT, res)
+        resMem = hlquery.intp
+        resMem[0] = rffi.cast(rffi.INT, 0)
         rc = capi.sqlite3VdbeIdxKeyCompare(pC, r, resMem);
         res = rffi.cast(lltype.Signed, resMem[0])
 
@@ -1187,15 +1187,9 @@ def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(hlquery, pc, op):
     # VdbeBranchTaken(res>0,2);
 
     if res > 0:
-        pc = op.p_Signed(2) - 1
+        pc = op.p2as_pc()
 
     return pc, rc
-
-
-@jit.dont_look_inside
-def _define_pcoll_hidden_from_jit(pKeyInfo, i):
-    # the JIT can't deal with FixedSizeArrays
-    return pKeyInfo.aColl[i]
 
 
 # Opcode: Compare P1 P2 P3 P4 P5
@@ -1221,7 +1215,6 @@ def _define_pcoll_hidden_from_jit(pKeyInfo, i):
 @jit.unroll_safe
 def python_OP_Compare(hlquery, op):
     p = hlquery.p
-    aMem = p.aMem
 
     if (op.p_Unsigned(5) & CConfig.OPFLAG_PERMUTE) == 0:
         aPermute = lltype.nullptr(rffi.INTP.TO)
@@ -1260,14 +1253,18 @@ def python_OP_Compare(hlquery, op):
         # REGISTER_TRACE(p1+idx, &aMem[p1+idx]);
         # REGISTER_TRACE(p2+idx, &aMem[p2+idx]);
 
-        assert i < rffi.getintfield(pKeyInfo, 'nField')
-        pColl = _define_pcoll_hidden_from_jit(pKeyInfo, i)
-        bRev = rffi.cast(lltype.Unsigned, pKeyInfo.aSortOrder[i])
-        hlquery.iCompare = capi.sqlite3_sqlite3MemCompare(aMem[p1 + idx], aMem[p2 + idx], pColl)
-        if hlquery.iCompare:
+        pColl = op.p4_pKeyInfo_aColl(i)
+        pIn1 = hlquery.mem_with_index(p1 + idx)
+        pIn2 = hlquery.mem_with_index(p2 + idx)
+        iCompare = pIn1.sqlite3MemCompare(pIn2, pColl)
+        jit.promote(iCompare)
+        if iCompare:
+            bRev = op.p4_pKeyInfo_aSortOrder(i)
             if bRev:
-                hlquery.iCompare = -hlquery.iCompare
+                iCompare = -iCompare
+            hlquery.iCompare = iCompare
             return
+    hlquery.iCompare = 0
     aPermute = lltype.nullptr(rffi.INTP.TO)
     return
 
@@ -1293,5 +1290,6 @@ def python_OP_Jump(hlquery, op):
     else:
         pc = op.p_Signed(3) - 1
         # VdbeBranchTaken(2,3);
+    hlquery.iCompare = 0
     return pc
 

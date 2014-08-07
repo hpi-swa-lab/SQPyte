@@ -748,6 +748,22 @@ class Op(object):
     def p4_pKeyInfo(self):
         return self.pOp.p4.pKeyInfo
 
+    @jit.elidable
+    def p4_pKeyInfo_aColl(self, i):
+        # XXX I'm rather sure that the KeyInfo is immutable, but we should
+        # check to make sure
+        pKeyInfo = self.p4_pKeyInfo()
+        assert i < rffi.getintfield(pKeyInfo, 'nField')
+        return pKeyInfo.aColl[i]
+
+    @jit.elidable
+    def p4_pKeyInfo_aSortOrder(self, i):
+        # XXX I'm rather sure that the KeyInfo is immutable, but we should
+        # check to make sure
+        pKeyInfo = self.p4_pKeyInfo()
+        assert i < rffi.getintfield(pKeyInfo, 'nField')
+        return rffi.cast(lltype.Unsigned, pKeyInfo.aSortOrder[i])
+
     def p2as_pc(self):
         return self.p_Signed(2) - 1
 
