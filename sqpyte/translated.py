@@ -1316,4 +1316,18 @@ def python_OP_SCopy(hlquery, op):
       # if( pOut->pScopyFrom==0 ) pOut->pScopyFrom = pIn1;
     #endif
 
+# Opcode: Sequence P1 P2 * * *
+# Synopsis: r[P2]=cursor[P1].ctr++
+#
+# Find the next available sequence number for cursor P1.
+# Write the sequence number into register P2.
+# The sequence number on the cursor is incremented after this
+# instruction.
 
+def python_OP_Sequence(hlquery, op):
+    p = hlquery.p
+    pOut = op.mem_of_p(2)
+    pOut.set_flags(CConfig.MEM_Int)
+    assert op.p_Signed(1) >= 0 and op.p_Signed(1) < rffi.getintfield(p, 'nCursor')
+    assert p.apCsr[op.p_Signed(1)]
+    pOut.set_u_i(p.apCsr[op.p_Unsigned(1)].seqCount + 1)
