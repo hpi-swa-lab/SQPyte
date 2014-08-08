@@ -1006,6 +1006,7 @@ def python_OP_IdxRowid(hlquery, pc, rc, op):
     #assert pC.isTable == 0
     if not rffi.cast(lltype.Signed, pC.nullRow):
         rc = capi.sqlite3VdbeIdxRowid(db, pCrsr, hlquery.longp)
+        jit.promote(rc)
         if rc != CConfig.SQLITE_OK:
             print "In impl_OP_IdxRowid():2: abort_due_to_error."
             rc = capi.gotoAbortDueToError(p, db, pc, rc)

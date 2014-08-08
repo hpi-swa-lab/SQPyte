@@ -337,6 +337,7 @@ class Sqlite3Query(object):
         # return capi.impl_OP_If_IfNot(self.p, pc, op.pOp)
         return translated.python_OP_If_IfNot(self, pc, op)
 
+    @cache_safe(mutates="p2")
     def python_OP_Rowid(self, pc, rc, op):
         return capi.impl_OP_Rowid(self.p, self.db, pc, rc, op.pOp)
 
@@ -564,7 +565,7 @@ class Sqlite3Query(object):
             pc = 0 # XXX maybe more to do, see vdbeapi.c:418
 
         while True:
-            jitdriver.jit_merge_point(pc=pc, self_=self, rc=rc, cache_state=self.mem_cache._cache_state)
+            jitdriver.jit_merge_point(pc=pc, self_=self, rc=rc, cache_state=self.mem_cache.cache_state())
             if rc != CConfig.SQLITE_OK:
                 break
             op = self._hlops[pc]
@@ -760,7 +761,7 @@ class Sqlite3Query(object):
             if not self.is_op_cache_safe(opcode):
                 self.invalidate_caches()
             if pc <= oldpc:
-                jitdriver.can_enter_jit(pc=pc, self_=self, rc=rc, cache_state=self.mem_cache._cache_state)
+                jitdriver.can_enter_jit(pc=pc, self_=self, rc=rc, cache_state=self.mem_cache.cache_state())
             self.check_cache_consistency()
         return rc
 
