@@ -1306,9 +1306,8 @@ def python_OP_Jump(hlquery, op):
 
 def python_OP_SCopy(hlquery, op):
     p = hlquery.p
-    aMem = p.aMem
-    pIn1 = aMem[op.p_Unsigned(1)]
-    pOut = aMem[op.p_Unsigned(2)]
+    pIn1 = hlquery.mem_with_index(op.p_Signed(1)).pMem
+    pOut = hlquery.mem_with_index(op.p_Signed(2)).pMem
     assert pOut != pIn1
     capi.sqlite3_sqlite3VdbeMemShallowCopy(pOut, pIn1, CConfig.MEM_Ephem)
 
@@ -1316,3 +1315,5 @@ def python_OP_SCopy(hlquery, op):
     #ifdef SQLITE_DEBUG
       # if( pOut->pScopyFrom==0 ) pOut->pScopyFrom = pIn1;
     #endif
+
+
