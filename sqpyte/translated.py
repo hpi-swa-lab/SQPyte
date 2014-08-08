@@ -1328,5 +1328,8 @@ def python_OP_Sequence(hlquery, op):
     pOut = op.mem_of_p(2)
     pOut.set_flags(CConfig.MEM_Int)
     assert op.p_Signed(1) >= 0 and op.p_Signed(1) < rffi.getintfield(p, 'nCursor')
-    assert p.apCsr[op.p_Signed(1)]
-    pOut.set_u_i(p.apCsr[op.p_Unsigned(1)].seqCount + 1)
+    cursor = p.apCsr[op.p_Signed(1)]
+    assert cursor
+    seqCount = cursor.seqCount
+    cursor.seqCount = seqCount + 1
+    pOut.set_u_i(seqCount)
