@@ -390,15 +390,19 @@ class Mem(object):
 
 
 class CacheHolder(object):
-    _immutable_fields_ = ['integers', 'floats']
+    _immutable_fields_ = ['integers', 'floats', '_invalid_cache_state']
 
     def __init__(self, num_flags):
-        self._cache_state = all_unknown(num_flags)
+        self._invalid_cache_state = all_unknown(num_flags)
+        self.set_cache_state(self._invalid_cache_state)
         self.integers = [0] * num_flags
         self.floats = [0.0] * num_flags
 
     def cache_state(self):
         return jit.promote(self._cache_state)
+
+    def set_cache_state(self, cache_state):
+        self._cache_state = cache_state
 
     def hide(self):
         pass
@@ -407,10 +411,10 @@ class CacheHolder(object):
         pass
 
     def invalidate(self, i):
-        self._cache_state = self.cache_state().set_unknown(i)
+        self.set_cache_state(self.cache_state().set_unknown(i))
 
     def invalidate_all(self):
-        self._cache_state = self._invalid_cache_state
+        self.set_cache_state(self._invalid_cache_state)
 
     def get_flags(self, mem):
         i = mem._cache_index
@@ -422,7 +426,7 @@ class CacheHolder(object):
                 assert state.get_flags(i) == rffi.cast(lltype.Unsigned, mem.pMem.flags)
             return state.get_flags(i)
         flags = rffi.cast(lltype.Unsigned, mem.pMem.flags)
-        self._cache_state = state.change_flags(i, flags)
+        self.set_cache_state(state.change_flags(i, flags))
         return flags
 
     def set_flags(self, mem, newflags):
@@ -434,9 +438,9 @@ class CacheHolder(object):
         if state.is_flag_known(i) and state.get_flags(i) == newflags:
             return
         rffi.setintfield(mem.pMem, 'flags', newflags)
-        self._cache_state = state.change_flags(i, newflags)
+        self.set_cache_state(state.change_flags(i, newflags))
         if not objectmodel.we_are_translated() and mem.pMem:
-            assert self._cache_state.get_flags(i) == rffi.cast(lltype.Unsigned, mem.pMem.flags) == newflags
+            assert self.cache_state().get_flags(i) == rffi.cast(lltype.Unsigned, mem.pMem.flags) == newflags
 
     def get_r(self, mem):
         i = mem._cache_index
@@ -449,7 +453,7 @@ class CacheHolder(object):
             return self.floats[i]
         r = mem.pMem.r
         self.floats[i] = r
-        self._cache_state = state.add_knowledge(i, STATE_FLOAT_KNOWN)
+        self.set_cache_state(state.add_knowledge(i, STATE_FLOAT_KNOWN))
         return r
 
     def set_r(self, mem, r):
@@ -460,7 +464,7 @@ class CacheHolder(object):
         state = self.cache_state()
         mem.pMem.r = r
         self.floats[i] = r
-        self._cache_state = state.add_knowledge(i, STATE_FLOAT_KNOWN)
+        self.set_cache_state(state.add_knowledge(i, STATE_FLOAT_KNOWN))
 
     def get_u_i(self, mem):
         i = mem._cache_index
@@ -473,7 +477,7 @@ class CacheHolder(object):
             return self.integers[i]
         u_i = mem.pMem.u.i
         self.integers[i] = u_i
-        self._cache_state = state.add_knowledge(i, STATE_INT_KNOWN)
+        self.set_cache_state(state.add_knowledge(i, STATE_INT_KNOWN))
         return u_i
 
     def set_u_i(self, mem, u_i, constant=False):
@@ -486,9 +490,9 @@ class CacheHolder(object):
         if not constant:
             self.integers[i] = u_i
             status = (state.cache_states[i] & ~STATE_CONSTANT) | STATE_INT_KNOWN
-            self._cache_state = state.change_cache_state(i, status)
+            self.set_cache_state(state.change_cache_state(i, status))
         else:
-            self._cache_state = state.set_u_i_constant(i, u_i)
+            self.set_cache_state(state.set_u_i_constant(i, u_i))
 
     def is_constant_u_i(self, mem):
         i = mem._cache_index
@@ -547,8 +551,8 @@ class CacheState(object):
         return x
 
     def unique(self):
-        if self in self._cache:
-            newself = self._cache[self]
+        newself = self._cache.get(self, None)
+        if newself:
             assert newself.all_flags == self.all_flags
             assert newself.cache_states == self.cache_states
             assert newself.u_i_constants == self.u_i_constants
@@ -585,7 +589,9 @@ class CacheState(object):
         return result.unique()
 
     def set_unknown(self, i):
-        return self.change_flags(i, 0).change_cache_state(i, STATE_UNKNOWN)
+        if self.cache_states[i]:
+            return self.change_flags(i, 0).change_cache_state(i, STATE_UNKNOWN)
+        return self
 
     def is_flag_known(self, i):
         return bool(self.cache_states[i] & STATE_FLAG_KNOWN)

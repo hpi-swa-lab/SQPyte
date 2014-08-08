@@ -193,8 +193,7 @@ class Sqlite3Query(object):
 
     @jit.unroll_safe
     def invalidate_caches(self):
-        for mem in self._mem_as_python_list:
-            mem.invalidate_cache()
+        self.mem_cache.invalidate_all()
 
     def is_op_cache_safe(self, opcode):
         return _cache_safe_opcodes[opcode]
