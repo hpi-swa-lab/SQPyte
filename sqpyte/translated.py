@@ -1309,14 +1309,31 @@ def python_OP_Jump(hlquery, op):
 # copy.
 
 def python_OP_SCopy(hlquery, op):
-    p = hlquery.p
-    aMem = p.aMem
-    pIn1 = aMem[op.p_Unsigned(1)]
-    pOut = aMem[op.p_Unsigned(2)]
+    pIn1 = op.mem_of_p(1)
+    pOut = op.mem_of_p(2)
     assert pOut != pIn1
-    capi.sqlite3_sqlite3VdbeMemShallowCopy(pOut, pIn1, CConfig.MEM_Ephem)
+    pOut.sqlite3VdbeMemShallowCopy(pIn1, CConfig.MEM_Ephem)
 
     # Used only for debugging.
     #ifdef SQLITE_DEBUG
       # if( pOut->pScopyFrom==0 ) pOut->pScopyFrom = pIn1;
     #endif
+
+# Opcode: Sequence P1 P2 * * *
+# Synopsis: r[P2]=cursor[P1].ctr++
+#
+# Find the next available sequence number for cursor P1.
+# Write the sequence number into register P2.
+# The sequence number on the cursor is incremented after this
+# instruction.
+
+def python_OP_Sequence(hlquery, op):
+    p = hlquery.p
+    pOut = op.mem_of_p(2)
+    pOut.set_flags(CConfig.MEM_Int)
+    assert op.p_Signed(1) >= 0 and op.p_Signed(1) < rffi.getintfield(p, 'nCursor')
+    cursor = p.apCsr[op.p_Signed(1)]
+    assert cursor
+    seqCount = cursor.seqCount
+    cursor.seqCount = seqCount + 1
+    pOut.set_u_i(seqCount)

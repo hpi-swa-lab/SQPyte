@@ -344,6 +344,24 @@ class Mem(object):
     # methods induced by sqlite3 functions below
 
 
+    def sqlite3VdbeMemShallowCopy(self, other, srcType):
+        """
+        Make an shallow copy of pFrom into pTo.  Prior contents of
+        pTo are freed.  The pFrom->z field is not duplicated.  If
+        pFrom->z is used, then pTo->z points to the same thing as pFrom->z
+        and flags gets srcType (either MEM_Ephem or MEM_Static).
+        """
+        MEMCELLSIZE = rffi.offsetof(capi.MEM, 'zMalloc')
+        assert not other.get_flags() & CConfig.MEM_RowSet
+        self.VdbeMemRelease()
+        rffi.c_memcpy(rffi.cast(rffi.VOIDP, self.pMem), rffi.cast(rffi.VOIDP, other.pMem), MEMCELLSIZE)
+        self.set_xDel_null()
+        if not other.get_flags() & CConfig.MEM_Static:
+            flags = self.get_flags()
+            flags &= ~(CConfig.MEM_Dyn | CConfig.MEM_Static | CConfig.MEM_Ephem)
+            assert srcType == CConfig.MEM_Ephem or srcType == CConfig.MEM_Static
+            self.set_flags(flags | srcType)
+
     def sqlite3MemCompare(self, other, coll):
         flags1 = self.get_flags()
         flags2 = other.get_flags()

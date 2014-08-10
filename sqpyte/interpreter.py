@@ -441,7 +441,8 @@ class Sqlite3Query(object):
 
     @cache_safe(mutates="p2")
     def python_OP_Sequence(self, op):
-        capi.impl_OP_Sequence(self.p, op.pOp)
+        # capi.impl_OP_Sequence(self.p, op.pOp)
+        translated.python_OP_Sequence(self, op)
 
     def python_OP_OpenPseudo(self, pc, rc, op):
         return capi.impl_OP_OpenPseudo(self.p, self.db, pc, rc, op.pOp)
