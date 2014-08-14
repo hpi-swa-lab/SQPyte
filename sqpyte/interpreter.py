@@ -103,6 +103,17 @@ def mutate_func(func, mutates):
                 hlquery.mem_cache.invalidate(i)
             return result
         return p1_p2_mutation
+    if mutates == "p2..p3":
+        @jit.unroll_safe
+        def p2_p3_mutation(hlquery, *args):
+            result = func(hlquery, *args)
+            op = args[-1]
+            hlquery.mem_cache.invalidate(op.p_Signed(2))
+            if op.p_Signed(3) > op.p_Signed(2):
+                for i in range(op.p_Signed(2) + 1, op.p_Signed(3) + 1):
+                    hlquery.mem_cache.invalidate(i)
+            return result
+        return p1_p2_mutation
     if mutates == "p3@p4":
         @jit.unroll_safe
         def p3_p4_mutation(hlquery, *args):
@@ -243,6 +254,7 @@ class Sqlite3Query(object):
 
         return translated.python_OP_Next_translated(self, pc, op)
 
+    @cache_safe()
     def python_OP_Close(self, op):
         capi.impl_OP_Close(self.p, op.pOp)
 
@@ -268,6 +280,7 @@ class Sqlite3Query(object):
         translated.python_OP_Integer(self, op)
         #capi.impl_OP_Integer(self.p, op.pOp)
 
+    @cache_safe(mutates="p2..p3")
     def python_OP_Null(self, op):
         capi.impl_OP_Null(self.p, op.pOp)
 
@@ -342,12 +355,14 @@ class Sqlite3Query(object):
         # return capi.impl_OP_IsNull(self.p, pc, op.pOp)
         return translated.python_OP_IsNull(self, pc, op)
 
+    @cache_safe(mutates="p3@p4")
     def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(self, pc, rc, op):
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         rc = capi.impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(self.p, self.db, self.internalPc, rc, op.pOp)
         retPc = self.internalPc[0]
         return retPc, rc
 
+    cache_safe(mutates=["p2@p3", "p1@p3"])
     def python_OP_Move(self, op):
         capi.impl_OP_Move(self.p, op.pOp)
 
@@ -427,6 +442,7 @@ class Sqlite3Query(object):
     def python_OP_SorterOpen(self, pc, op):
         return capi.impl_OP_SorterOpen(self.p, self.db, pc, op.pOp)
 
+    @cache_safe()
     def python_OP_NextIfOpen(self, pc, rc, op):
         # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         # rc = capi.impl_OP_NextIfOpen(self.p, self.db, self.internalPc, rc, op.pOp)
