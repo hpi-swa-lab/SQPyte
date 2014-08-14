@@ -486,6 +486,9 @@ _type_encoding_list = [
      CConfig.SQLITE_NULL,     # 0x1f
 ]
 
+class Virt(object):
+    def __init__(self, cs):
+        self.cs = cs
 
 class CacheHolder(object):
     _immutable_fields_ = ['integers', 'floats', '_invalid_cache_state']
@@ -493,20 +496,33 @@ class CacheHolder(object):
     def __init__(self, num_flags):
         self._invalid_cache_state = all_unknown(num_flags)
         self.set_cache_state(self._invalid_cache_state)
+        self._nonvirt_cache_state = None
         self.integers = [0] * num_flags
         self.floats = [0.0] * num_flags
+        self.prepare_return() # mainloop not running
 
     def cache_state(self):
-        return jit.promote(self._cache_state)
+        return jit.promote(self._virt_cache_state.cs)
 
     def set_cache_state(self, cache_state):
-        self._cache_state = cache_state
+        self._virt_cache_state = Virt(cache_state)
+
+    def prepare_return(self):
+        self._nonvirt_cache_state = self.cache_state()
+        self._virt_cache_state = None
+
+    def reenter(self):
+        cache_state = self._nonvirt_cache_state
+        self.set_cache_state(cache_state)
+        self._nonvirt_cache_state = None
+        return cache_state
 
     def hide(self):
-        pass
+        self._virt_cache_state = None
 
     def reveal(self, x):
-        pass
+        if self._virt_cache_state is None:
+            self.set_cache_state(x)
 
     def invalidate(self, i):
         self.set_cache_state(self.cache_state().set_unknown(i))

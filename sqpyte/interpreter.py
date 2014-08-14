@@ -136,13 +136,6 @@ def mutate_func(func, mutates):
     else:
         raise ValueError("unknown mutation %s" % mutates)
 
-def hide_cache(func):
-    def newfunc(hlquery, *args):
-        data = hlquery.mem_cache.hide()
-        result = func(hlquery, *args)
-        hlquery.mem_cache.reveal(data)
-        return result
-    return newfunc
 
 class Sqlite3Query(object):
 
@@ -237,7 +230,7 @@ class Sqlite3Query(object):
     def python_OP_Column(self, pc, op):
         return translated.python_OP_Column(self, pc, op)
 
-    @cache_safe(hide=True, mutates="p1@p2")
+    @cache_safe(mutates="p1@p2")
     def python_OP_ResultRow(self, pc, op):
         return capi.impl_OP_ResultRow(self.p, self.db, pc, op.pOp)
 
@@ -567,9 +560,11 @@ class Sqlite3Query(object):
         pc = jit.promote(rffi.cast(lltype.Signed, self.p.pc))
         if pc < 0:
             pc = 0 # XXX maybe more to do, see vdbeapi.c:418
+        cache_state = self.mem_cache.reenter()
 
         while True:
-            jitdriver.jit_merge_point(pc=pc, self_=self, rc=rc, cache_state=self.mem_cache.cache_state())
+            jitdriver.jit_merge_point(pc=pc, self_=self, rc=rc, cache_state=cache_state)
+            self.mem_cache.reveal(cache_state)
             if rc != CConfig.SQLITE_OK:
                 break
             op = self._hlops[pc]
@@ -599,7 +594,7 @@ class Sqlite3Query(object):
                 rc = self.python_OP_Transaction(pc, op)
                 if rc == CConfig.SQLITE_BUSY:
                     print 'ERROR: in OP_Transaction SQLITE_BUSY'
-                    return rc
+                    break
             elif opcode == CConfig.OP_TableLock:
                 rc = self.python_OP_TableLock(rc, op)
             elif opcode == CConfig.OP_Goto:
@@ -609,14 +604,14 @@ class Sqlite3Query(object):
             elif opcode == CConfig.OP_ResultRow:
                 rc = self.python_OP_ResultRow(pc, op)
                 if rc == CConfig.SQLITE_ROW:
-                    return rc
+                    break
             elif opcode == CConfig.OP_Next:
                 pc, rc = self.python_OP_Next(pc, op)
             elif opcode == CConfig.OP_Close:
                 self.python_OP_Close(op)
             elif opcode == CConfig.OP_Halt:
                 pc, rc = self.python_OP_Halt(pc, op)
-                return rc
+                break
             elif (opcode == CConfig.OP_Eq or 
                   opcode == CConfig.OP_Ne or 
                   opcode == CConfig.OP_Lt or 
@@ -764,9 +759,13 @@ class Sqlite3Query(object):
             pc += 1
             if not self.is_op_cache_safe(opcode):
                 self.invalidate_caches()
-            if pc <= oldpc:
-                jitdriver.can_enter_jit(pc=pc, self_=self, rc=rc, cache_state=self.mem_cache.cache_state())
             self.check_cache_consistency()
+            cache_state = self.mem_cache.cache_state()
+            if pc <= oldpc:
+                self.mem_cache.hide()
+                jitdriver.can_enter_jit(pc=pc, self_=self, rc=rc, cache_state=cache_state)
+        jit.promote(rc)
+        self.mem_cache.prepare_return()
         return rc
 
 class Op(object):
