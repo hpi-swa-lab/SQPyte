@@ -774,7 +774,7 @@ op_column_error:
   UPDATE_MAX_BLOBSIZE(pDest);
   REGISTER_TRACE(pOp->p3, pDest);
 
-  return (long)rc;
+  return (long)rc | (((int)pDest->flags) << 16);
 }
 
 /* Opcode: ResultRow P1 P2 * * *

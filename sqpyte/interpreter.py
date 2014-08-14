@@ -233,9 +233,9 @@ class Sqlite3Query(object):
         return capi.impl_OP_OpenRead_OpenWrite(self.p, self.db, pc, op.pOp)
         # translated.python_OP_OpenRead_OpenWrite_translated(self, self.db, pc, op)
 
-    @cache_safe(hide=True, mutates="p3")
+    @cache_safe()
     def python_OP_Column(self, pc, op):
-        return capi.impl_OP_Column(self.p, self.db, pc, op.pOp)
+        return translated.python_OP_Column(self, pc, op)
 
     @cache_safe(hide=True, mutates="p1@p2")
     def python_OP_ResultRow(self, pc, op):

@@ -1362,3 +1362,20 @@ def python_OP_Sequence(hlquery, op):
     seqCount = cursor.seqCount
     cursor.seqCount = seqCount + 1
     pOut.set_u_i(seqCount)
+
+def python_OP_Column(hlquery, pc, op):
+    # this is just a trick to promote to values at once, rc and the new flags
+    # of p3
+    # it also invalidates p3 before doing that
+    state = hlquery.mem_cache.cache_state()
+    result = capi.impl_OP_Column(hlquery.p, hlquery.db, pc, op.pOp)
+    jit.promote(result)
+    rc = result & 0xffff
+    if rc:
+        return rc
+    flags = rarithmetic.r_uint(result >> 16)
+    i = op.p_Signed(3)
+    hlquery.mem_cache.invalidate(i)
+    state = hlquery.mem_cache.cache_state()
+    hlquery.mem_cache.set_cache_state(state.change_flags(i, flags))
+    return rc
