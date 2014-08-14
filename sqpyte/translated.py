@@ -1375,3 +1375,59 @@ def python_OP_Gosub(hlquery, pc, op):
 
     return pc
 
+# Opcode: Move P1 P2 P3 * *
+# Synopsis:  r[P2@P3]=r[P1@P3]
+#
+# Move the P3 values in register P1..P1+P3-1 over into
+# registers P2..P2+P3-1.  Registers P1..P1+P3-1 are
+# left holding a NULL.  It is an error for register ranges
+# P1..P1+P3-1 and P2..P2+P3-1 to overlap.  It is an error
+# for P3 to be less than 1.
+
+def python_OP_Move(hlquery, op):
+    p = hlquery.p
+    n = op.p_Signed(3)
+    p1 = op.p_Signed(1)
+    p2 = op.p_Signed(2)
+
+    assert n > 0 and p1 > 0 and p2 > 0
+    assert p1 + n <= p2 or p2 + n <= p1
+
+    pIn1 = op.mem_of_p(1)
+    pOut = op.mem_of_p(2)
+
+    from sqpyte.mem import Mem
+
+    # Runs at least once. See assert above.
+    while n > 0:
+        # assert( pOut<=&aMem[(p->nMem-p->nCursor)] );
+        # assert( pIn1<=&aMem[(p->nMem-p->nCursor)] );
+        # assert( memIsValid(pIn1) );
+
+        # Used only for debugging, i.e., not in production.
+        # See vdbe.c lines 24-37.
+        # memAboutToChange(p, pOut);
+
+        Mem.VdbeMemRelease(pOut)
+        zMalloc = pOut.get_zMalloc()
+        rffi.c_memcpy(rffi.cast(rffi.VOIDP, pOut), rffi.cast(rffi.VOIDP, pIn1), rffi.sizeof(capi.MEM))
+        #ifdef SQLITE_DEBUG
+            # if( pOut->pScopyFrom>=&aMem[p1] && pOut->pScopyFrom<&aMem[p1+pOp->p3] ){
+            #   pOut->pScopyFrom += p1 - pOp->p2;
+            # }
+        #endif
+        pIn1.set_flags(CConfig.MEM_Undefined)
+        pIn1.set_xDel_null()
+        pIn1.set_zMalloc(zMalloc)
+
+        # Used only for debugging, i.e., not in production.
+        # See vdbe.c lines 451-455.
+        # REGISTER_TRACE(p2++, pOut);
+
+        p1 += 1
+        p2 += 1
+        pIn1 = hlquery.mem_with_index(p1)
+        pOut = hlquery.mem_with_index(p2)
+
+        n -= 1
+
