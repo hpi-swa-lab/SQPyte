@@ -113,7 +113,7 @@ def mutate_func(func, mutates):
                 for i in range(op.p_Signed(2) + 1, op.p_Signed(3) + 1):
                     hlquery.mem_cache.invalidate(i)
             return result
-        return p1_p2_mutation
+        return p2_p3_mutation
     if mutates == "p3@p4":
         @jit.unroll_safe
         def p3_p4_mutation(hlquery, *args):
@@ -355,7 +355,12 @@ class Sqlite3Query(object):
         # return capi.impl_OP_IsNull(self.p, pc, op.pOp)
         return translated.python_OP_IsNull(self, pc, op)
 
-    @cache_safe(mutates="p3@p4")
+    @cache_safe(
+        opcodes=[CConfig.OP_SeekLT,
+                 CConfig.OP_SeekLE,
+                 CConfig.OP_SeekGE,
+                 CConfig.OP_SeekGT],
+        mutates="p3@p4")
     def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(self, pc, rc, op):
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         rc = capi.impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(self.p, self.db, self.internalPc, rc, op.pOp)
