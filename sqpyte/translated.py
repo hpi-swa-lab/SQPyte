@@ -1333,3 +1333,30 @@ def python_OP_Sequence(hlquery, op):
     seqCount = cursor.seqCount
     cursor.seqCount = seqCount + 1
     pOut.set_u_i(seqCount)
+
+# Opcode:  Return P1 * * * *
+#
+# Jump to the next instruction after the address in register P1.  After
+# the jump, register P1 becomes undefined.
+
+def python_OP_Return(hlquery, op):
+    p = hlquery.p
+    pIn1, flags1 = op.mem_and_flags_of_p(1, promote=True)    # 1st input operand
+    assert flags1 == CConfig.MEM_Int
+    pc = pIn1.get_u_i()
+    pIn1.set_flags(CConfig.MEM_Undefined)
+    return pc
+
+
+# long impl_OP_Return(Vdbe *p, long pc, Op *pOp) {
+# // case OP_Return: {           /* in1 */
+#   Mem *aMem = p->aMem;       /* Copy of p->aMem */
+#   Mem *pIn1;                 /* 1st input operand */
+
+#   pIn1 = &aMem[pOp->p1];
+#   assert( pIn1->flags==MEM_Int );
+#   pc = (long)pIn1->u.i;
+#   pIn1->flags = MEM_Undefined;
+#   // break;
+#   return pc;
+# }

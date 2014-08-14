@@ -271,7 +271,8 @@ class Sqlite3Query(object):
         return capi.impl_OP_Gosub(self.p, pc, op.pOp)
 
     def python_OP_Return(self, pc, op):
-        return capi.impl_OP_Return(self.p, pc, op.pOp)
+        # return capi.impl_OP_Return(self.p, pc, op.pOp)
+        return translated.python_OP_Return(self, op)
 
     def python_OP_SorterOpen(self, pc, op):
         return capi.impl_OP_SorterOpen(self.p, self.db, pc, op.pOp)

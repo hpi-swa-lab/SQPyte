@@ -66,7 +66,8 @@ other_constants = ['SQLITE_MAX_VARIABLE_NUMBER', 'CACHE_STALE']
 encodings = ['SQLITE_UTF8']
 memValues = ['MEM_Null', 'MEM_Real', 'MEM_Cleared', 'MEM_TypeMask', 'MEM_Zero',
              'MEM_Int', 'MEM_Str', 'MEM_RowSet', 'MEM_Blob', 'MEM_Agg',
-             'MEM_Dyn', 'MEM_Frame', 'MEM_Ephem', 'MEM_Static']
+             'MEM_Dyn', 'MEM_Frame', 'MEM_Ephem', 'MEM_Static',
+             'MEM_Undefined']
 
 for name in (p4names + opnames + p5flags + result_codes + sqlite_codes +
              btree_values + other_constants + memValues + affinity_codes +
