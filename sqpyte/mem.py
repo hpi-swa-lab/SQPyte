@@ -2,16 +2,17 @@ from rpython.rlib import jit, rarithmetic, objectmodel
 from rpython.rtyper.lltypesystem import rffi, lltype
 from sqpyte.capi import CConfig
 from sqpyte import capi
-import sys
+import sys, math
 
 class Mem(object):
     _immutable_fields_ = ['hlquery', 'pMem', '_cache_index']
-    _attrs_ = ['hlquery', 'pMem', '_cache_index', '_cache']
+    _attrs_ = ['hlquery', 'pMem', '_cache_index', '_cache', '_python_ctx']
 
     def __init__(self, hlquery, pMem, _cache_index=-1):
         self.hlquery = hlquery
         self.pMem = pMem
         self._cache_index = _cache_index
+        self._python_ctx = None
 
     def invalidate_cache(self):
         if self._cache_index != -1:
@@ -187,7 +188,7 @@ class Mem(object):
         looks like a number, convert it into a number.  If it does not
         look like a number, leave it alone.
         """
-        _applyNumericAffinity_flags_read(self, self.get_flags())
+        self._applyNumericAffinity_flags_read(self.get_flags())
 
     def _applyNumericAffinity_flags_read(self, flags):
         if flags & (CConfig.MEM_Real|CConfig.MEM_Int):
@@ -238,6 +239,18 @@ class Mem(object):
         self.sqlite3VdbeMemRelease()
         self.set_u_i(val)
         self.set_flags(CConfig.MEM_Int)
+
+    def sqlite3VdbeMemSetDouble(self, val):
+        """
+        Delete any previous value and set the value stored in *pMem to val,
+        manifest type REAL.
+        """
+        if math.isnan(val):
+            self.sqlite3VdbeMemSetNull();
+        else:
+            self.sqlite3VdbeMemRelease()
+            self.set_r(val)
+            self.set_flags(CConfig.MEM_Real)
 
     def sqlite3VdbeMemSetNull(self):
         """ Delete any previous value and set the value stored in *pMem to NULL. """
@@ -405,6 +418,73 @@ class Mem(object):
         return capi.sqlite3_sqlite3MemCompare(self.pMem, other.pMem, coll)
 
 
+    def sqlite3VdbeChangeEncoding(self, encoding):
+        #if not (self.get_flags() & CConfig.MEM_Str) or self.get_enc() == encoding:
+        #    return CConfig.SQLITE_OK
+        self.invalidate_cache()
+        return capi.sqlite3VdbeChangeEncoding(self.pMem, encoding)
+
+    def sqlite3VdbeMemTooBig(self):
+        self.invalidate_cache()
+        return capi.sqlite3VdbeMemTooBig(self.pMem)
+
+    # public API functions
+
+    def sqlite3_value_type(self):
+        return _type_encoding_list[self.get_flags(promote=True) & CConfig.MEM_AffMask]
+
+    def sqlite3_value_numeric_type(self):
+        """
+        Try to convert the type of a function argument or a result column
+        into a numeric representation.  Use either INTEGER or REAL whichever
+        is appropriate.  But only do the conversion if it is possible without
+        loss of information and return the revised type of the argument.
+        """
+        eType = self.sqlite3_value_type()
+        if eType == CConfig.SQLITE_TEXT:
+            self.applyNumericAffinity()
+            eType = self.sqlite3_value_type()
+        return eType
+
+    sqlite3_value_int64 = sqlite3VdbeIntValue
+    sqlite3_value_double = sqlite3VdbeRealValue
+    sqlite3_result_int64 = sqlite3VdbeMemSetInt64
+    sqlite3_result_double = sqlite3VdbeMemSetDouble
+
+_type_encoding_list = [
+     CConfig.SQLITE_BLOB,     # 0x00
+     CConfig.SQLITE_NULL,     # 0x01
+     CConfig.SQLITE_TEXT,     # 0x02
+     CConfig.SQLITE_NULL,     # 0x03
+     CConfig.SQLITE_INTEGER,  # 0x04
+     CConfig.SQLITE_NULL,     # 0x05
+     CConfig.SQLITE_INTEGER,  # 0x06
+     CConfig.SQLITE_NULL,     # 0x07
+     CConfig.SQLITE_FLOAT,    # 0x08
+     CConfig.SQLITE_NULL,     # 0x09
+     CConfig.SQLITE_FLOAT,    # 0x0a
+     CConfig.SQLITE_NULL,     # 0x0b
+     CConfig.SQLITE_INTEGER,  # 0x0c
+     CConfig.SQLITE_NULL,     # 0x0d
+     CConfig.SQLITE_INTEGER,  # 0x0e
+     CConfig.SQLITE_NULL,     # 0x0f
+     CConfig.SQLITE_BLOB,     # 0x10
+     CConfig.SQLITE_NULL,     # 0x11
+     CConfig.SQLITE_TEXT,     # 0x12
+     CConfig.SQLITE_NULL,     # 0x13
+     CConfig.SQLITE_INTEGER,  # 0x14
+     CConfig.SQLITE_NULL,     # 0x15
+     CConfig.SQLITE_INTEGER,  # 0x16
+     CConfig.SQLITE_NULL,     # 0x17
+     CConfig.SQLITE_FLOAT,    # 0x18
+     CConfig.SQLITE_NULL,     # 0x19
+     CConfig.SQLITE_FLOAT,    # 0x1a
+     CConfig.SQLITE_NULL,     # 0x1b
+     CConfig.SQLITE_INTEGER,  # 0x1c
+     CConfig.SQLITE_NULL,     # 0x1d
+     CConfig.SQLITE_INTEGER,  # 0x1e
+     CConfig.SQLITE_NULL,     # 0x1f
+]
 
 
 class CacheHolder(object):

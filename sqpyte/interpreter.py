@@ -278,12 +278,15 @@ class Sqlite3Query(object):
     def python_OP_Null(self, op):
         capi.impl_OP_Null(self.p, op.pOp)
 
+    @cache_safe() # invalidation done in the slow path
     def python_OP_AggStep(self, rc, pc, op):
         #return capi.impl_OP_AggStep(self.p, self.db, rc, op.pOp)
         return translated.python_OP_AggStep(self, rc, pc, op)
 
+    @cache_safe() # invalidation done in the slow path
     def python_OP_AggFinal(self, pc, rc, op):
-        return capi.impl_OP_AggFinal(self.p, self.db, pc, rc, op.pOp)
+        #return capi.impl_OP_AggFinal(self.p, self.db, pc, rc, op.pOp)
+        return translated.python_OP_AggFinal(self, rc, pc, op)
 
     def python_OP_Copy(self, pc, rc, op):
         return capi.impl_OP_Copy(self.p, self.db, pc, rc, op.pOp)
@@ -387,8 +390,8 @@ class Sqlite3Query(object):
 
     @cache_safe(mutates=["p1", "p2"])
     def python_OP_SCopy(self, op):
-        # capi.impl_OP_SCopy(self.p, op.pOp)
-        translated.python_OP_SCopy(self, op)
+        capi.impl_OP_SCopy(self.p, op.pOp)
+        # translated.python_OP_SCopy(self, op)
 
     @cache_safe()
     def python_OP_Affinity(self, op):
@@ -811,7 +814,8 @@ class Op(object):
 
     @jit.elidable
     def p4_pFunc(self):
-        return self.pOp.p4.pFunc
+        from sqpyte.function import Func
+        return Func(self.pOp.p4.pFunc)
 
     @jit.elidable
     def p4_pColl(self):

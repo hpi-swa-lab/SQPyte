@@ -66,11 +66,18 @@ other_constants = ['SQLITE_MAX_VARIABLE_NUMBER', 'CACHE_STALE']
 encodings = ['SQLITE_UTF8']
 memValues = ['MEM_Null', 'MEM_Real', 'MEM_Cleared', 'MEM_TypeMask', 'MEM_Zero',
              'MEM_Int', 'MEM_Str', 'MEM_RowSet', 'MEM_Blob', 'MEM_Agg',
-             'MEM_Dyn', 'MEM_Frame', 'MEM_Ephem', 'MEM_Static']
+             'MEM_Dyn', 'MEM_Frame', 'MEM_Ephem', 'MEM_Static', 'MEM_AffMask']
+sqlite_types = [
+    'SQLITE_INTEGER',
+    'SQLITE_FLOAT',
+    'SQLITE_BLOB',
+    'SQLITE_NULL',
+    'SQLITE_TEXT',
+]
 
 for name in (p4names + opnames + p5flags + result_codes + sqlite_codes +
              btree_values + other_constants + memValues + affinity_codes +
-             encodings):
+             encodings + sqlite_types):
     setattr(CConfig, name, platform.DefinedConstantInteger(name))
 
 
@@ -792,6 +799,12 @@ sqlite3ValueText = llexternal('sqlite3ValueText', [MEMP, CConfig.u8],
     rffi.VOIDP)
 sqlite3VdbeIdxKeyCompare = llexternal('sqlite3VdbeIdxKeyCompare', [VDBECURSORP, UNPACKEDRECORDP, rffi.INTP],
     rffi.INT)
+sqlite3VdbeMemFinalize = llexternal('sqlite3VdbeMemFinalize', [MEMP, FUNCDEFP],
+    rffi.INT)
+sqlite3VdbeChangeEncoding = llexternal('sqlite3VdbeChangeEncoding', [MEMP, rffi.INT],
+    rffi.INT)
+sqlite3VdbeMemTooBig = llexternal('sqlite3VdbeMemTooBig', [MEMP],
+    rffi.INT)
 
 # (char **, sqlite3*, const char*, ...);
 sqlite3SetString1 = llexternal('sqlite3SetString', [rffi.CCHARPP, SQLITE3P, rffi.CCHARP, rffi.VOIDP],
@@ -808,6 +821,8 @@ sqlite3_gotoAbortDueToInterrupt = llexternal('gotoAbortDueToInterrupt', [VDBEP, 
 gotoAbortDueToError = llexternal('gotoAbortDueToError', [VDBEP, SQLITE3P, rffi.INT, rffi.INT],
     rffi.INT)
 sqlite3_gotoNoMem = llexternal('gotoNoMem', [VDBEP, SQLITE3P, rffi.INT],
+    rffi.INT)
+gotoTooBig = llexternal('gotoTooBig', [VDBEP, SQLITE3P, rffi.INT],
     rffi.INT)
 
 

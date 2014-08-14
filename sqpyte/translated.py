@@ -1058,15 +1058,20 @@ def python_OP_AggStep(hlquery, rc, pc, op):
     p = hlquery.p
     db = hlquery.db
     n = op.p_Signed(5)
+    index = op.p_Signed(2)
+    func = op.p4_pFunc()
+    if func.exists_in_python():
+        return func.aggstep_in_python(hlquery, op, index, n)
+    hlquery.invalidate_caches()
     apVal = p.apArg
     assert apVal or n == 0
-    index = op.p_Signed(2)
     for i in range(n):
         apVal[i] = hlquery.mem_with_index(index + i).pMem
+    pFunc = func.pFunc
     mem = op.mem_of_p(3)
     with lltype.scoped_alloc(capi.CONTEXT) as ctx:
         mems = Mem(hlquery, ctx.s)
-        ctx.pFunc = pFunc = op.p4_pFunc()
+        ctx.pFunc = pFunc
         assert op.p_Signed(3) > 0 and op.p_Signed(3) <= (rffi.getintfield(p, 'nMem') - rffi.getintfield(p, 'nCursor'))
         ctx.pMem = mem.pMem
         mem.set_n(mem.get_n() + 1)
@@ -1096,6 +1101,26 @@ def python_OP_AggStep(hlquery, rc, pc, op):
         mems.sqlite3VdbeMemRelease()
         return rc
 
+# Opcode: AggFinal P1 P2 * P4 *
+# Synopsis: accum=r[P1] N=P2
+#
+# Execute the finalizer function for an aggregate.  P1 is
+# the memory location that is the accumulator for the aggregate.
+#
+# P2 is the number of arguments that the step function takes and
+# P4 is a pointer to the FuncDef for this function.  The P2
+# argument is not used by this opcode.  It is only there to disambiguate
+# functions that can take varying numbers of arguments.  The
+# P4 argument is only needed for the degenerate case where
+# the step function was not previously called.
+
+def python_OP_AggFinal(hlquery, pc, rc, op):
+    func = op.p4_pFunc()
+    mem = op.mem_of_p(1)
+    if func.exists_in_python():
+        return func.aggfinal_in_python(hlquery, op, mem)
+    hlquery.invalidate_caches()
+    return capi.impl_OP_AggFinal(hlquery.p, hlquery.db, pc, rc, op.pOp)
 
 # Opcode: IdxGE P1 P2 P3 P4 P5
 # Synopsis: key=r[P3@P4]
