@@ -268,7 +268,8 @@ class Sqlite3Query(object):
         return retPc, rc        
 
     def python_OP_Gosub(self, pc, op):
-        return capi.impl_OP_Gosub(self.p, pc, op.pOp)
+        # return capi.impl_OP_Gosub(self.p, pc, op.pOp)
+        return translated.python_OP_Gosub(self, pc, op)
 
     def python_OP_Return(self, pc, op):
         # return capi.impl_OP_Return(self.p, pc, op.pOp)

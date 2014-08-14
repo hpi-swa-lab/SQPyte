@@ -1347,16 +1347,31 @@ def python_OP_Return(hlquery, op):
     pIn1.set_flags(CConfig.MEM_Undefined)
     return pc
 
+# Opcode:  Gosub P1 P2 * * *
+#
+# Write the current address onto register P1
+# and then jump to address P2.
 
-# long impl_OP_Return(Vdbe *p, long pc, Op *pOp) {
-# // case OP_Return: {           /* in1 */
-#   Mem *aMem = p->aMem;       /* Copy of p->aMem */
-#   Mem *pIn1;                 /* 1st input operand */
+def python_OP_Gosub(hlquery, pc, op):
+    p = hlquery.p
+    p1 = op.p_Signed(1)
+    assert p1 > 0 and p1 <= (rffi.getintfield(p, 'nMem') - rffi.getintfield(p, 'nCursor'))
+    pIn1 = op.mem_of_p(1)
+    from sqpyte.mem import Mem
+    assert Mem.VdbeMemDynamic(pIn1) == 0
+    
+    # Used only for debugging, i.e., not in production.
+    # See vdbe.c lines 24-37.
+    # memAboutToChange(p, pIn1);
+    
+    pIn1.set_flags(CConfig.MEM_Int)
+    pIn1.set_u_i(pc)
 
-#   pIn1 = &aMem[pOp->p1];
-#   assert( pIn1->flags==MEM_Int );
-#   pc = (long)pIn1->u.i;
-#   pIn1->flags = MEM_Undefined;
-#   // break;
-#   return pc;
-# }
+    # Used only for debugging, i.e., not in production.
+    # See vdbe.c lines 451-455.
+    # REGISTER_TRACE(pOp->p1, pIn1);
+
+    pc = op.p_Signed(2) - 1
+
+    return pc
+
