@@ -252,6 +252,7 @@ class Sqlite3Query(object):
 
     def python_OP_MakeRecord(self, pc, rc, op):
         return capi.impl_OP_MakeRecord(self.p, self.db, pc, rc, op.pOp)
+        # translated.python_OP_MakeRecord(self, pc, rc, op)
 
     def python_OP_SorterInsert_IdxInsert(self, op):
         return capi.impl_OP_SorterInsert_IdxInsert(self.p, self.db, op.pOp)

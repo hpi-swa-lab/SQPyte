@@ -36,6 +36,13 @@ class Mem(object):
         self.pMem.u.i = val
 
 
+    def get_u_nZero(self):
+        return self.pMem.u.nZero
+
+    def set_u_nZero(self, val):
+        self.pMem.u.nZero = val
+
+
     def get_n(self):
         return rffi.cast(lltype.Signed, self.pMem.n)
 
@@ -45,6 +52,8 @@ class Mem(object):
     def get_enc(self):
         return self.pMem.enc
 
+    def set_enc(self, val):
+        self.pMem.enc = val
 
     def get_z(self):
         return self.pMem.z
