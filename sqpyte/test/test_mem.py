@@ -6,6 +6,7 @@ from sqpyte.mem import Mem, CacheHolder
 class FakeHLQuery(object):
     def __init__(self):
         self.mem_cache = CacheHolder(1)
+        self.mem_cache.reenter()
 
 
 def test_caching():

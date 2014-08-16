@@ -572,11 +572,10 @@ class CacheHolder(object):
 
     def set_r(self, mem, r):
         i = mem._cache_index
+        mem.pMem.r = r
         if i == -1:
-            mem.pMem.r = r
             return
         state = self.cache_state()
-        mem.pMem.r = r
         self.floats[i] = r
         self.set_cache_state(state.add_knowledge(i, STATE_FLOAT_KNOWN))
 
@@ -596,11 +595,10 @@ class CacheHolder(object):
 
     def set_u_i(self, mem, u_i, constant=False):
         i = mem._cache_index
+        mem.pMem.u.i = u_i
         if i == -1:
-            mem.pMem.u.i = u_i
             return
         state = self.cache_state()
-        mem.pMem.u.i = u_i
         if not constant:
             self.integers[i] = u_i
             status = (state.cache_states[i] & ~STATE_CONSTANT) | STATE_INT_KNOWN
