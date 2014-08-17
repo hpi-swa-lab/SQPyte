@@ -369,7 +369,8 @@ class Sqlite3Query(object):
 
     cache_safe(mutates=["p2@p3", "p1@p3"])
     def python_OP_Move(self, op):
-        capi.impl_OP_Move(self.p, op.pOp)
+        # capi.impl_OP_Move(self.p, op.pOp)
+        translated.python_OP_Move(self, op)
 
     @cache_safe()
     def python_OP_IfZero(self, pc, op):
@@ -417,6 +418,7 @@ class Sqlite3Query(object):
     @cache_safe(mutates=["p3", "p1@p2"])
     def python_OP_MakeRecord(self, pc, rc, op):
         return capi.impl_OP_MakeRecord(self.p, self.db, pc, rc, op.pOp)
+        # translated.python_OP_MakeRecord(self, pc, rc, op)
 
     @cache_safe(opcodes=[CConfig.OP_SorterInsert, CConfig.OP_IdxInsert],
                 mutates=["p2"])
@@ -439,10 +441,12 @@ class Sqlite3Query(object):
         return retPc, rc        
 
     def python_OP_Gosub(self, pc, op):
-        return capi.impl_OP_Gosub(self.p, pc, op.pOp)
+        # return capi.impl_OP_Gosub(self.p, pc, op.pOp)
+        return translated.python_OP_Gosub(self, pc, op)
 
     def python_OP_Return(self, pc, op):
-        return capi.impl_OP_Return(self.p, pc, op.pOp)
+        # return capi.impl_OP_Return(self.p, pc, op.pOp)
+        return translated.python_OP_Return(self, op)
 
     def python_OP_SorterOpen(self, pc, op):
         return capi.impl_OP_SorterOpen(self.p, self.db, pc, op.pOp)

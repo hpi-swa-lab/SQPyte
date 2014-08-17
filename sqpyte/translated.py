@@ -1379,3 +1379,258 @@ def python_OP_Column(hlquery, pc, op):
     state = hlquery.mem_cache.cache_state()
     hlquery.mem_cache.set_cache_state(state.change_flags(i, flags))
     return rc
+
+# Opcode:  Return P1 * * * *
+#
+# Jump to the next instruction after the address in register P1.  After
+# the jump, register P1 becomes undefined.
+
+def python_OP_Return(hlquery, op):
+    p = hlquery.p
+    pIn1, flags1 = op.mem_and_flags_of_p(1, promote=True)    # 1st input operand
+    assert flags1 == CConfig.MEM_Int
+    pc = pIn1.get_u_i()
+    pIn1.set_flags(CConfig.MEM_Undefined)
+    return pc
+
+# Opcode:  Gosub P1 P2 * * *
+#
+# Write the current address onto register P1
+# and then jump to address P2.
+
+def python_OP_Gosub(hlquery, pc, op):
+    p = hlquery.p
+    p1 = op.p_Signed(1)
+    assert p1 > 0 and p1 <= (rffi.getintfield(p, 'nMem') - rffi.getintfield(p, 'nCursor'))
+    pIn1 = op.mem_of_p(1)
+    assert pIn1.VdbeMemDynamic() == 0
+    
+    # Used only for debugging, i.e., not in production.
+    # See vdbe.c lines 24-37.
+    # memAboutToChange(p, pIn1);
+    
+    pIn1.set_flags(CConfig.MEM_Int)
+    pIn1.set_u_i(pc)
+
+    # Used only for debugging, i.e., not in production.
+    # See vdbe.c lines 451-455.
+    # REGISTER_TRACE(pOp->p1, pIn1);
+
+    pc = op.p_Signed(2) - 1
+
+    return pc
+
+# Opcode: Move P1 P2 P3 * *
+# Synopsis:  r[P2@P3]=r[P1@P3]
+#
+# Move the P3 values in register P1..P1+P3-1 over into
+# registers P2..P2+P3-1.  Registers P1..P1+P3-1 are
+# left holding a NULL.  It is an error for register ranges
+# P1..P1+P3-1 and P2..P2+P3-1 to overlap.  It is an error
+# for P3 to be less than 1.
+
+def python_OP_Move(hlquery, op):
+    p = hlquery.p
+    n = op.p_Signed(3)
+    p1 = op.p_Signed(1)
+    p2 = op.p_Signed(2)
+
+    assert n > 0 and p1 > 0 and p2 > 0
+    assert p1 + n <= p2 or p2 + n <= p1
+
+    pIn1 = op.mem_of_p(1)
+    pOut = op.mem_of_p(2)
+
+    from sqpyte.mem import Mem
+
+    # Runs at least once. See assert above.
+    while n > 0:
+        # assert( pOut<=&aMem[(p->nMem-p->nCursor)] );
+        # assert( pIn1<=&aMem[(p->nMem-p->nCursor)] );
+        # assert( memIsValid(pIn1) );
+
+        # Used only for debugging, i.e., not in production.
+        # See vdbe.c lines 24-37.
+        # memAboutToChange(p, pOut);
+
+        pOut.VdbeMemRelease()
+        zMalloc = pOut.get_zMalloc()
+        rffi.c_memcpy(rffi.cast(rffi.VOIDP, pOut.pMem), rffi.cast(rffi.VOIDP, pIn1.pMem), rffi.sizeof(capi.MEM))
+        #ifdef SQLITE_DEBUG
+            # if( pOut->pScopyFrom>=&aMem[p1] && pOut->pScopyFrom<&aMem[p1+pOp->p3] ){
+            #   pOut->pScopyFrom += p1 - pOp->p2;
+            # }
+        #endif
+        pIn1.set_flags(CConfig.MEM_Undefined)
+        pIn1.set_xDel_null()
+        pIn1.set_zMalloc(zMalloc)
+
+        # Used only for debugging, i.e., not in production.
+        # See vdbe.c lines 451-455.
+        # REGISTER_TRACE(p2++, pOut);
+
+        p1 += 1
+        p2 += 1
+        pIn1 = hlquery.mem_with_index(p1)
+        pOut = hlquery.mem_with_index(p2)
+
+        n -= 1
+
+# Opcode: MakeRecord P1 P2 P3 P4 *
+# Synopsis: r[P3]=mkrec(r[P1@P2])
+#
+# Convert P2 registers beginning with P1 into the [record format]
+# use as a data record in a database table or as a key
+# in an index.  The OP_Column opcode can decode the record later.
+#
+# P4 may be a string that is P2 characters long.  The nth character of the
+# string indicates the column affinity that should be used for the nth
+# field of the index key.
+#
+# The mapping from character to affinity is given by the SQLITE_AFF_
+# macros defined in sqliteInt.h.
+#
+# If P4 is NULL then all index fields have the affinity NONE.
+
+def python_OP_MakeRecord(hlquery, pc, rc, op):
+    p = hlquery.p
+    encoding = hlquery.enc()
+
+    # Assuming the record contains N fields, the record format looks
+    # like this:
+    #
+    # ------------------------------------------------------------------------
+    # | hdr-size | type 0 | type 1 | ... | type N-1 | data0 | ... | data N-1 | 
+    # ------------------------------------------------------------------------
+    #
+    # Data(0) is taken from register P1.  Data(1) comes from register P1+1
+    # and so froth.
+    #
+    # Each type field is a varint representing the serial type of the 
+    # corresponding data element (see sqlite3VdbeSerialType()). The
+    # hdr-size field is also a varint which is the offset from the beginning
+    # of the record to data0.
+
+    nData = 0
+    nHdr = 0
+    nZero = 0
+    p1 = op.p_Unsigned(1)
+    p2 = op.p_Signed(2)
+    p3 = op.p_Signed(3)
+    nField = p1
+    zAffinity = op.p4_z()
+    assert nField > 0 and p2 > 0 and p2 + nField <= (rffi.getintfield(p, 'nMem') - rffi.getintfield(p, 'nCursor')) + 1
+    pData0 = op.mem_of_p(nField)
+    nField = p2
+    pLast = pData0[nField - 1]
+    file_format = rffi.getintfield(p, 'minWriteFileFormat')
+  
+    # Identify the output register
+    assert p3 < p1 or p3 >= p1 + p2
+    pOut = op.mem_of_p(3)
+
+    # Used only for debugging, i.e., not in production.
+    # See vdbe.c lines 24-37.
+    # memAboutToChange(p, pOut);
+
+    # Apply the requested affinity to all inputs
+    assert pData0 <= pLast
+    if zAffinity:
+        pRec = pData0
+
+    # do{
+    #   applyAffinity(pRec++, *(zAffinity++), encoding);
+    #   assert( zAffinity[0]==0 || pRec<=pLast );
+    # }while( zAffinity[0] );
+
+    # Loop through the elements that will make up the record to figure
+    # out how much space is required for the new record.
+    pRec = pLast
+  
+    # do{
+    #     assert( memIsValid(pRec) );
+    #     serial_type = sqlite3VdbeSerialType(pRec, file_format);
+    #     len = sqlite3VdbeSerialTypeLen(serial_type);
+    #     if( pRec->flags & MEM_Zero ){
+    #       if( nData ){
+    #         sqlite3VdbeMemExpandBlob(pRec);
+    #       }else{
+    #         nZero += pRec->u.nZero;
+    #         len -= pRec->u.nZero;
+    #       }
+    #     }
+    #     nData += len;
+    #     testcase( serial_type==127 );
+    #     testcase( serial_type==128 );
+    #     nHdr += serial_type<=127 ? 1 : sqlite3VarintLen(serial_type);
+    # }while( (--pRec)>=pData0 );
+
+    # Add the initial header varint and total the size
+    # testcase( nHdr==126 );
+    # testcase( nHdr==127 );
+
+    if nHdr <= 126:
+        # The common case
+        nHdr += 1
+    else:
+        # Rare case of a really large header
+        # nVarint = sqlite3VarintLen(nHdr);
+        nHdr += nVarint
+        # if( nVarint<sqlite3VarintLen(nHdr) ) nHdr++;
+
+    nByte = nHdr + nData
+
+    db = hlquery.db
+    if nByte > db.aLimit[CConfig.SQLITE_LIMIT_LENGTH]:
+        print 'In python_OP_MakeRecord(): too_big.'
+        # rc = (long)gotoTooBig(p, db, (int)pc);
+        return rc
+
+    # Make sure the output register has a buffer large enough to store 
+    # the new record. The output register (pOp->p3) is not allowed to
+    # be one of the input registers (because the following call to
+    # sqlite3VdbeMemGrow() could clobber the value before it is used).
+
+    # if( sqlite3VdbeMemGrow(pOut, (int)nByte, 0) ){
+    #   // goto no_mem;
+    #   printf("In impl_OP_MakeRecord(): no_mem.\n");
+    #   rc = (long)gotoNoMem(p, db, (int)pc);
+    #   return rc;                        
+    # }
+
+    zNewRecord = pOut.get_z()
+
+    # Write the record
+    # i = putVarint32(zNewRecord, nHdr);
+    i = 0
+    j = nHdr
+    assert pData0 <= pLast
+    pRec = pData0
+  
+    # do{
+    #   serial_type = sqlite3VdbeSerialType(pRec, file_format);
+    #   i += putVarint32(&zNewRecord[i], serial_type);            /* serial type */
+    #   j += sqlite3VdbeSerialPut(&zNewRecord[j], pRec, serial_type); /* content */
+    # }while( (++pRec)<=pLast );
+    assert i == nHdr
+    assert j == nByte
+
+    assert p3 > 0 and p3 <= (rffi.getintfield(p, 'nMem') - rffi.getintfield(p, 'nCursor'))
+    pOut.set_n(nByte)
+    pOut.set_flags(CConfig.MEM_Blob)
+    pOut.set_xDel_null()
+    if nZero:
+        pOut.set_u_nZero(nZero)
+        pOut.set_flags(pOut.get_flags() | CConfig.MEM_Zero)
+    pOut.set_enc(CConfig.SQLITE_UTF8) # In case the blob is ever converted to text
+
+    # Used only for debugging, i.e., not in production.
+    # See vdbe.c lines 451-455.
+    # REGISTER_TRACE(pOp->p3, pOut);    
+
+    # Used only for testing, i.e., not in production.
+    # See vdbe.c lines 100-108.
+    # UPDATE_MAX_BLOBSIZE(pOut);
+
+    return rc
+

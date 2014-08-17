@@ -62,11 +62,12 @@ result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'S
 sqlite_codes = ['SQLITE_NULLEQ', 'SQLITE_JUMPIFNULL', 'SQLITE_STOREP2', 'SQLITE_AFF_MASK', 'SQLITE_FUNC_NEEDCOLL']
 affinity_codes = ['SQLITE_AFF_TEXT', 'SQLITE_AFF_NONE', 'SQLITE_AFF_INTEGER', 'SQLITE_AFF_REAL', 'SQLITE_AFF_NUMERIC']
 btree_values = ['BTCURSOR_MAX_DEPTH', 'BTREE_BULKLOAD']
-other_constants = ['SQLITE_MAX_VARIABLE_NUMBER', 'CACHE_STALE']
+other_constants = ['SQLITE_MAX_VARIABLE_NUMBER', 'CACHE_STALE', 'SQLITE_LIMIT_LENGTH']
 encodings = ['SQLITE_UTF8']
 memValues = ['MEM_Null', 'MEM_Real', 'MEM_Cleared', 'MEM_TypeMask', 'MEM_Zero',
              'MEM_Int', 'MEM_Str', 'MEM_RowSet', 'MEM_Blob', 'MEM_Agg',
-             'MEM_Dyn', 'MEM_Frame', 'MEM_Ephem', 'MEM_Static', 'MEM_AffMask']
+             'MEM_Dyn', 'MEM_Frame', 'MEM_Ephem', 'MEM_Static',
+             'MEM_Undefined', 'MEM_AffMask']
 sqlite_types = [
     'SQLITE_INTEGER',
     'SQLITE_FLOAT',
