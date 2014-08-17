@@ -367,7 +367,7 @@ class Sqlite3Query(object):
         retPc = self.internalPc[0]
         return retPc, rc
 
-    cache_safe(mutates=["p2@p3", "p1@p3"])
+    @cache_safe()
     def python_OP_Move(self, op):
         # capi.impl_OP_Move(self.p, op.pOp)
         translated.python_OP_Move(self, op)
@@ -440,10 +440,12 @@ class Sqlite3Query(object):
         retPc = self.internalPc[0]
         return retPc, rc        
 
+    @cache_safe()
     def python_OP_Gosub(self, pc, op):
         # return capi.impl_OP_Gosub(self.p, pc, op.pOp)
         return translated.python_OP_Gosub(self, pc, op)
 
+    @cache_safe()
     def python_OP_Return(self, pc, op):
         # return capi.impl_OP_Return(self.p, pc, op.pOp)
         return translated.python_OP_Return(self, op)
@@ -803,6 +805,9 @@ class Op(object):
     @jit.elidable
     def get_opcode(self):
         return rffi.cast(lltype.Unsigned, self.pOp.opcode)
+
+    def get_opcode_str(self):
+        return capi.opnames_dict.get(self.get_opcode(), '')
 
     @jit.elidable
     def p_Signed(self, i):

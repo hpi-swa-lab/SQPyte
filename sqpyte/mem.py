@@ -38,6 +38,9 @@ class Mem(object):
     def set_flags(self, newflags):
         self.hlquery.mem_cache.set_flags(self, newflags)
 
+    def assure_flags(self, newflags):
+        self.hlquery.mem_cache.assure_flags(self, newflags)
+
     def get_r(self):
         return self.hlquery.mem_cache.get_r(self)
 
@@ -437,6 +440,11 @@ class Mem(object):
         self.invalidate_cache()
         return capi.sqlite3VdbeMemTooBig(self.pMem)
 
+    def memcpy_full(self, from_):
+        self.invalidate_cache()
+        rffi.c_memcpy(rffi.cast(rffi.VOIDP, self.pMem), rffi.cast(rffi.VOIDP, from_.pMem), rffi.sizeof(capi.MEM))
+        self.assure_flags(from_.get_flags())
+
     # public API functions
 
     def sqlite3_value_type(self):
@@ -553,17 +561,27 @@ class CacheHolder(object):
         return flags
 
     def set_flags(self, mem, newflags):
+        self._set_flags(mem, newflags, needs_write=True)
+
+    def assure_flags(self, mem, newflags):
+        self._set_flags(mem, newflags, needs_write=False)
+
+    def _set_flags(self, mem, newflags, needs_write):
         i = mem._cache_index
         if i == -1:
-            rffi.setintfield(mem.pMem, 'flags', newflags)
+            if needs_write:
+                rffi.setintfield(mem.pMem, 'flags', newflags)
             return
         state = self.cache_state()
         if state.is_flag_known(i) and state.get_flags(i) == newflags:
             return
-        rffi.setintfield(mem.pMem, 'flags', newflags)
+        if needs_write:
+            rffi.setintfield(mem.pMem, 'flags', newflags)
         self.set_cache_state(state.change_flags(i, newflags))
         if not objectmodel.we_are_translated() and mem.pMem:
             assert self.cache_state().get_flags(i) == rffi.cast(lltype.Unsigned, mem.pMem.flags) == newflags
+
+
 
     def get_r(self, mem):
         i = mem._cache_index

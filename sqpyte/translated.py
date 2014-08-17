@@ -1455,7 +1455,7 @@ def python_OP_Move(hlquery, op):
 
         pOut.VdbeMemRelease()
         zMalloc = pOut.get_zMalloc()
-        rffi.c_memcpy(rffi.cast(rffi.VOIDP, pOut.pMem), rffi.cast(rffi.VOIDP, pIn1.pMem), rffi.sizeof(capi.MEM))
+        pOut.memcpy_full(pIn1)
         #ifdef SQLITE_DEBUG
             # if( pOut->pScopyFrom>=&aMem[p1] && pOut->pScopyFrom<&aMem[p1+pOp->p3] ){
             #   pOut->pScopyFrom += p1 - pOp->p2;

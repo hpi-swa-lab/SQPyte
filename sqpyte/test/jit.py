@@ -38,6 +38,7 @@ class TestLLtype(LLJitMixin):
                 rc = query.mainloop()
                 i += textlen
             return i
+            
         res = interp_w()
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True, inline=True)
 
