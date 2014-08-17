@@ -475,15 +475,12 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, op):
                 if rffi.cast(lltype.Unsigned, db.mallocFailed) != 0:
                     # goto no_mem;
                     print 'In python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(): no_mem.'
-                    rc = capi.sqlite3_gotoNoMem(p, db, pc)
+                    rc = hlquery.gotoNoMem(pc)
                     return pc, rc
 
             assert op.p4type() == CConfig.P4_COLLSEQ or not op.p4_pColl()
-            # ExpandBlob() is used if SQLITE_OMIT_INCRBLOB is *not* defined.
-            # SQLITE_OMIT_INCRBLOB doesn't appear to be defined in production.
-            # See vdbeInt.h lines 475-481.
-            #   ExpandBlob(pIn1);
-            #   ExpandBlob(pIn3);
+            pIn1.ExpandBlob()
+            pIn3.ExpandBlob()
 
             res = pIn3.sqlite3MemCompare(pIn1, op.p4_pColl())
             if opcode == CConfig.OP_Eq:
@@ -1430,6 +1427,7 @@ def python_OP_Move(hlquery, op):
 
         n -= 1
 
+
 # Opcode: MakeRecord P1 P2 P3 P4 *
 # Synopsis: r[P3]=mkrec(r[P1@P2])
 #
@@ -1446,9 +1444,27 @@ def python_OP_Move(hlquery, op):
 #
 # If P4 is NULL then all index fields have the affinity NONE.
 
+@jit.unroll_safe
 def python_OP_MakeRecord(hlquery, pc, rc, op):
     p = hlquery.p
-    encoding = hlquery.enc()
+    db = hlquery.db
+    #u8 *zNewRecord;        # A buffer to hold the data for the new record
+    #Mem *pRec;             # The new record
+    #u64 nData;             # Number of bytes of data space
+    #int nHdr;              # Number of bytes of header space
+    #i64 nByte;             # Data space required for this record
+    #int nZero;             # Number of zero bytes at the end of the record
+    #int nVarint;           # Number of bytes in a varint
+    #u32 serial_type;       # Type field
+    #Mem *pData0;           # First field to be combined into the record
+    #Mem *pLast;            # Last field of the record
+    #int nField;            # Number of fields in the record
+    #char *zAffinity;       # The affinity string for the record
+    #int file_format;       # File format to use for encoding
+    #int i;                 # Space used in zNewRecord[] header
+    #int j;                 # Space used in zNewRecord[] content
+    #int len;               # Length of a field
+
 
     # Assuming the record contains N fields, the record format looks
     # like this:
@@ -1465,126 +1481,113 @@ def python_OP_MakeRecord(hlquery, pc, rc, op):
     # hdr-size field is also a varint which is the offset from the beginning
     # of the record to data0.
 
-    nData = 0
-    nHdr = 0
-    nZero = 0
-    p1 = op.p_Unsigned(1)
-    p2 = op.p_Signed(2)
-    p3 = op.p_Signed(3)
-    nField = p1
+    nData = 0         # Number of bytes of data space
+    nHdr = 0          # Number of bytes of header space
+    nZero = 0         # Number of zero bytes at the end of the record
     zAffinity = op.p4_z()
-    assert nField > 0 and p2 > 0 and p2 + nField <= (rffi.getintfield(p, 'nMem') - rffi.getintfield(p, 'nCursor')) + 1
-    pData0 = op.mem_of_p(nField)
-    nField = p2
-    pLast = pData0[nField - 1]
-    file_format = rffi.getintfield(p, 'minWriteFileFormat')
-  
-    # Identify the output register
-    assert p3 < p1 or p3 >= p1 + p2
-    pOut = op.mem_of_p(3)
+    data0 = op.p_Signed(1)
+    nField = op.p_Signed(2)
+    file_format = p.minWriteFileFormat
 
-    # Used only for debugging, i.e., not in production.
-    # See vdbe.c lines 24-37.
-    # memAboutToChange(p, pOut);
+    # Identify the output register
+    pOut = op.mem_of_p(3) # Output operand
 
     # Apply the requested affinity to all inputs
-    assert pData0 <= pLast
+    #
     if zAffinity:
-        pRec = pData0
-
-    # do{
-    #   applyAffinity(pRec++, *(zAffinity++), encoding);
-    #   assert( zAffinity[0]==0 || pRec<=pLast );
-    # }while( zAffinity[0] );
+        encoding = hlquery.enc() # The database encoding
+        j = 0
+        for memindex in range(data0, data0 + nField):
+            pRec = hlquery.mem_with_index(memindex)
+            pRec.applyAffinity(ord(zAffinity[j]), encoding)
 
     # Loop through the elements that will make up the record to figure
     # out how much space is required for the new record.
-    pRec = pLast
-  
-    # do{
-    #     assert( memIsValid(pRec) );
-    #     serial_type = sqlite3VdbeSerialType(pRec, file_format);
-    #     len = sqlite3VdbeSerialTypeLen(serial_type);
-    #     if( pRec->flags & MEM_Zero ){
-    #       if( nData ){
-    #         sqlite3VdbeMemExpandBlob(pRec);
-    #       }else{
-    #         nZero += pRec->u.nZero;
-    #         len -= pRec->u.nZero;
-    #       }
-    #     }
-    #     nData += len;
-    #     testcase( serial_type==127 );
-    #     testcase( serial_type==128 );
-    #     nHdr += serial_type<=127 ? 1 : sqlite3VarintLen(serial_type);
-    # }while( (--pRec)>=pData0 );
+    types_and_lengths = [(0, 0)] * nField
+    index = 0
+    for memindex in range(data0, data0 + nField):
+        pRec = hlquery.mem_with_index(memindex)
+        assert pRec.memIsValid()
+        serial_type, length = pRec.sqlite3VdbeSerialType_and_Len(file_format)
+        types_and_lengths[index] = (serial_type, length)
+        if pRec.get_flags() & CConfig.MEM_Zero:
+            if nData:
+                pRec.ExpandBlob()
+            else:
+                nZero = pRec.get_u_nZero()
+                nZero += nZero
+                length -= nZero
+        nData += length
+        nHdr += 1 if serial_type <= 127 else sqlite3VarintLen(serial_type)
+        index += 1
 
     # Add the initial header varint and total the size
-    # testcase( nHdr==126 );
-    # testcase( nHdr==127 );
-
-    if nHdr <= 126:
+    if nHdr<=126:
         # The common case
         nHdr += 1
     else:
         # Rare case of a really large header
-        # nVarint = sqlite3VarintLen(nHdr);
+        nVarint = sqlite3VarintLen(nHdr)
         nHdr += nVarint
-        # if( nVarint<sqlite3VarintLen(nHdr) ) nHdr++;
-
+        if nVarint < sqlite3VarintLen(nHdr):
+            nHdr += 1
     nByte = nHdr + nData
+    if 0: # XXX XXX XXX nByte > rffi.cast(lltype.Signed, db.aLimit[CConfig.SQLITE_LIMIT_LENGTH]):
+        # goto too_big;
+        print "In impl_OP_MakeRecord(): too_big."
+        return hlquery.gotoTooBig(pc)
 
-    db = hlquery.db
-    if nByte > db.aLimit[CConfig.SQLITE_LIMIT_LENGTH]:
-        print 'In python_OP_MakeRecord(): too_big.'
-        # rc = (long)gotoTooBig(p, db, (int)pc);
-        return rc
-
-    # Make sure the output register has a buffer large enough to store 
-    # the new record. The output register (pOp->p3) is not allowed to
+    # Make sure the output register has a buffer large enough to store
+    # the new record. The output register (pOp.p3) is not allowed to
     # be one of the input registers (because the following call to
     # sqlite3VdbeMemGrow() could clobber the value before it is used).
-
-    # if( sqlite3VdbeMemGrow(pOut, (int)nByte, 0) ){
-    #   // goto no_mem;
-    #   printf("In impl_OP_MakeRecord(): no_mem.\n");
-    #   rc = (long)gotoNoMem(p, db, (int)pc);
-    #   return rc;                        
-    # }
+    if pOut.sqlite3VdbeMemGrow(nByte, 0):
+        # goto no_mem;
+        print "In impl_OP_MakeRecord(): no_mem."
+        return hlquery.gotoNoMem(pc)
 
     zNewRecord = pOut.get_z()
 
     # Write the record
-    # i = putVarint32(zNewRecord, nHdr);
-    i = 0
+    i = putVarint32(zNewRecord, nHdr)
     j = nHdr
-    assert pData0 <= pLast
-    pRec = pData0
-  
-    # do{
-    #   serial_type = sqlite3VdbeSerialType(pRec, file_format);
-    #   i += putVarint32(&zNewRecord[i], serial_type);            /* serial type */
-    #   j += sqlite3VdbeSerialPut(&zNewRecord[j], pRec, serial_type); /* content */
-    # }while( (++pRec)<=pLast );
+    index = 0
+    for memindex in range(data0, data0 + nField):
+        pRec = hlquery.mem_with_index(memindex)
+        serial_type, length = types_and_lengths[index]
+        i += putVarint32(rffi.ptradd(zNewRecord, i), serial_type) # serial type
+        addj = pRec.sqlite3VdbeSerialPut(rffi.cast(capi.U8P, rffi.ptradd(zNewRecord, j)), serial_type) # content
+        assert addj == length
+        j += length
+        index += 1
     assert i == nHdr
     assert j == nByte
 
-    assert p3 > 0 and p3 <= (rffi.getintfield(p, 'nMem') - rffi.getintfield(p, 'nCursor'))
     pOut.set_n(nByte)
     pOut.set_flags(CConfig.MEM_Blob)
     pOut.set_xDel_null()
     if nZero:
         pOut.set_u_nZero(nZero)
         pOut.set_flags(pOut.get_flags() | CConfig.MEM_Zero)
-    pOut.set_enc(CConfig.SQLITE_UTF8) # In case the blob is ever converted to text
-
-    # Used only for debugging, i.e., not in production.
-    # See vdbe.c lines 451-455.
-    # REGISTER_TRACE(pOp->p3, pOut);    
-
-    # Used only for testing, i.e., not in production.
-    # See vdbe.c lines 100-108.
+    pOut.set_enc_utf8() # In case the blob is ever converted to text
+    # REGISTER_TRACE(pOp.p3, pOut);
     # UPDATE_MAX_BLOBSIZE(pOut);
-
+    # break;
     return rc
 
+def sqlite3VarintLen(v):
+    # Return the number of bytes that will be needed to store the given
+    # 64-bit integer.
+    i = 0
+    while True:
+        i += 1
+        v >>= 7
+        if v == 0:
+            break
+    return i
+
+def putVarint32(buf, val):
+    if rarithmetic.r_uint(val) < rarithmetic.r_uint(0x80):
+        buf[0] = chr(val)
+        return 1
+    return capi.sqlite3PutVarint32(rffi.cast(capi.U8P, buf), rffi.cast(CConfig.u32, val))

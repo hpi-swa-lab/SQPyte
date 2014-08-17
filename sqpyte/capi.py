@@ -89,6 +89,8 @@ for name in opnames:
 
 assert CConfig.SQLITE_MAX_VARIABLE_NUMBER < 32767
 
+U8P = lltype.Ptr(lltype.Array(CConfig.u8, hints={'nolength': True}))
+
 SQLITE3 = lltype.ForwardReference()
 SQLITE3P = lltype.Ptr(SQLITE3)
 SQLITE3PP = rffi.CArrayPtr(SQLITE3P)
@@ -514,8 +516,7 @@ VDBE.become(lltype.Struct("Vdbe",               # src/vdbeInt.h: 308
     ("expmask", CConfig.u32),                           # Binding to these vars invalidates VM
     ("pProgram", rffi.VOIDP),                           #   SubProgram *pProgram;   /* Linked list of all sub-programs used by VM */
     ("nOnceFlag", rffi.INT),                            # Size of array aOnceFlag[]
-    ("aOnceFlag", lltype.Ptr(lltype.Array(CConfig.u8,   # Flags for OP_Once
-        hints={'nolength': True}))),
+    ("aOnceFlag", U8P),                                 # Flags for OP_Once
     ("pAuxData", rffi.VOIDP)                            #   AuxData *pAuxData;      /* Linked list of auxdata allocations */
     ))
 
@@ -793,6 +794,7 @@ sqlite3ValueText = llexternal('sqlite3ValueText', [MEMP, CConfig.u8],
     rffi.VOIDP)
 sqlite3VdbeIdxKeyCompare = llexternal('sqlite3VdbeIdxKeyCompare', [VDBECURSORP, UNPACKEDRECORDP, rffi.INTP],
     rffi.INT)
+sqlite3VdbeSerialPut = llexternal('sqlite3VdbeSerialPut', [U8P, MEMP, CConfig.u32], CConfig.u32)
 
 # (char **, sqlite3*, const char*, ...);
 sqlite3SetString1 = llexternal('sqlite3SetString', [rffi.CCHARPP, SQLITE3P, rffi.CCHARP, rffi.VOIDP],
@@ -804,11 +806,15 @@ sqlite3_sqlite3VdbeMemShallowCopy = llexternal('sqlite3VdbeMemShallowCopy', [MEM
     lltype.Void)
 sqlite3_sqlite3VdbeMemStringify = llexternal('sqlite3VdbeMemStringify', [MEMP, rffi.INT],
     rffi.INT)
+sqlite3VdbeMemGrow = llexternal('sqlite3VdbeMemGrow', [MEMP, rffi.INT, rffi.INT], rffi.INT)
 sqlite3_gotoAbortDueToInterrupt = llexternal('gotoAbortDueToInterrupt', [VDBEP, SQLITE3P, rffi.INT, rffi.INT],
     rffi.INT)
 gotoAbortDueToError = llexternal('gotoAbortDueToError', [VDBEP, SQLITE3P, rffi.INT, rffi.INT],
     rffi.INT)
-sqlite3_gotoNoMem = llexternal('gotoNoMem', [VDBEP, SQLITE3P, rffi.INT],
+gotoNoMem = llexternal('gotoNoMem', [VDBEP, SQLITE3P, rffi.INT],
+    rffi.INT)
+gotoTooBig = llexternal('gotoTooBig', [VDBEP, SQLITE3P, rffi.INT],
     rffi.INT)
 
-
+sqlite3PutVarint32 = llexternal('sqlite3PutVarint32', [rffi.UCHARP, CConfig.u32], rffi.INT)
+sqlite3VdbeMemExpandBlob = llexternal('sqlite3VdbeMemExpandBlob', [MEMP], rffi.INT)
