@@ -1426,6 +1426,7 @@ def python_OP_Gosub(hlquery, pc, op):
 # P1..P1+P3-1 and P2..P2+P3-1 to overlap.  It is an error
 # for P3 to be less than 1.
 
+@jit.unroll_safe
 def python_OP_Move(hlquery, op):
     p = hlquery.p
     n = op.p_Signed(3)
@@ -1549,13 +1550,13 @@ def python_OP_MakeRecord(hlquery, pc, rc, op):
 
     # Loop through the elements that will make up the record to figure
     # out how much space is required for the new record.
-    types_and_lengths = [(0, 0)] * nField
+    types_lengths_and_hdrlens = [(0, 0, 0)] * nField
     index = 0
     for memindex in range(data0, data0 + nField):
         pRec = hlquery.mem_with_index(memindex)
         assert pRec.memIsValid()
-        serial_type, length = pRec.sqlite3VdbeSerialType_and_Len(file_format)
-        types_and_lengths[index] = (serial_type, length)
+        serial_type, length, hdrlen = pRec.sqlite3VdbeSerialType_Len_and_HdrLen(file_format)
+        types_lengths_and_hdrlens[index] = (serial_type, length, hdrlen)
         if pRec.get_flags() & CConfig.MEM_Zero:
             if nData:
                 pRec.ExpandBlob()
@@ -1564,11 +1565,11 @@ def python_OP_MakeRecord(hlquery, pc, rc, op):
                 nZero += nZero
                 length -= nZero
         nData += length
-        nHdr += 1 if serial_type <= 127 else sqlite3VarintLen(serial_type)
+        nHdr += hdrlen
         index += 1
 
     # Add the initial header varint and total the size
-    if nHdr<=126:
+    if nHdr <= 126:
         # The common case
         nHdr += 1
     else:
@@ -1600,8 +1601,12 @@ def python_OP_MakeRecord(hlquery, pc, rc, op):
     index = 0
     for memindex in range(data0, data0 + nField):
         pRec = hlquery.mem_with_index(memindex)
-        serial_type, length = types_and_lengths[index]
-        i += putVarint32(rffi.ptradd(zNewRecord, i), serial_type) # serial type
+        serial_type, length, hdrlen = types_lengths_and_hdrlens[index]
+        if hdrlen == 1:
+            zNewRecord[i] = chr(serial_type)
+            i += 1
+        else:
+            i += putVarint32(zNewRecord, serial_type, i) # serial type
         addj = pRec.sqlite3VdbeSerialPut(rffi.cast(capi.U8P, rffi.ptradd(zNewRecord, j)), serial_type) # content
         assert addj == length
         j += length
@@ -1632,8 +1637,8 @@ def sqlite3VarintLen(v):
             break
     return i
 
-def putVarint32(buf, val):
+def putVarint32(buf, val, index=0):
     if rarithmetic.r_uint(val) < rarithmetic.r_uint(0x80):
-        buf[0] = chr(val)
+        buf[index] = chr(val)
         return 1
-    return capi.sqlite3PutVarint32(rffi.cast(capi.U8P, buf), rffi.cast(CConfig.u32, val))
+    return capi.sqlite3PutVarint32(rffi.cast(capi.U8P, rffi.ptradd(buf, index)), rffi.cast(CConfig.u32, val))

@@ -415,7 +415,7 @@ class Sqlite3Query(object):
     def python_OP_OpenAutoindex_OpenEphemeral(self, pc, op):
         return capi.impl_OP_OpenAutoindex_OpenEphemeral(self.p, self.db, pc, op.pOp)
 
-    @cache_safe(mutates=["p3", "p1@p2"])
+    @cache_safe()
     def python_OP_MakeRecord(self, pc, rc, op):
         # return capi.impl_OP_MakeRecord(self.p, self.db, pc, rc, op.pOp)
         return translated.python_OP_MakeRecord(self, pc, rc, op)

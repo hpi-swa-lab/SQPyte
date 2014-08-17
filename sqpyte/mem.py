@@ -450,51 +450,31 @@ class Mem(object):
         return capi.sqlite3_sqlite3MemCompare(self.pMem, other.pMem, coll)
 
     def sqlite3VdbeSerialType(self, file_format):
-        return self.sqlite3VdbeSerialType_and_Len(file_format)[0]
-
-    def sqlite3VdbeSerialType_and_Len(self, file_format):
         """ Return the serial-type for the value stored in pMem and the length
         of the data """
+        return self.sqlite3VdbeSerialType_Len_and_HdrLen(file_format)[0]
+
+    def sqlite3VdbeSerialType_Len_and_HdrLen(self, file_format):
+        from sqpyte.translated import sqlite3VarintLen
         # length info from: sqlite3VdbeSerialTypeLen
 
         flags = self.get_flags()
-
         if flags & CConfig.MEM_Null:
-            return _type_and_size(0)
+            return _type_size_and_hdrsize(0)
         if flags & CConfig.MEM_Int:
             # Figure out whether to use 1, 2, 4, 6 or 8 bytes.
-            MAX_6BYTE = (0x00008000 << 32) - 1
-            i = self.get_u_i()
-            if i < 0:
-                # test prevents:  u = -(-9223372036854775808)
-                if i < -MAX_6BYTE:
-                    return _type_and_size(6)
-                u = rarithmetic.r_uint(-i)
-            else:
-                u = rarithmetic.r_uint(i)
-            if u <= 127:
-                if i == 0:
-                    return _type_and_size(8)
-                elif i == 1:
-                    return _type_and_size(9)
-                return _type_and_size(1)
-            if u <= 32767:
-                return _type_and_size(2)
-            if u <= 8388607:
-                return _type_and_size(3)
-            if u<=2147483647:
-                return _type_and_size(4)
-            if u <= MAX_6BYTE:
-                return _type_and_size(5)
-            return _type_and_size(6)
+            serial_type = _get_serial_type_of_int_hidden(self.get_u_i())
+            return _type_size_and_hdrsize(serial_type)
         if flags & CConfig.MEM_Real:
-          return _type_and_size(7)
+          return _type_size_and_hdrsize(7)
         #assert( pMem.db.mallocFailed || flags&(MEM_Str|MEM_Blob) );
         n = self.get_n()
         if flags & CConfig.MEM_Zero:
             n += self.get_u_nZero()
         assert n >= 0
-        return (n * 2) + 12 + int((flags & CConfig.MEM_Str) != 0), n
+        serial_type = (n * 2) + (12 + int((flags & CConfig.MEM_Str) != 0))
+        return serial_type, n, (
+                1 if serial_type <= 127 else sqlite3VarintLen(serial_type))
 
     def sqlite3VdbeSerialPut(self, buf, serial_type):
         return capi.sqlite3VdbeSerialPut(buf, self.pMem, rffi.cast(CConfig.u32, serial_type))
@@ -511,9 +491,12 @@ class Mem(object):
 
     def memcpy_full(self, from_):
         self.invalidate_cache()
-        rffi.c_memcpy(rffi.cast(rffi.VOIDP, self.pMem), rffi.cast(rffi.VOIDP, from_.pMem), rffi.sizeof(capi.MEM))
+        self._memcpy_full_hidden(from_)
         self.assure_flags(from_.get_flags())
 
+    @jit.dont_look_inside
+    def _memcpy_full_hidden(self, from_):
+        rffi.c_memcpy(rffi.cast(rffi.VOIDP, self.pMem), rffi.cast(rffi.VOIDP, from_.pMem), rffi.sizeof(capi.MEM))
     # public API functions
 
     def sqlite3_value_type(self):
@@ -537,8 +520,35 @@ class Mem(object):
     sqlite3_result_int64 = sqlite3VdbeMemSetInt64
     sqlite3_result_double = sqlite3VdbeMemSetDouble
 
-def _type_and_size(serial_type):
-    return serial_type, SIZE_INFO_OF_SERIAL_TYPES[serial_type]
+@jit.look_inside_iff(lambda i: jit.isconstant(i))
+def _get_serial_type_of_int_hidden(i):
+    MAX_6BYTE = (0x00008000 << 32) - 1
+    if i < 0:
+        # test prevents:  u = -(-9223372036854775808)
+        if i < -MAX_6BYTE:
+            return 6
+        u = rarithmetic.r_uint(-i)
+    else:
+        u = rarithmetic.r_uint(i)
+    if u <= 127:
+        # XXX file format
+        if i == 0:
+            return 8
+        elif i == 1:
+            return 9
+        return 1
+    if u <= 32767:
+        return 2
+    if u <= 8388607:
+        return 3
+    if u<=2147483647:
+        return 4
+    if u <= MAX_6BYTE:
+        return 5
+    return 6
+
+def _type_size_and_hdrsize(serial_type):
+    return serial_type, SIZE_INFO_OF_SERIAL_TYPES[serial_type], 1
 SIZE_INFO_OF_SERIAL_TYPES = [0, 1, 2, 3, 4, 6, 8, 8, 0, 0, 0, 0]
 
 _type_encoding_list = [
