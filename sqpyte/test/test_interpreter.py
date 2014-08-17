@@ -162,6 +162,15 @@ def test_string_comparison():
     count = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
     assert int(count) == 1    
 
+def test_makerecord():
+    db = Sqlite3DB(testdb).db
+    query = Sqlite3Query(db, "select age, name from contacts order by age;")
+    rc = query.mainloop()
+    assert rc == CConfig.SQLITE_ROW
+    textlen = query.python_sqlite3_column_bytes(1)
+    name = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(1)), textlen)
+    assert name == "Jermaine Mayo"
+
 def test_translated_allocateCursor():
     db = Sqlite3DB(testdb).db
     p = Sqlite3Query(db, 'select name from contacts;').p

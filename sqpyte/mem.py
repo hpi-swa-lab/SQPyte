@@ -59,11 +59,10 @@ class Mem(object):
 
 
     def get_u_nZero(self):
-        return self.pMem.u.nZero
+        return rffi.cast(lltype.Signed, self.pMem.u.nZero)
 
     def set_u_nZero(self, val):
-        self.pMem.u.nZero = val
-
+        rffi.setintfield(self.pMem.u, 'nZero', val)
 
     def get_n(self):
         return rffi.cast(lltype.Signed, self.pMem.n)
@@ -76,6 +75,9 @@ class Mem(object):
 
     def set_enc(self, val):
         self.pMem.enc = val
+
+    def set_enc_utf8(self):
+        self.set_enc(rffi.cast(CConfig.u8, CConfig.SQLITE_UTF8))
 
     def get_z(self):
         return self.pMem.z
@@ -240,12 +242,19 @@ class Mem(object):
             return CConfig.MEM_Real
         return 0
 
+    def sqlite3VdbeMemGrow(self, n, bPreserve):
+        self.invalidate_cache()
+        return rffi.cast(
+            lltype.Signed,
+            capi.sqlite3VdbeMemGrow(
+                self.pMem, rffi.cast(rffi.INT, n), rffi.cast(rffi.INT, bPreserve)))
+
     def sqlite3VdbeMemRelease(self):
         self.VdbeMemRelease()
         if self.get_zMalloc():
             capi.sqlite3DbFree(self.hlquery.db, rffi.cast(rffi.VOIDP, self.get_zMalloc()))
             self.set_zMalloc(lltype.nullptr(rffi.CCHARP.TO))
-        self.set_z(lltype.nullptr(rffi.CCHARP.TO))
+        self.set_z_null()
 
     def sqlite3VdbeMemSetInt64(self, val):
         self.sqlite3VdbeMemRelease()
@@ -365,6 +374,17 @@ class Mem(object):
         else:
             return 0.0
 
+    def memIsValid(self):
+        return not (self.get_flags() & CConfig.MEM_Undefined)
+
+    def ExpandBlob(self):
+        if self.get_flags() & CConfig.MEM_Zero:
+            return self.sqlite3VdbeMemExpandBlob()
+        return 0
+
+    def sqlite3VdbeMemExpandBlob(self):
+        return rffi.cast(lltype.Signed, capi.sqlite3VdbeMemExpandBlob(self.pMem))
+
     # _______________________________________________________________
     # methods induced by sqlite3 functions below
 
@@ -429,6 +449,55 @@ class Mem(object):
         other.invalidate_cache()
         return capi.sqlite3_sqlite3MemCompare(self.pMem, other.pMem, coll)
 
+    def sqlite3VdbeSerialType(self, file_format):
+        return self.sqlite3VdbeSerialType_and_Len(file_format)[0]
+
+    def sqlite3VdbeSerialType_and_Len(self, file_format):
+        """ Return the serial-type for the value stored in pMem and the length
+        of the data """
+        # length info from: sqlite3VdbeSerialTypeLen
+
+        flags = self.get_flags()
+
+        if flags & CConfig.MEM_Null:
+            return _type_and_size(0)
+        if flags & CConfig.MEM_Int:
+            # Figure out whether to use 1, 2, 4, 6 or 8 bytes.
+            MAX_6BYTE = (0x00008000 << 32) - 1
+            i = self.get_u_i()
+            if i < 0:
+                # test prevents:  u = -(-9223372036854775808)
+                if i < -MAX_6BYTE:
+                    return _type_and_size(6)
+                u = rarithmetic.r_uint(-i)
+            else:
+                u = rarithmetic.r_uint(i)
+            if u <= 127:
+                if i == 0:
+                    return _type_and_size(8)
+                elif i == 1:
+                    return _type_and_size(9)
+                return _type_and_size(1)
+            if u <= 32767:
+                return _type_and_size(2)
+            if u <= 8388607:
+                return _type_and_size(3)
+            if u<=2147483647:
+                return _type_and_size(4)
+            if u <= MAX_6BYTE:
+                return _type_and_size(5)
+            return _type_and_size(6)
+        if flags & CConfig.MEM_Real:
+          return _type_and_size(7)
+        #assert( pMem.db.mallocFailed || flags&(MEM_Str|MEM_Blob) );
+        n = self.get_n()
+        if flags & CConfig.MEM_Zero:
+            n += self.get_u_nZero()
+        assert n >= 0
+        return (n * 2) + 12 + int((flags & CConfig.MEM_Str) != 0), n
+
+    def sqlite3VdbeSerialPut(self, buf, serial_type):
+        return capi.sqlite3VdbeSerialPut(buf, self.pMem, rffi.cast(CConfig.u32, serial_type))
 
     def sqlite3VdbeChangeEncoding(self, encoding):
         #if not (self.get_flags() & CConfig.MEM_Str) or self.get_enc() == encoding:
@@ -467,6 +536,10 @@ class Mem(object):
     sqlite3_value_double = sqlite3VdbeRealValue
     sqlite3_result_int64 = sqlite3VdbeMemSetInt64
     sqlite3_result_double = sqlite3VdbeMemSetDouble
+
+def _type_and_size(serial_type):
+    return serial_type, SIZE_INFO_OF_SERIAL_TYPES[serial_type]
+SIZE_INFO_OF_SERIAL_TYPES = [0, 1, 2, 3, 4, 6, 8, 8, 0, 0, 0, 0]
 
 _type_encoding_list = [
      CConfig.SQLITE_BLOB,     # 0x00

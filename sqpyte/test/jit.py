@@ -42,6 +42,24 @@ class TestLLtype(LLJitMixin):
         res = interp_w()
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True, inline=True)
 
+    def test_groupby(self):
+
+        def interp_w():
+            db = Sqlite3DB(testdb).db
+            query = Sqlite3Query(db, "select age, name from contacts order by age;")
+
+            rc = query.mainloop()
+            i = 0
+            while rc == CConfig.SQLITE_ROW:
+                jitdriver.jit_merge_point(i=i, query=query, rc=rc)
+                textlen = query.python_sqlite3_column_bytes(0)
+                rc = query.mainloop()
+                i += textlen
+            return i
+            
+        res = interp_w()
+        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True, inline=True)
+
     def test_count(self):
 
         def interp_w():
@@ -58,7 +76,6 @@ class TestLLtype(LLJitMixin):
             return i
         res = interp_w()
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True, inline=True)
-
 
 
     def test_tpch(self):

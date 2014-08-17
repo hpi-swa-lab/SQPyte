@@ -417,8 +417,8 @@ class Sqlite3Query(object):
 
     @cache_safe(mutates=["p3", "p1@p2"])
     def python_OP_MakeRecord(self, pc, rc, op):
-        return capi.impl_OP_MakeRecord(self.p, self.db, pc, rc, op.pOp)
-        # translated.python_OP_MakeRecord(self, pc, rc, op)
+        # return capi.impl_OP_MakeRecord(self.p, self.db, pc, rc, op.pOp)
+        return translated.python_OP_MakeRecord(self, pc, rc, op)
 
     @cache_safe(opcodes=[CConfig.OP_SorterInsert, CConfig.OP_IdxInsert],
                 mutates=["p2"])
@@ -581,6 +581,12 @@ class Sqlite3Query(object):
 
     def mem_with_index(self, i):
         return self._mem_as_python_list[i]
+
+    def gotoNoMem(self, pc):
+        return rffi.cast(lltype.Signed, capi.gotoNoMem(self.p, self.db, rffi.cast(rffi.INT, pc)))
+
+    def gotoTooBig(self, pc):
+        return rffi.cast(lltype.Signed, capi.gotoTooBig(self.p, self.db, rffi.cast(rffi.INT, pc)))
 
     def mainloop(self):
         rc = CConfig.SQLITE_OK
@@ -839,7 +845,9 @@ class Op(object):
 
     @jit.elidable
     def p4_z(self):
-        return rffi.charp2str(self.pOp.p4.z)
+        if self.pOp.p4.z:
+            return rffi.charp2str(self.pOp.p4.z)
+        return None
 
     @jit.elidable
     def p4_pFunc(self):
