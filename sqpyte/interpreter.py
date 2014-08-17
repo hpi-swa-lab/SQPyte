@@ -213,8 +213,8 @@ class Sqlite3Query(object):
         return retPc, rc
 
     def python_OP_Move(self, op):
-        capi.impl_OP_Move(self.p, op.pOp)
-        # translated.python_OP_Move(self, op)
+        # capi.impl_OP_Move(self.p, op.pOp)
+        translated.python_OP_Move(self, op)
 
     def python_OP_IfZero(self, pc, op):
         return capi.impl_OP_IfZero(self.p, pc, op.pOp)
