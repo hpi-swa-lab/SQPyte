@@ -240,8 +240,8 @@ class Sqlite3Query(object):
         return translated.python_OP_Once(self, pc, op)
 
     def python_OP_SCopy(self, op):
-        # capi.impl_OP_SCopy(self.p, op.pOp)
-        translated.python_OP_SCopy(self, op)
+        capi.impl_OP_SCopy(self.p, op.pOp)
+        # translated.python_OP_SCopy(self, op)
 
     def python_OP_Affinity(self, op):
         # capi.impl_OP_Affinity(self.p, self.db, op.pOp)
