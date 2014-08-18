@@ -1658,7 +1658,7 @@ def python_OP_Function(hlquery, pc, rc, op):
     assert op.p4type() == CConfig.P4_FUNCDEF
 
     with lltype.scoped_alloc(capi.CONTEXT) as ctx:
-        ctx.pFunc = op.p4_pFunc()
+        ctx.pFunc = pFunc = op.p4_pFunc()
         ctx.iOp = rffi.cast(rffi.INT, pc)
         ctx.pVdbe = p
 
@@ -1672,13 +1672,18 @@ def python_OP_Function(hlquery, pc, rc, op):
         # ctx.s.MemSetTypeFlag(CConfig.MEM_Null) # XXX
 
         ctx.fErrorOrAux = rffi.cast(rffi.UCHAR, 0)
-        # if ctx.pFunc.funcFlags & CConfig.SQLITE_FUNC_NEEDCOLL:
-        #     assert op.get_aOp()
+        if rffi.getintfield(ctx.pFunc, 'funcFlags') & CConfig.SQLITE_FUNC_NEEDCOLL:
+            pass
+            # assert( pOp>aOp );
             # assert( pOp[-1].p4type==P4_COLLSEQ );
             # assert( pOp[-1].opcode==OP_CollSeq );
             # ctx.pColl = pOp[-1].p4.pColl;
         # db->lastRowid = lastRowid;
+        
         # (*ctx.pFunc->xFunc)(&ctx, n, apVal); /* IMP: R-24505-23230 */
+        xFunc = rffi.cast(capi.FUNCTYPESTEPP, pFunc.xFunc)
+        xFunc(ctx, rffi.cast(rffi.INT, n), apVal)  # /* IMP: R-24505-23230 */
+
         # lastRowid = db->lastRowid;
 
         if rffi.cast(lltype.Bool, db.mallocFailed):
