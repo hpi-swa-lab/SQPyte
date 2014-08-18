@@ -708,10 +708,11 @@ class CacheHolder(object):
     def set_u_i(self, mem, u_i, constant=False):
         i = mem._cache_index
         mem.pMem.u.i = u_i
-        if 1:#i == -1:
+        if i == -1:
             return
         state = self.cache_state()
         if not constant:
+            return
             self.integers[i] = u_i
             status = (state.cache_states[i] & ~STATE_CONSTANT) | STATE_INT_KNOWN
             self.set_cache_state(state.change_cache_state(i, status))

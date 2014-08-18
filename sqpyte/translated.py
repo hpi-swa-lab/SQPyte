@@ -1407,7 +1407,7 @@ def python_OP_Gosub(hlquery, pc, op):
     # memAboutToChange(p, pIn1);
     
     pIn1.set_flags(CConfig.MEM_Int)
-    pIn1.set_u_i(pc)
+    pIn1.set_u_i(pc, constant=True)
 
     # Used only for debugging, i.e., not in production.
     # See vdbe.c lines 451-455.
