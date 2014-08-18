@@ -772,6 +772,8 @@ sqlite3_column_bytes = llexternal('sqlite3_column_bytes', [VDBEP, rffi.INT],
 
 sqlite3_sqlite3BtreeNext = llexternal('sqlite3BtreeNext', [BTCURSORP, rffi.INTP],
     rffi.INT)
+sqlite3_sqlite3BtreePrevious = llexternal('sqlite3BtreePrevious', [BTCURSORP, rffi.INTP],
+    rffi.INT)
 sqlite3BtreeMovetoUnpacked = llexternal('sqlite3BtreeMovetoUnpacked', [BTCURSORP, rffi.VOIDP, CConfig.i64, rffi.INT, rffi.INTP],
     rffi.INT)
 

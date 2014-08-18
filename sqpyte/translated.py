@@ -199,6 +199,13 @@ def sqlite3BtreeNext(hlquery, pCur, pRes):
     retRes = internalRes[0]
     return rc, retRes
 
+def sqlite3BtreePrevious(hlquery, pCur, pRes):
+    internalRes = hlquery.intp
+    internalRes[0] = rffi.cast(rffi.INT, pRes)
+    rc = capi.sqlite3_sqlite3BtreePrevious(pCur, internalRes)
+    retRes = internalRes[0]
+    return rc, retRes
+
 @jit.dont_look_inside
 def _increase_counter_hidden_from_jit(p, p5):
     # the JIT can't deal with FixedSizeArrays
@@ -1897,7 +1904,7 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
         assert oc == CConfig.OP_SeekLT or oc == CConfig.OP_SeekLE
         if res > 0 or (res == 0 and oc == CConfig.OP_SeekLT):
             res = 0
-            # rc = (long)sqlite3BtreePrevious(pC->pCursor, &res); XXX
+            rc, resRet = sqlite3BtreePrevious(hlquery, pC.pCursor, res)
             if rc != CConfig.SQLITE_OK:
                 # goto abort_due_to_error;
                 print "In python_OP_SeekLT_SeekLE_SeekGE_SeekGT():4: abort_due_to_error."
