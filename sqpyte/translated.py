@@ -1942,3 +1942,21 @@ def get_isTable(vdbecursor):
 
 def get_isOrdered(vdbecursor):
     return vdbecursor.scary_bitfield & 8
+
+
+# Opcode:  Yield P1 P2 * * *
+#
+# Swap the program counter with the value in register P1.
+#
+# If the co-routine ends with OP_Yield or OP_Return then continue
+# to the next instruction.  But if the co-routine ends with
+# OP_EndCoroutine, jump immediately to P2.
+
+def python_OP_Yield(hlquery, pc, op):
+    pIn1 = op.mem_of_p(1)
+    assert pIn1.VdbeMemDynamic() == 0
+    pIn1.set_flags(CConfig.MEM_Int)
+    pcDest = pIn1.get_u_i()
+    pIn1.set_u_i(pc) # XXX constant
+    return pcDest
+

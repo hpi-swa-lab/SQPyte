@@ -337,7 +337,8 @@ class Sqlite3Query(object):
         return capi.impl_OP_InitCoroutine(self.p, pc, op.pOp)
 
     def python_OP_Yield(self, pc, op):
-        return capi.impl_OP_Yield(self.p, pc, op.pOp)
+        # return capi.impl_OP_Yield(self.p, pc, op.pOp)
+        return translated.python_OP_Yield(self, pc, op)
 
     def python_OP_NullRow(self, op):
         capi.impl_OP_NullRow(self.p, op.pOp)
