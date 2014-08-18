@@ -501,6 +501,7 @@ class Sqlite3Query(object):
         # return capi.impl_OP_Jump(op.pOp)
         return translated.python_OP_Jump(self, op)
 
+    @cache_safe()
     def python_OP_IfPos(self, pc, op):
         return translated.python_OP_IfPos(self, pc, op)
 
@@ -515,9 +516,11 @@ class Sqlite3Query(object):
     def python_OP_InitCoroutine(self, pc, op):
         return capi.impl_OP_InitCoroutine(self.p, pc, op.pOp)
 
+    @cache_safe(mutates="p1")
     def python_OP_Yield(self, pc, op):
         return capi.impl_OP_Yield(self.p, pc, op.pOp)
 
+    @cache_safe()
     def python_OP_NullRow(self, op):
         capi.impl_OP_NullRow(self.p, op.pOp)
 
