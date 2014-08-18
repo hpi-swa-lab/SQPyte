@@ -177,6 +177,7 @@ class Sqlite3Query(object):
 
     def python_OP_Function(self, pc, rc, op):
         return capi.impl_OP_Function(self.p, self.db, pc, rc, op.pOp)
+        # return translated.python_OP_Function(self, pc, rc, op)
 
     def python_OP_Real(self, op):
         # aMem = self.p.aMem

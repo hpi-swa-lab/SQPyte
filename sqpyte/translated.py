@@ -1078,7 +1078,7 @@ def python_OP_AggStep(hlquery, rc, pc, op):
         xStep(ctx, rffi.cast(rffi.INT, n), apVal)  # /* IMP: R-24505-23230 */
         if rffi.getintfield(ctx, 'isError'):
             assert 0
-            # XXX fix error handling
+            # XXX fix error handling: sqlite3SetString(&p->zErrMsg, db, "%s", sqlite3_value_text(&ctx.s));
             rc = rffi.cast(lltype.Signed, ctx.isError)
         if rffi.getintfield(ctx, 'skipFlag'):
             prevop = hlquery._hlops[pc - 1]
@@ -1539,7 +1539,7 @@ def python_OP_MakeRecord(hlquery, pc, rc, op):
     nByte = nHdr + nData
     if _check_too_big_hidden_from_jit(nByte, db):
         # goto too_big;
-        print "In impl_OP_MakeRecord(): too_big."
+        print "In python_OP_MakeRecord(): too_big."
         return hlquery.gotoTooBig(pc)
 
     # Make sure the output register has a buffer large enough to store
@@ -1548,7 +1548,7 @@ def python_OP_MakeRecord(hlquery, pc, rc, op):
     # sqlite3VdbeMemGrow() could clobber the value before it is used).
     if pOut.sqlite3VdbeMemGrow(nByte, 0):
         # goto no_mem;
-        print "In impl_OP_MakeRecord(): no_mem."
+        print "In python_OP_MakeRecord(): no_mem."
         return hlquery.gotoNoMem(pc)
 
     zNewRecord = pOut.get_z()
@@ -1575,9 +1575,15 @@ def python_OP_MakeRecord(hlquery, pc, rc, op):
         pOut.set_u_nZero(nZero)
         pOut.set_flags(pOut.get_flags() | CConfig.MEM_Zero)
     pOut.set_enc_utf8() # In case the blob is ever converted to text
+
+    # Used only for debugging, i.e., not in production.
+    # See vdbe.c lines 451-455.
     # REGISTER_TRACE(pOp.p3, pOut);
+
+    # Used only for testing, i.e., not in production.
+    # See vdbe.c lines 100-108.
     # UPDATE_MAX_BLOBSIZE(pOut);
-    # break;
+
     return rc
 
 def sqlite3VarintLen(v):
@@ -1596,3 +1602,121 @@ def putVarint32(buf, val):
         buf[0] = chr(val)
         return 1
     return capi.sqlite3PutVarint32(rffi.cast(capi.U8P, buf), rffi.cast(CConfig.u32, val))
+
+# Opcode: Function P1 P2 P3 P4 P5
+# Synopsis: r[P3]=func(r[P2@P5])
+#
+# Invoke a user function (P4 is a pointer to a Function structure that
+# defines the function) with P5 arguments taken from register P2 and
+# successors.  The result of the function is stored in register P3.
+# Register P3 must not be one of the function inputs.
+#
+# P1 is a 32-bit bitmask indicating whether or not each argument to the 
+# function was determined to be constant at compile time. If the first
+# argument was constant then bit 0 of P1 is set. This is used to determine
+# whether meta data associated with a user function argument using the
+# sqlite3_set_auxdata() API may be safely retained until the next
+# invocation of this opcode.
+#
+# See also: AggStep and AggFinal
+def python_OP_Function(hlquery, pc, rc, op):
+    p = hlquery.p
+    db = hlquery.db
+    encoding = hlquery.enc() # The database encoding
+    n = op.p_Signed(5)
+    p2 = op.p_Signed(2)
+    p3 = op.p_Signed(3)
+    apVal = p.apArg
+    assert apVal or n == 0
+    assert p3 > 0 and p3 <= (rffi.getintfield(p, 'nMem') - rffi.getintfield(p, 'nCursor'))
+    pOut = op.mem_of_p(3) # Output operand
+
+    # Used only for debugging, i.e., not in production.
+    # See vdbe.c lines 24-37.
+    # memAboutToChange(p, pOut);
+
+    assert n == 0 or (p2 > 0 and p2 + n <= (rffi.getintfield(p, 'nMem') - rffi.getintfield(p, 'nCursor')) + 1)
+    assert p3 < p2 or p3 >= p2 + n
+
+    pArg = op.mem_of_p(2)
+    for i in range(n):
+        assert pArg.memIsValid()
+        apVal[i] = hlquery.mem_with_index(p2 + i).pMem
+
+        # // Translated Deephemeralize(pArg);
+        # if( ((pArg)->flags&MEM_Ephem)!=0 && sqlite3VdbeMemMakeWriteable(pArg) ) {
+        #   // goto no_mem;
+        #   printf("In impl_OP_Function():1: no_mem.\n");
+        #   rc = (long)gotoNoMem(p, db, (int)pc);
+        #   return rc;            
+        # }
+
+        # Used only for debugging, i.e., not in production.
+        # See vdbe.c lines 451-455.
+        # REGISTER_TRACE(pOp->p2+i, pArg);
+
+    assert op.p4type() == CConfig.P4_FUNCDEF
+
+    with lltype.scoped_alloc(capi.CONTEXT) as ctx:
+        ctx.pFunc = op.p4_pFunc()
+        ctx.iOp = rffi.cast(rffi.INT, pc)
+        ctx.pVdbe = p
+
+        # The output cell may already have a buffer allocated. Move
+        # the pointer to ctx.s so in case the user-function can use
+        # the already allocated buffer instead of allocating a new one.
+        rffi.c_memcpy(rffi.cast(rffi.VOIDP, ctx.s), rffi.cast(rffi.VOIDP, pOut), rffi.sizeof(capi.MEM))
+        pOut.set_flags(CConfig.MEM_Null)
+        pOut.set_xDel_null()
+        pOut.set_zMalloc_null()
+        # ctx.s.MemSetTypeFlag(CConfig.MEM_Null) # XXX
+
+        ctx.fErrorOrAux = rffi.cast(rffi.UCHAR, 0)
+        # if ctx.pFunc.funcFlags & CConfig.SQLITE_FUNC_NEEDCOLL:
+        #     assert op.get_aOp()
+            # assert( pOp[-1].p4type==P4_COLLSEQ );
+            # assert( pOp[-1].opcode==OP_CollSeq );
+            # ctx.pColl = pOp[-1].p4.pColl;
+        # db->lastRowid = lastRowid;
+        # (*ctx.pFunc->xFunc)(&ctx, n, apVal); /* IMP: R-24505-23230 */
+        # lastRowid = db->lastRowid;
+
+        if rffi.cast(lltype.Bool, db.mallocFailed):
+            # Even though a malloc() has failed, the implementation of the
+            # user function may have called an sqlite3_result_XXX() function
+            # to return a value. The following call releases any resources
+            # associated with such a value.
+            # ctx.s.sqlite3VdbeMemRelease() # XXX
+            # goto no_mem;
+            print "In python_OP_Function(): no_mem."
+            return hlquery.gotoNoMem(pc)
+
+        # If the function returned an error, throw an exception
+        if rffi.cast(lltype.Bool, ctx.fErrorOrAux):
+            if rffi.cast(lltype.Bool, ctx.isError):
+                assert 0
+                # XXX fix error handling: sqlite3SetString(&p->zErrMsg, db, "%s", sqlite3_value_text(&ctx.s));
+                rc = rffi.cast(lltype.Signed, ctx.isError)
+            # sqlite3VdbeDeleteAuxData(p, (int)pc, pOp->p1);
+
+        # Copy the result of the function into register P3
+        # sqlite3VdbeChangeEncoding(&ctx.s, encoding);
+        assert pOut.get_flags() == CConfig.MEM_Null
+        rffi.c_memcpy(rffi.cast(rffi.VOIDP, pOut), rffi.cast(rffi.VOIDP, ctx.s), rffi.sizeof(capi.MEM))
+        # if( sqlite3VdbeMemTooBig(pOut) ){
+        #     // goto too_big;
+        #     printf("In impl_OP_Function():2: too_big.\n");
+        #     rc = (long)gotoTooBig(p, db, (int)pc);
+        #     return rc;    
+        # }
+
+        # Used only for debugging, i.e., not in production.
+        # See vdbe.c lines 451-455.
+        # REGISTER_TRACE(pOp->p3, pOut);
+
+        # Used only for testing, i.e., not in production.
+        # See vdbe.c lines 100-108.
+        # UPDATE_MAX_BLOBSIZE(pOut);
+
+        return rc
+
