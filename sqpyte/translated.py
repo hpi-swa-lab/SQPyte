@@ -1427,6 +1427,11 @@ def python_OP_Move(hlquery, op):
 
         n -= 1
 
+@jit.dont_look_inside
+def _check_too_big_hidden_from_jit(nByte, db):
+    # the JIT can't deal with FixedSizeArrays
+    return nByte > rffi.cast(lltype.Signed, db.aLimit[CConfig.SQLITE_LIMIT_LENGTH])
+
 
 # Opcode: MakeRecord P1 P2 P3 P4 *
 # Synopsis: r[P3]=mkrec(r[P1@P2])
@@ -1532,7 +1537,7 @@ def python_OP_MakeRecord(hlquery, pc, rc, op):
         if nVarint < sqlite3VarintLen(nHdr):
             nHdr += 1
     nByte = nHdr + nData
-    if 0: # XXX XXX XXX nByte > rffi.cast(lltype.Signed, db.aLimit[CConfig.SQLITE_LIMIT_LENGTH]):
+    if _check_too_big_hidden_from_jit(nByte, db):
         # goto too_big;
         print "In impl_OP_MakeRecord(): too_big."
         return hlquery.gotoTooBig(pc)
