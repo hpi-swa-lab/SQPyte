@@ -900,15 +900,6 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
     return
 
 
-
-# Return the numeric type for pMem, either MEM_Int or MEM_Real or both or
-# none.  
-#
-# Unlike applyNumericAffinity(), this routine does not modify pMem->flags.
-# But it does set pMem->r and pMem->u.i appropriately.
-
-
-
 # Opcode: Integer P1 P2 * * *
 # Synopsis: r[P2]=P1
 #
