@@ -776,7 +776,7 @@ sqlite3BtreeMovetoUnpacked = llexternal('sqlite3BtreeMovetoUnpacked', [BTCURSORP
     rffi.INT)
 
 sqlite3_applyNumericAffinity = llexternal('applyNumericAffinity', [MEMP],
-    lltype.Void, )
+    lltype.Void, macro=True)
 
 sqlite3AtoF = llexternal('sqlite3AtoF', [rffi.CCHARP, rffi.DOUBLEP, rffi.INT, CConfig.u8],
     rffi.INT)
