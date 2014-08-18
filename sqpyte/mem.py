@@ -178,7 +178,7 @@ class Mem(object):
         looks like a number, convert it into a number.  If it does not
         look like a number, leave it alone.
         """
-        _applyNumericAffinity_flags_read(self, self.get_flags())
+        self._applyNumericAffinity_flags_read(self.get_flags())
 
     def _applyNumericAffinity_flags_read(self, flags):
         if flags & (CConfig.MEM_Real|CConfig.MEM_Int):
@@ -239,20 +239,6 @@ class Mem(object):
     def sqlite3VdbeMemSetNull(self):
         capi.sqlite3VdbeMemSetNull(self.pMem)
 
-    # Make an shallow copy of pFrom into pTo.  Prior contents of
-    # pTo are freed.  The pFrom->z field is not duplicated.  If
-    # pFrom->z is used, then pTo->z points to the same thing as pFrom->z
-    # and flags gets srcType (either MEM_Ephem or MEM_Static).
-    # def sqlite3VdbeMemShallowCopy(self, pTo, pFrom, srcType):
-    #     assert (pFrom.flags & CConfig.MEM_RowSet) == 0
-    #     pTo.VdbeMemRelease()
-    #     pTo = copy.deepcopy(pFrom)
-    #     # memcpy(pTo, pFrom, MEMCELLSIZE);
-    #     pTo.xDel = 0
-    #     if (pFrom.flags & CConfig.MEM_Static) == 0:
-    #         pTo.flags &= ~(CConfig.MEM_Dyn | CConfig.MEM_Static | CConfig.MEM_Ephem)
-    #         assert srcType == CConfig.MEM_Ephem or srcType == CConfig.MEM_Static
-    #         pTo.flags |= srcType
 
     def MemSetTypeFlag(self, flags):
         self.set_flags((self.get_flags() & ~(CConfig.MEM_TypeMask | CConfig.MEM_Zero)) | flags)
