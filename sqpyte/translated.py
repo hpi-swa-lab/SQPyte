@@ -1876,7 +1876,7 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
 
         r.aMem = op.mem_of_p(3).pMem
         op.mem_of_p(3).ExpandBlob()
-        rc = capi.sqlite3BtreeMovetoUnpacked(pC.pCursor, r, 0, 0, hlquery.intp)
+        rc = capi.sqlite3BtreeMovetoUnpacked(pC.pCursor, rffi.cast(rffi.VOIDP, r), 0, 0, hlquery.intp)
         res = rffi.cast(lltype.Signed, hlquery.intp[0])
         if rc != CConfig.SQLITE_OK:
             # goto abort_due_to_error;
@@ -1914,8 +1914,7 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
         else:
             # res might be negative because the table is empty.  Check to
             # see if this is the case.
-            pass
-            # res = sqlite3BtreeEof(pC->pCursor); XXX
+            res = CConfig.CURSOR_VALID != rffi.getintfield(pC.pCursor, "eState")
 
     assert op.p_Signed(2) > 0
 
