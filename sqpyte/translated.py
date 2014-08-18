@@ -1794,7 +1794,7 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
         # blob, or NULL.  But it needs to be an integer before we can do
         # the seek, so covert it.
         pIn3, flags3 = op.mem_and_flags_of_p(3, promote=True)
-        # applyNumericAffinity(pIn3); XXX
+        pIn3.applyNumericAffinity()
         iKey = pIn3.sqlite3VdbeIntValue()
         pC.rowidIsValid = rffi.cast(rffi.UCHAR, 0)
 
@@ -1868,7 +1868,7 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
         assert oc != CConfig.OP_SeekLT or rffi.getintfield(r, "default_rc") == +1
 
         r.aMem = op.mem_of_p(3).pMem
-        # ExpandBlob(r.aMem); XXX
+        op.mem_of_p(3).ExpandBlob()
         rc = capi.sqlite3BtreeMovetoUnpacked(pC.pCursor, r, 0, 0, hlquery.intp)
         res = rffi.cast(lltype.Signed, hlquery.intp[0])
         if rc != CConfig.SQLITE_OK:
