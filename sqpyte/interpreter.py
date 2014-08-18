@@ -208,10 +208,11 @@ class Sqlite3Query(object):
         return translated.python_OP_IsNull(self, pc, op)
 
     def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(self, pc, rc, op):
-        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        rc = capi.impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(self.p, self.db, self.internalPc, rc, op.pOp)
-        retPc = self.internalPc[0]
-        return retPc, rc
+        # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
+        # rc = capi.impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(self.p, self.db, self.internalPc, rc, op.pOp)
+        # retPc = self.internalPc[0]
+        # return retPc, rc
+        return translated.python_OP_SeekLT_SeekLE_SeekGE_SeekGT(self, pc, rc, op)
 
     def python_OP_Move(self, op):
         # capi.impl_OP_Move(self.p, op.pOp)

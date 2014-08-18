@@ -533,7 +533,7 @@ VDBECURSOR.become(lltype.Struct("VdbeCursor",   # src/vdbeInt.h: 63
     ("nullRow", CConfig.u8),                    # True if pointing to a row with no data
     ("rowidIsValid", CConfig.u8),               # True if lastRowid is valid
     ("deferredMoveto", CConfig.u8),             # A call to sqlite3BtreeMoveto() is needed
-    ("scary_bitfield", lltype.Signed),          #
+    ("scary_bitfield", lltype.Unsigned),          #
     #("isEphemeral", lltype.Bool),               #   Bool isEphemeral:1;   /* True for an ephemeral table */
     #("useRandomRowid", lltype.Bool),            #   Bool useRandomRowid:1;/* Generate new record numbers semi-randomly */
     #("isTable", lltype.Bool),                   #   Bool isTable:1;       /* True if a table requiring integer keys */
