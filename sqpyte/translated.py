@@ -1786,7 +1786,7 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
 
     assert op.p_Signed(1) >= 0 and op.p_Signed(1) < rffi.getintfield(p, "nCursor")
     assert op.p_Signed(2) != 0
-    pC = p.apCsr[op.p_Signed(1)]
+    pC = p.apCsr[op.p_Unsigned(1)]
     assert pC
     assert rffi.getintfield(pC, "pseudoTableReg") == 0
     assert CConfig.OP_SeekLE == CConfig.OP_SeekLT + 1
@@ -1856,7 +1856,7 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
             pC.lastRowid = iKey
     else:
         r = hlquery.unpackedrecordp
-        nField = rffi.cast(lltype.Unsigned, op.p4_i())
+        nField = rffi.cast(lltype.Signed, op.p4_i())
         assert op.p4type() == CConfig.P4_INT32
         assert nField > 0
         r.pKeyInfo = pC.pKeyInfo
@@ -1868,11 +1868,11 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
         #   }else{
         #     r.default_rc = +1;
         #   }
-        r.default_rc = rffi.cast(CConfig.i8, -1 if (1 & (oc - CConfig.OP_SeekLT)) else +1)
+        r.default_rc = rffi.cast(CConfig.i8, -1 if (1 & (oc - CConfig.OP_SeekLT)) else 1)
         assert oc != CConfig.OP_SeekGT or rffi.getintfield(r, "default_rc") == -1
         assert oc != CConfig.OP_SeekLE or rffi.getintfield(r, "default_rc") == -1
-        assert oc != CConfig.OP_SeekGE or rffi.getintfield(r, "default_rc") == +1
-        assert oc != CConfig.OP_SeekLT or rffi.getintfield(r, "default_rc") == +1
+        assert oc != CConfig.OP_SeekGE or rffi.getintfield(r, "default_rc") == 1
+        assert oc != CConfig.OP_SeekLT or rffi.getintfield(r, "default_rc") == 1
 
         r.aMem = op.mem_of_p(3).pMem
         op.mem_of_p(3).ExpandBlob()
@@ -1892,6 +1892,7 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
         if res < 0 or (res == 0 and oc == CConfig.OP_SeekGT):
             res = 0
             rc, resRet = sqlite3BtreeNext(hlquery, pC.pCursor, res)
+            res = rffi.cast(lltype.Signed, resRet)
             if rc != CConfig.SQLITE_OK:
                 # goto abort_due_to_error;
                 print "In python_OP_SeekLT_SeekLE_SeekGE_SeekGT():3: abort_due_to_error."
@@ -1905,6 +1906,7 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
         if res > 0 or (res == 0 and oc == CConfig.OP_SeekLT):
             res = 0
             rc, resRet = sqlite3BtreePrevious(hlquery, pC.pCursor, res)
+            res = rffi.cast(lltype.Signed, resRet)
             if rc != CConfig.SQLITE_OK:
                 # goto abort_due_to_error;
                 print "In python_OP_SeekLT_SeekLE_SeekGE_SeekGT():4: abort_due_to_error."
