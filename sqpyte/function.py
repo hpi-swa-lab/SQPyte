@@ -47,6 +47,13 @@ class Func(object):
         memout._python_ctx = None
         return 0
 
+
+def aggregate_context(mem, cls):
+    if mem._python_ctx is None:
+        mem._python_ctx = cls()
+    return mem._python_ctx
+
+
 class Context(object):
     def __init__(self):
         pass
@@ -136,10 +143,3 @@ class AvgCtx(AbstractSumCtx):
 
 class DummyCtx(Context):
     pass
-
-
-def aggregate_context(mem, cls):
-    if mem._python_ctx is None:
-        mem._python_ctx = cls()
-    return mem._python_ctx
-
