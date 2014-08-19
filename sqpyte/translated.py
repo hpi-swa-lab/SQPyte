@@ -2011,3 +2011,31 @@ def python_OP_Yield(hlquery, pc, op):
     pIn1.set_u_i(pc) # XXX constant
     return pcDest
 
+
+# Opcode: Null P1 P2 P3 * *
+# Synopsis:  r[P2..P3]=NULL
+#
+# Write a NULL into registers P2.  If P3 greater than P2, then also write
+# NULL into register P3 and every register in between P2 and P3.  If P3
+# is less than P2 (typically P3 is zero) then only register P2 is
+# set to NULL.
+#
+# If the P1 value is non-zero, then also set the MEM_Cleared flag so that
+# NULL values will not compare equal even if SQLITE_NULLEQ is set on
+# OP_Ne or OP_Eq.
+
+@jit.unroll_safe
+def python_OP_Null(hlquery, op):
+    # out2-prerelease
+    pOut = op.mem_of_p(2)
+    if op.p_Signed(1):
+        nullFlag = CConfig.MEM_Null | CConfig.MEM_Cleared
+    else:
+        nullFlag = CConfig.MEM_Null
+    pOut.set_flags(nullFlag)
+    index = op.p_Signed(2) + 1
+    while index <= op.p_Signed(3):
+        pOut = hlquery.mem_with_index(index)
+        pOut.VdbeMemRelease()
+        pOut.set_flags(nullFlag)
+        index += 1
