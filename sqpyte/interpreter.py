@@ -295,8 +295,10 @@ class Sqlite3Query(object):
         #return capi.impl_OP_AggFinal(self.p, self.db, pc, rc, op.pOp)
         return translated.python_OP_AggFinal(self, rc, pc, op)
 
+    @cache_safe()
     def python_OP_Copy(self, pc, rc, op):
-        return capi.impl_OP_Copy(self.p, self.db, pc, rc, op.pOp)
+        return translated.python_OP_Copy(self, pc, rc, op)
+        # return capi.impl_OP_Copy(self.p, self.db, pc, rc, op.pOp)
 
     @cache_safe()
     def python_OP_MustBeInt(self, pc, rc, op):
@@ -401,14 +403,15 @@ class Sqlite3Query(object):
         #capi.impl_OP_Seek(self.p, op.pOp)
         translated.python_OP_Seek(self, op)
 
+    @cache_safe()
     def python_OP_Once(self, pc, op):
         # return capi.impl_OP_Once(self.p, pc, op.pOp)
         return translated.python_OP_Once(self, pc, op)
 
-    @cache_safe(mutates=["p1", "p2"])
+    @cache_safe()
     def python_OP_SCopy(self, op):
-        capi.impl_OP_SCopy(self.p, op.pOp)
-        # translated.python_OP_SCopy(self, op)
+        # capi.impl_OP_SCopy(self.p, op.pOp)
+        translated.python_OP_SCopy(self, op)
 
     @cache_safe()
     def python_OP_Affinity(self, op):

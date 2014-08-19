@@ -1339,6 +1339,29 @@ def python_OP_SCopy(hlquery, op):
       # if( pOut->pScopyFrom==0 ) pOut->pScopyFrom = pIn1;
     #endif
 
+
+# Opcode: Copy P1 P2 P3 * *
+# Synopsis: r[P2@P3+1]=r[P1@P3+1]
+#
+# Make a copy of registers P1..P1+P3 into registers P2..P2+P3.
+#
+# This instruction makes a deep copy of the value.  A duplicate
+# is made of any string or blob constant.  See also OP_SCopy.
+
+@jit.unroll_safe
+def python_OP_Copy(hlquery, pc, rc, op):
+    n = op.p_Signed(3)
+    for i in range(n + 1):
+        pIn1 = hlquery.mem_with_index(op.p_Signed(1) + i)
+        pOut = hlquery.mem_with_index(op.p_Signed(2) + i)
+        pOut.sqlite3VdbeMemShallowCopy(pIn1, CConfig.MEM_Ephem)
+        if pOut.get_flags() & CConfig.MEM_Ephem and pOut.sqlite3VdbeMemMakeWriteable():
+            # goto no_mem
+            print "In python_OP_Copy(): no_mem."
+            return hlquery.gotoNoMem(pc)
+    return rc
+
+
 # Opcode: Sequence P1 P2 * * *
 # Synopsis: r[P2]=cursor[P1].ctr++
 #
@@ -1435,8 +1458,6 @@ def python_OP_Move(hlquery, op):
 
     pIn1 = op.mem_of_p(1)
     pOut = op.mem_of_p(2)
-
-    from sqpyte.mem import Mem
 
     # Runs at least once. See assert above.
     while n > 0:

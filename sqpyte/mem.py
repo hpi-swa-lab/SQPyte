@@ -375,23 +375,28 @@ class Mem(object):
     # methods induced by sqlite3 functions below
 
 
-    def sqlite3VdbeMemShallowCopy(self, other, srcType):
+    def sqlite3VdbeMemShallowCopy(self, from_, srcType):
         """
         Make an shallow copy of pFrom into pTo.  Prior contents of
         pTo are freed.  The pFrom->z field is not duplicated.  If
         pFrom->z is used, then pTo->z points to the same thing as pFrom->z
         and flags gets srcType (either MEM_Ephem or MEM_Static).
         """
-        MEMCELLSIZE = rffi.offsetof(capi.MEM, 'zMalloc')
-        assert not other.get_flags() & CConfig.MEM_RowSet
+        assert not from_.get_flags() & CConfig.MEM_RowSet
         self.VdbeMemRelease()
-        rffi.c_memcpy(rffi.cast(rffi.VOIDP, self.pMem), rffi.cast(rffi.VOIDP, other.pMem), MEMCELLSIZE)
+        self._memcpy_partial_hidden(from_)
+        self.assure_flags(from_.get_flags())
         self.set_xDel_null()
-        if not other.get_flags() & CConfig.MEM_Static:
+        if not from_.get_flags() & CConfig.MEM_Static:
             flags = self.get_flags()
             flags &= ~(CConfig.MEM_Dyn | CConfig.MEM_Static | CConfig.MEM_Ephem)
             assert srcType == CConfig.MEM_Ephem or srcType == CConfig.MEM_Static
             self.set_flags(flags | srcType)
+
+    @jit.dont_look_inside
+    def _memcpy_partial_hidden(self, other):
+        MEMCELLSIZE = rffi.offsetof(capi.MEM, 'zMalloc')
+        rffi.c_memcpy(rffi.cast(rffi.VOIDP, self.pMem), rffi.cast(rffi.VOIDP, other.pMem), MEMCELLSIZE)
 
     def sqlite3MemCompare(self, other, coll):
         flags1 = self.get_flags()
@@ -483,6 +488,30 @@ class Mem(object):
     @jit.dont_look_inside
     def _memcpy_full_hidden(self, from_):
         rffi.c_memcpy(rffi.cast(rffi.VOIDP, self.pMem), rffi.cast(rffi.VOIDP, from_.pMem), rffi.sizeof(capi.MEM))
+
+    def sqlite3VdbeMemMakeWriteable(self):
+        """
+        Make the given Mem object MEM_Dyn.  In other words, make it so
+        that any TEXT or BLOB content is stored in memory obtained from
+        malloc().  In this way, we know that the memory is safe to be
+        overwritten or altered.
+
+        Return SQLITE_OK on success or SQLITE_NOMEM if malloc fails.
+        """
+        assert not self.get_flags() & CConfig.MEM_RowSet
+        self.ExpandBlob()
+        f = self.get_flags()
+        z = self.get_z()
+        if f & (CConfig.MEM_Str | CConfig.MEM_Blob) and z != self.get_zMalloc():
+            if self.sqlite3VdbeMemGrow(self.get_n() + 2, 1):
+                return CConfig.SQLITE_NOMEM
+            n = self.get_n()
+            z[n] = chr(0)
+            z[n + 1] = chr(0)
+            self.set_flags(f | CConfig.MEM_Term)
+        return CConfig.SQLITE_OK
+
+
     # public API functions
 
     def sqlite3_value_type(self):
