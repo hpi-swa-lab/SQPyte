@@ -56,13 +56,13 @@ opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite', 'OP_Rewind',
            'OP_ReadCookie', 'OP_NewRowid', 'OP_Insert', 'OP_InsertInt',
            'OP_SetCookie', 'OP_ParseSchema', 'OP_RowSetAdd', 'OP_RowSetRead',
            'OP_Delete', 'OP_DropTable']
-p4names = ['P4_INT32', 'P4_KEYINFO', 'P4_COLLSEQ']
+p4names = ['P4_INT32', 'P4_KEYINFO', 'P4_COLLSEQ', 'P4_FUNCDEF']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR', 'OPFLAG_CLEARCACHE', 'OPFLAG_LENGTHARG', 'OPFLAG_TYPEOFARG', 'OPFLG_OUT2_PRERELEASE', 'OPFLAG_PERMUTE']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW', 'SQLITE_BUSY', 'SQLITE_CORRUPT_BKPT']
 sqlite_codes = ['SQLITE_NULLEQ', 'SQLITE_JUMPIFNULL', 'SQLITE_STOREP2', 'SQLITE_AFF_MASK', 'SQLITE_FUNC_NEEDCOLL']
 affinity_codes = ['SQLITE_AFF_TEXT', 'SQLITE_AFF_NONE', 'SQLITE_AFF_INTEGER', 'SQLITE_AFF_REAL', 'SQLITE_AFF_NUMERIC']
 btree_values = ['BTCURSOR_MAX_DEPTH', 'BTREE_BULKLOAD']
-other_constants = ['SQLITE_MAX_VARIABLE_NUMBER', 'CACHE_STALE', 'SQLITE_LIMIT_LENGTH']
+other_constants = ['SQLITE_MAX_VARIABLE_NUMBER', 'CACHE_STALE', 'SQLITE_LIMIT_LENGTH', 'CURSOR_VALID']
 encodings = ['SQLITE_UTF8']
 memValues = ['MEM_Null', 'MEM_Real', 'MEM_Cleared', 'MEM_TypeMask', 'MEM_Zero',
              'MEM_Int', 'MEM_Str', 'MEM_RowSet', 'MEM_Blob', 'MEM_Agg',
@@ -540,7 +540,7 @@ VDBECURSOR.become(lltype.Struct("VdbeCursor",   # src/vdbeInt.h: 63
     ("nullRow", CConfig.u8),                    # True if pointing to a row with no data
     ("rowidIsValid", CConfig.u8),               # True if lastRowid is valid
     ("deferredMoveto", CConfig.u8),             # A call to sqlite3BtreeMoveto() is needed
-    ("scary_bitfield", lltype.Signed),          #
+    ("scary_bitfield", lltype.Unsigned),          #
     #("isEphemeral", lltype.Bool),               #   Bool isEphemeral:1;   /* True for an ephemeral table */
     #("useRandomRowid", lltype.Bool),            #   Bool useRandomRowid:1;/* Generate new record numbers semi-randomly */
     #("isTable", lltype.Bool),                   #   Bool isTable:1;       /* True if a table requiring integer keys */
@@ -778,6 +778,8 @@ sqlite3_column_bytes = llexternal('sqlite3_column_bytes', [VDBEP, rffi.INT],
     rffi.INT)
 
 sqlite3_sqlite3BtreeNext = llexternal('sqlite3BtreeNext', [BTCURSORP, rffi.INTP],
+    rffi.INT)
+sqlite3_sqlite3BtreePrevious = llexternal('sqlite3BtreePrevious', [BTCURSORP, rffi.INTP],
     rffi.INT)
 sqlite3BtreeMovetoUnpacked = llexternal('sqlite3BtreeMovetoUnpacked', [BTCURSORP, rffi.VOIDP, CConfig.i64, rffi.INT, rffi.INTP],
     rffi.INT)

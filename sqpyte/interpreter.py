@@ -318,6 +318,7 @@ class Sqlite3Query(object):
     @cache_safe(mutates=["p3", "p2@p5"])
     def python_OP_Function(self, pc, rc, op):
         return capi.impl_OP_Function(self.p, self.db, pc, rc, op.pOp)
+        # return translated.python_OP_Function(self, pc, rc, op)
 
     def python_OP_Real(self, op):
         # aMem = self.p.aMem
@@ -362,10 +363,11 @@ class Sqlite3Query(object):
                  CConfig.OP_SeekGT],
         mutates="p3@p4")
     def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(self, pc, rc, op):
-        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        rc = capi.impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(self.p, self.db, self.internalPc, rc, op.pOp)
-        retPc = self.internalPc[0]
-        return retPc, rc
+        # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
+        # rc = capi.impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(self.p, self.db, self.internalPc, rc, op.pOp)
+        # retPc = self.internalPc[0]
+        # return retPc, rc
+        return translated.python_OP_SeekLT_SeekLE_SeekGE_SeekGT(self, pc, rc, op)
 
     @cache_safe()
     def python_OP_Move(self, op):
@@ -518,7 +520,8 @@ class Sqlite3Query(object):
 
     @cache_safe(mutates="p1")
     def python_OP_Yield(self, pc, op):
-        return capi.impl_OP_Yield(self.p, pc, op.pOp)
+        # return capi.impl_OP_Yield(self.p, pc, op.pOp)
+        return translated.python_OP_Yield(self, pc, op)
 
     @cache_safe()
     def python_OP_NullRow(self, op):

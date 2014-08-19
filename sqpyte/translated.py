@@ -199,6 +199,13 @@ def sqlite3BtreeNext(hlquery, pCur, pRes):
     retRes = internalRes[0]
     return rc, retRes
 
+def sqlite3BtreePrevious(hlquery, pCur, pRes):
+    internalRes = hlquery.intp
+    internalRes[0] = rffi.cast(rffi.INT, pRes)
+    rc = capi.sqlite3_sqlite3BtreePrevious(pCur, internalRes)
+    retRes = internalRes[0]
+    return rc, retRes
+
 @jit.dont_look_inside
 def _increase_counter_hidden_from_jit(p, p5):
     # the JIT can't deal with FixedSizeArrays
@@ -903,15 +910,6 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
     return
 
 
-
-# Return the numeric type for pMem, either MEM_Int or MEM_Real or both or
-# none.  
-#
-# Unlike applyNumericAffinity(), this routine does not modify pMem->flags.
-# But it does set pMem->r and pMem->u.i appropriately.
-
-
-
 # Opcode: Integer P1 P2 * * *
 # Synopsis: r[P2]=P1
 #
@@ -996,7 +994,7 @@ def python_OP_IdxRowid(hlquery, pc, rc, op):
     assert pCrsr
     rc = rffi.cast(lltype.Signed, capi.sqlite3VdbeCursorMoveto(pC))
     if rc:
-        print "In impl_OP_IdxRowid():1: abort_due_to_error."
+        print "In python_OP_IdxRowid():1: abort_due_to_error."
         rc = capi.gotoAbortDueToError(p, db, pc, rc)
         return rc
     #assert pC.deferredMoveto == 0
@@ -1005,7 +1003,7 @@ def python_OP_IdxRowid(hlquery, pc, rc, op):
         rc = capi.sqlite3VdbeIdxRowid(db, pCrsr, hlquery.longp)
         jit.promote(rc)
         if rc != CConfig.SQLITE_OK:
-            print "In impl_OP_IdxRowid():2: abort_due_to_error."
+            print "In python_OP_IdxRowid():2: abort_due_to_error."
             rc = capi.gotoAbortDueToError(p, db, pc, rc)
             return rc
         pOut.set_u_i(hlquery.longp[0])
@@ -1087,7 +1085,7 @@ def python_OP_AggStep(hlquery, rc, pc, op):
         xStep(ctx, rffi.cast(rffi.INT, n), apVal)  # /* IMP: R-24505-23230 */
         if rffi.getintfield(ctx, 'isError'):
             assert 0
-            # XXX fix error handling
+            # XXX fix error handling: sqlite3SetString(&p->zErrMsg, db, "%s", sqlite3_value_text(&ctx.s));
             rc = rffi.cast(lltype.Signed, ctx.isError)
         if rffi.getintfield(ctx, 'skipFlag'):
             prevop = hlquery._hlops[pc - 1]
@@ -1474,6 +1472,11 @@ def python_OP_Move(hlquery, op):
 
         n -= 1
 
+@jit.dont_look_inside
+def _check_too_big_hidden_from_jit(nByte, db):
+    # the JIT can't deal with FixedSizeArrays
+    return nByte > rffi.cast(lltype.Signed, db.aLimit[CConfig.SQLITE_LIMIT_LENGTH])
+
 
 # Opcode: MakeRecord P1 P2 P3 P4 *
 # Synopsis: r[P3]=mkrec(r[P1@P2])
@@ -1579,9 +1582,9 @@ def python_OP_MakeRecord(hlquery, pc, rc, op):
         if nVarint < sqlite3VarintLen(nHdr):
             nHdr += 1
     nByte = nHdr + nData
-    if 0: # XXX XXX XXX nByte > rffi.cast(lltype.Signed, db.aLimit[CConfig.SQLITE_LIMIT_LENGTH]):
+    if _check_too_big_hidden_from_jit(nByte, db):
         # goto too_big;
-        print "In impl_OP_MakeRecord(): too_big."
+        print "In python_OP_MakeRecord(): too_big."
         return hlquery.gotoTooBig(pc)
 
     # Make sure the output register has a buffer large enough to store
@@ -1590,7 +1593,7 @@ def python_OP_MakeRecord(hlquery, pc, rc, op):
     # sqlite3VdbeMemGrow() could clobber the value before it is used).
     if pOut.sqlite3VdbeMemGrow(nByte, 0):
         # goto no_mem;
-        print "In impl_OP_MakeRecord(): no_mem."
+        print "In python_OP_MakeRecord(): no_mem."
         return hlquery.gotoNoMem(pc)
 
     zNewRecord = pOut.get_z()
@@ -1621,9 +1624,15 @@ def python_OP_MakeRecord(hlquery, pc, rc, op):
         pOut.set_u_nZero(nZero)
         pOut.set_flags(pOut.get_flags() | CConfig.MEM_Zero)
     pOut.set_enc_utf8() # In case the blob is ever converted to text
+
+    # Used only for debugging, i.e., not in production.
+    # See vdbe.c lines 451-455.
     # REGISTER_TRACE(pOp.p3, pOut);
+
+    # Used only for testing, i.e., not in production.
+    # See vdbe.c lines 100-108.
     # UPDATE_MAX_BLOBSIZE(pOut);
-    # break;
+
     return rc
 
 def sqlite3VarintLen(v):
@@ -1642,3 +1651,363 @@ def putVarint32(buf, val, index=0):
         buf[index] = chr(val)
         return 1
     return capi.sqlite3PutVarint32(rffi.cast(capi.U8P, rffi.ptradd(buf, index)), rffi.cast(CConfig.u32, val))
+
+# Opcode: Function P1 P2 P3 P4 P5
+# Synopsis: r[P3]=func(r[P2@P5])
+#
+# Invoke a user function (P4 is a pointer to a Function structure that
+# defines the function) with P5 arguments taken from register P2 and
+# successors.  The result of the function is stored in register P3.
+# Register P3 must not be one of the function inputs.
+#
+# P1 is a 32-bit bitmask indicating whether or not each argument to the 
+# function was determined to be constant at compile time. If the first
+# argument was constant then bit 0 of P1 is set. This is used to determine
+# whether meta data associated with a user function argument using the
+# sqlite3_set_auxdata() API may be safely retained until the next
+# invocation of this opcode.
+#
+# See also: AggStep and AggFinal
+def python_OP_Function(hlquery, pc, rc, op):
+    p = hlquery.p
+    db = hlquery.db
+    encoding = hlquery.enc() # The database encoding
+    n = op.p_Signed(5)
+    p2 = op.p_Signed(2)
+    p3 = op.p_Signed(3)
+    apVal = p.apArg
+    assert apVal or n == 0
+    assert p3 > 0 and p3 <= (rffi.getintfield(p, 'nMem') - rffi.getintfield(p, 'nCursor'))
+    pOut = op.mem_of_p(3) # Output operand
+
+    # Used only for debugging, i.e., not in production.
+    # See vdbe.c lines 24-37.
+    # memAboutToChange(p, pOut);
+
+    assert n == 0 or (p2 > 0 and p2 + n <= (rffi.getintfield(p, 'nMem') - rffi.getintfield(p, 'nCursor')) + 1)
+    assert p3 < p2 or p3 >= p2 + n
+
+    pArg = op.mem_of_p(2)
+    for i in range(n):
+        assert pArg.memIsValid()
+        apVal[i] = hlquery.mem_with_index(p2 + i).pMem
+
+        # // Translated Deephemeralize(pArg);
+        # if( ((pArg)->flags&MEM_Ephem)!=0 && sqlite3VdbeMemMakeWriteable(pArg) ) {
+        #   // goto no_mem;
+        #   printf("In impl_OP_Function():1: no_mem.\n");
+        #   rc = (long)gotoNoMem(p, db, (int)pc);
+        #   return rc;            
+        # }
+
+        # Used only for debugging, i.e., not in production.
+        # See vdbe.c lines 451-455.
+        # REGISTER_TRACE(pOp->p2+i, pArg);
+
+    assert op.p4type() == CConfig.P4_FUNCDEF
+
+    with lltype.scoped_alloc(capi.CONTEXT) as ctx:
+        ctx.pFunc = pFunc = op.p4_pFunc()
+        ctx.iOp = rffi.cast(rffi.INT, pc)
+        ctx.pVdbe = p
+
+        # The output cell may already have a buffer allocated. Move
+        # the pointer to ctx.s so in case the user-function can use
+        # the already allocated buffer instead of allocating a new one.
+        rffi.c_memcpy(rffi.cast(rffi.VOIDP, ctx.s), rffi.cast(rffi.VOIDP, pOut), rffi.sizeof(capi.MEM))
+        pOut.set_flags(CConfig.MEM_Null)
+        pOut.set_xDel_null()
+        pOut.set_zMalloc_null()
+        # ctx.s.MemSetTypeFlag(CConfig.MEM_Null) # XXX
+
+        ctx.fErrorOrAux = rffi.cast(rffi.UCHAR, 0)
+        if rffi.getintfield(ctx.pFunc, 'funcFlags') & CConfig.SQLITE_FUNC_NEEDCOLL:
+            pass
+            # assert( pOp>aOp );
+            # assert( pOp[-1].p4type==P4_COLLSEQ );
+            # assert( pOp[-1].opcode==OP_CollSeq );
+            # ctx.pColl = pOp[-1].p4.pColl;
+        # db->lastRowid = lastRowid;
+
+        # (*ctx.pFunc->xFunc)(&ctx, n, apVal); /* IMP: R-24505-23230 */
+        xFunc = rffi.cast(capi.FUNCTYPESTEPP, pFunc.xFunc)
+        xFunc(ctx, rffi.cast(rffi.INT, n), apVal)  # /* IMP: R-24505-23230 */
+
+        # lastRowid = db->lastRowid;
+
+        if rffi.cast(lltype.Bool, db.mallocFailed):
+            # Even though a malloc() has failed, the implementation of the
+            # user function may have called an sqlite3_result_XXX() function
+            # to return a value. The following call releases any resources
+            # associated with such a value.
+            # ctx.s.sqlite3VdbeMemRelease() # XXX
+            # goto no_mem;
+            print "In python_OP_Function(): no_mem."
+            return hlquery.gotoNoMem(pc)
+
+        # If the function returned an error, throw an exception
+        if rffi.cast(lltype.Bool, ctx.fErrorOrAux):
+            if rffi.cast(lltype.Bool, ctx.isError):
+                assert 0
+                # XXX fix error handling: sqlite3SetString(&p->zErrMsg, db, "%s", sqlite3_value_text(&ctx.s));
+                rc = rffi.cast(lltype.Signed, ctx.isError)
+            # sqlite3VdbeDeleteAuxData(p, (int)pc, pOp->p1);
+
+        # Copy the result of the function into register P3
+        # sqlite3VdbeChangeEncoding(&ctx.s, encoding);
+        assert pOut.get_flags() == CConfig.MEM_Null
+        rffi.c_memcpy(rffi.cast(rffi.VOIDP, pOut), rffi.cast(rffi.VOIDP, ctx.s), rffi.sizeof(capi.MEM))
+        # if( sqlite3VdbeMemTooBig(pOut) ){
+        #     // goto too_big;
+        #     printf("In impl_OP_Function():2: too_big.\n");
+        #     rc = (long)gotoTooBig(p, db, (int)pc);
+        #     return rc;    
+        # }
+
+        # Used only for debugging, i.e., not in production.
+        # See vdbe.c lines 451-455.
+        # REGISTER_TRACE(pOp->p3, pOut);
+
+        # Used only for testing, i.e., not in production.
+        # See vdbe.c lines 100-108.
+        # UPDATE_MAX_BLOBSIZE(pOut);
+
+        return rc
+
+
+# Opcode: SeekGe P1 P2 P3 P4 *
+# Synopsis: key=r[P3@P4]
+#
+# If cursor P1 refers to an SQL table (B-Tree that uses integer keys), 
+# use the value in register P3 as the key.  If cursor P1 refers 
+# to an SQL index, then P3 is the first in an array of P4 registers 
+# that are used as an unpacked index key. 
+#
+# Reposition cursor P1 so that  it points to the smallest entry that 
+# is greater than or equal to the key value. If there are no records 
+# greater than or equal to the key and P2 is not zero, then jump to P2.
+#
+# See also: Found, NotFound, Distinct, SeekLt, SeekGt, SeekLe
+#
+# Opcode: SeekGt P1 P2 P3 P4 *
+# Synopsis: key=r[P3@P4]
+#
+# If cursor P1 refers to an SQL table (B-Tree that uses integer keys), 
+# use the value in register P3 as a key. If cursor P1 refers 
+# to an SQL index, then P3 is the first in an array of P4 registers 
+# that are used as an unpacked index key. 
+#
+# Reposition cursor P1 so that  it points to the smallest entry that 
+# is greater than the key value. If there are no records greater than 
+# the key and P2 is not zero, then jump to P2.
+#
+# See also: Found, NotFound, Distinct, SeekLt, SeekGe, SeekLe
+#
+# Opcode: SeekLt P1 P2 P3 P4 * 
+# Synopsis: key=r[P3@P4]
+#
+# If cursor P1 refers to an SQL table (B-Tree that uses integer keys), 
+# use the value in register P3 as a key. If cursor P1 refers 
+# to an SQL index, then P3 is the first in an array of P4 registers 
+# that are used as an unpacked index key. 
+#
+# Reposition cursor P1 so that  it points to the largest entry that 
+# is less than the key value. If there are no records less than 
+# the key and P2 is not zero, then jump to P2.
+#
+# See also: Found, NotFound, Distinct, SeekGt, SeekGe, SeekLe
+#
+# Opcode: SeekLe P1 P2 P3 P4 *
+# Synopsis: key=r[P3@P4]
+#
+# If cursor P1 refers to an SQL table (B-Tree that uses integer keys), 
+# use the value in register P3 as a key. If cursor P1 refers 
+# to an SQL index, then P3 is the first in an array of P4 registers 
+# that are used as an unpacked index key. 
+#
+# Reposition cursor P1 so that it points to the largest entry that 
+# is less than or equal to the key value. If there are no records 
+# less than or equal to the key and P2 is not zero, then jump to P2.
+#
+# See also: Found, NotFound, Distinct, SeekGt, SeekGe, SeekLt
+
+def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
+    p = hlquery.p
+    db = hlquery.db
+
+    assert op.p_Signed(1) >= 0 and op.p_Signed(1) < rffi.getintfield(p, "nCursor")
+    assert op.p_Signed(2) != 0
+    pC = p.apCsr[op.p_Unsigned(1)]
+    assert pC
+    assert rffi.getintfield(pC, "pseudoTableReg") == 0
+    assert CConfig.OP_SeekLE == CConfig.OP_SeekLT + 1
+    assert CConfig.OP_SeekGE == CConfig.OP_SeekLT + 2
+    assert CConfig.OP_SeekGT == CConfig.OP_SeekLT + 3
+    assert get_isOrdered(pC)
+    assert pC.pCursor
+    oc = op.get_opcode()
+    rffi.setintfield(pC, 'nullRow', 0)
+    if get_isTable(pC):
+        # The input value in P3 might be of any type: integer, real, string,
+        # blob, or NULL.  But it needs to be an integer before we can do
+        # the seek, so covert it.
+        pIn3, flags3 = op.mem_and_flags_of_p(3, promote=True)
+        pIn3.applyNumericAffinity()
+        iKey = pIn3.sqlite3VdbeIntValue()
+        pC.rowidIsValid = rffi.cast(rffi.UCHAR, 0)
+
+        # If the P3 value could not be converted into an integer without
+        # loss of information, then special processing is required...
+        if flags3 & CConfig.MEM_Int == 0:
+            if flags3 & CConfig.MEM_Real == 0:
+                # If the P3 value cannot be converted into any kind of a number,
+                # then the seek is not possible, so jump to P2
+                pc = op.p_Signed(2) - 1
+
+                # VdbeBranchTaken() is used for test suite validation only and 
+                # does not appear an production builds.
+                # See vdbe.c lines 110-136.
+                # VdbeBranchTaken(1,2);
+                
+                return pc, rc
+
+            # If the approximation iKey is larger than the actual real search
+            # term, substitute >= for > and < for <=. e.g. if the search term
+            # is 4.9 and the integer approximation 5:
+            #
+            #        (x >  4.9)    ->     (x >= 5)
+            #        (x <= 4.9)    ->     (x <  5)
+            #
+            if pIn3.get_r() < iKey:
+                assert CConfig.OP_SeekGE == CConfig.OP_SeekGT - 1
+                assert CConfig.OP_SeekLT == CConfig.OP_SeekLE - 1
+                assert (CConfig.OP_SeekLE & 0x0001) == (CConfig.OP_SeekGT & 0x0001)
+                if (oc & 0x0001) == (CConfig.OP_SeekGT & 0x0001):
+                    oc -= 1
+
+            # If the approximation iKey is smaller than the actual real search
+            # term, substitute <= for < and > for >=.
+            elif pIn3.get_r() > iKey:
+                assert CConfig.OP_SeekLE == CConfig.OP_SeekLT + 1
+                assert CConfig.OP_SeekGT == CConfig.OP_SeekGE + 1
+                assert (CConfig.OP_SeekLT & 0x0001) == (CConfig.OP_SeekGE & 0x0001)
+                if (oc & 0x0001) == (CConfig.OP_SeekLT & 0x0001):
+                    oc += 1
+
+
+        rc = capi.sqlite3BtreeMovetoUnpacked(pC.pCursor, lltype.nullptr(rffi.VOIDP.TO), iKey, 0, hlquery.intp)
+        res = rffi.cast(lltype.Signed, hlquery.intp[0])
+        if rc != CConfig.SQLITE_OK:
+            # goto abort_due_to_error;
+            print "In python_OP_SeekLT_SeekLE_SeekGE_SeekGT():1: abort_due_to_error."
+            rc = capi.gotoAbortDueToError(p, db, pc, rc)
+            return pc, rc
+        if res == 0:
+            pC.rowidIsValid = rffi.cast(rffi.UCHAR, 1)
+            pC.lastRowid = iKey
+    else:
+        r = hlquery.unpackedrecordp
+        nField = rffi.cast(lltype.Signed, op.p4_i())
+        assert op.p4type() == CConfig.P4_INT32
+        assert nField > 0
+        r.pKeyInfo = pC.pKeyInfo
+        r.nField = rffi.cast(CConfig.u16, op.p4_i())
+
+        # The next line of code computes as follows, only faster:
+        #   if( oc==OP_SeekGT || oc==OP_SeekLE ){
+        #     r.default_rc = -1;
+        #   }else{
+        #     r.default_rc = +1;
+        #   }
+        r.default_rc = rffi.cast(CConfig.i8, -1 if (1 & (oc - CConfig.OP_SeekLT)) else 1)
+        assert oc != CConfig.OP_SeekGT or rffi.getintfield(r, "default_rc") == -1
+        assert oc != CConfig.OP_SeekLE or rffi.getintfield(r, "default_rc") == -1
+        assert oc != CConfig.OP_SeekGE or rffi.getintfield(r, "default_rc") == 1
+        assert oc != CConfig.OP_SeekLT or rffi.getintfield(r, "default_rc") == 1
+
+        r.aMem = op.mem_of_p(3).pMem
+        op.mem_of_p(3).ExpandBlob()
+        rc = capi.sqlite3BtreeMovetoUnpacked(pC.pCursor, rffi.cast(rffi.VOIDP, r), 0, 0, hlquery.intp)
+        res = rffi.cast(lltype.Signed, hlquery.intp[0])
+        if rc != CConfig.SQLITE_OK:
+            # goto abort_due_to_error;
+            print "In python_OP_SeekLT_SeekLE_SeekGE_SeekGT():2: abort_due_to_error."
+            rc = capi.gotoAbortDueToError(p, db, pc, rc)
+            return pc, rc
+        pC.rowidIsValid = rffi.cast(rffi.UCHAR, 0)
+
+    pC.deferredMoveto = rffi.cast(lltype.typeOf(pC.deferredMoveto), 0)
+    pC.cacheStatus = rffi.cast(lltype.typeOf(pC.cacheStatus), CConfig.CACHE_STALE)
+    if oc >= CConfig.OP_SeekGE:
+        assert oc == CConfig.OP_SeekGE or oc == CConfig.OP_SeekGT
+        if res < 0 or (res == 0 and oc == CConfig.OP_SeekGT):
+            res = 0
+            rc, resRet = sqlite3BtreeNext(hlquery, pC.pCursor, res)
+            res = rffi.cast(lltype.Signed, resRet)
+            if rc != CConfig.SQLITE_OK:
+                # goto abort_due_to_error;
+                print "In python_OP_SeekLT_SeekLE_SeekGE_SeekGT():3: abort_due_to_error."
+                rc = capi.gotoAbortDueToError(p, db, pc, rc)
+                return pc, rc
+            pC.rowidIsValid = rffi.cast(rffi.UCHAR, 0)
+        else:
+            res = 0
+    else:
+        assert oc == CConfig.OP_SeekLT or oc == CConfig.OP_SeekLE
+        if res > 0 or (res == 0 and oc == CConfig.OP_SeekLT):
+            res = 0
+            rc, resRet = sqlite3BtreePrevious(hlquery, pC.pCursor, res)
+            res = rffi.cast(lltype.Signed, resRet)
+            if rc != CConfig.SQLITE_OK:
+                # goto abort_due_to_error;
+                print "In python_OP_SeekLT_SeekLE_SeekGE_SeekGT():4: abort_due_to_error."
+                rc = capi.gotoAbortDueToError(p, db, pc, rc)
+                return pc, rc
+            pC.rowidIsValid = rffi.cast(rffi.UCHAR, 0)
+        else:
+            # res might be negative because the table is empty.  Check to
+            # see if this is the case.
+            res = CConfig.CURSOR_VALID != rffi.getintfield(pC.pCursor, "eState")
+
+    assert op.p_Signed(2) > 0
+
+    # VdbeBranchTaken() is used for test suite validation only and 
+    # does not appear an production builds.
+    # See vdbe.c lines 110-136.
+    # VdbeBranchTaken(res!=0,2);
+
+    if res:
+        pc = op.p_Signed(2) - 1
+
+    return pc, rc
+
+
+def get_isEphemeral(vdbecursor):
+    return vdbecursor.scary_bitfield & 1
+
+def get_useRandomRowid(vdbecursor):
+    return vdbecursor.scary_bitfield & 2
+
+def get_isTable(vdbecursor):
+    return vdbecursor.scary_bitfield & 4
+
+def get_isOrdered(vdbecursor):
+    return vdbecursor.scary_bitfield & 8
+
+
+# Opcode:  Yield P1 P2 * * *
+#
+# Swap the program counter with the value in register P1.
+#
+# If the co-routine ends with OP_Yield or OP_Return then continue
+# to the next instruction.  But if the co-routine ends with
+# OP_EndCoroutine, jump immediately to P2.
+
+def python_OP_Yield(hlquery, pc, op):
+    pIn1 = op.mem_of_p(1)
+    assert pIn1.VdbeMemDynamic() == 0
+    pIn1.set_flags(CConfig.MEM_Int)
+    pcDest = pIn1.get_u_i()
+    pIn1.set_u_i(pc) # XXX constant
+    return pcDest
+
