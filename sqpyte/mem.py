@@ -449,7 +449,7 @@ class Mem(object):
             return _type_size_and_hdrsize(0)
         if flags & CConfig.MEM_Int:
             # Figure out whether to use 1, 2, 4, 6 or 8 bytes.
-            serial_type = _get_serial_type_of_int_hidden(self.get_u_i())
+            serial_type = _get_serial_type_of_int_hidden(self.get_u_i(), file_format)
             return _type_size_and_hdrsize(serial_type)
         if flags & CConfig.MEM_Real:
           return _type_size_and_hdrsize(7)
@@ -506,8 +506,8 @@ class Mem(object):
     sqlite3_result_int64 = sqlite3VdbeMemSetInt64
     sqlite3_result_double = sqlite3VdbeMemSetDouble
 
-@jit.look_inside_iff(lambda i: jit.isconstant(i))
-def _get_serial_type_of_int_hidden(i):
+@jit.look_inside_iff(lambda i, file_format: jit.isconstant(i))
+def _get_serial_type_of_int_hidden(i, file_format):
     MAX_6BYTE = (0x00008000 << 32) - 1
     if i < 0:
         # test prevents:  u = -(-9223372036854775808)
@@ -517,11 +517,11 @@ def _get_serial_type_of_int_hidden(i):
     else:
         u = rarithmetic.r_uint(i)
     if u <= 127:
-        # XXX file format
-        if i == 0:
-            return 8
-        elif i == 1:
-            return 9
+        if rffi.cast(lltype.Signed, file_format) > 4:
+            if i == 0:
+                return 8
+            elif i == 1:
+                return 9
         return 1
     if u <= 32767:
         return 2
