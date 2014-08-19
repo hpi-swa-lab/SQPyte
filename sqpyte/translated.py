@@ -1369,10 +1369,9 @@ def python_OP_Column(hlquery, pc, op):
     if rc:
         return rc
     flags = rarithmetic.r_uint(result >> 16)
-    i = op.p_Signed(3)
-    hlquery.mem_cache.invalidate(i)
-    state = hlquery.mem_cache.cache_state()
-    hlquery.mem_cache.set_cache_state(state.change_flags(i, flags))
+    pOut = op.mem_of_p(3)
+    pOut.invalidate_cache()
+    pOut.assure_flags(flags)
     return rc
 
 # Opcode:  Return P1 * * * *

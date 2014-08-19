@@ -280,7 +280,7 @@ class Sqlite3Query(object):
         translated.python_OP_Integer(self, op)
         #capi.impl_OP_Integer(self.p, op.pOp)
 
-    @cache_safe(mutates="p2..p3")
+    @cache_safe()
     def python_OP_Null(self, op):
         #capi.impl_OP_Null(self.p, op.pOp)
         translated.python_OP_Null(self, op)
