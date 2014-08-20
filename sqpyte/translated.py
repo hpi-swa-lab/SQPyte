@@ -1382,11 +1382,13 @@ def python_OP_Sequence(hlquery, op):
     pOut.set_u_i(seqCount)
 
 def python_OP_Column(hlquery, pc, op):
-    # this is just a trick to promote to values at once, rc and the new flags
+    result = capi.impl_OP_Column(hlquery.p, hlquery.db, pc, op.pOp)
+    return _decode_combined_flags_rc_for_p3(result, op)
+
+def _decode_combined_flags_rc_for_p3(result, op):
+    # this is just a trick to promote two values at once, rc and the new flags
     # of p3
     # it also invalidates p3 before doing that
-    state = hlquery.mem_cache.cache_state()
-    result = capi.impl_OP_Column(hlquery.p, hlquery.db, pc, op.pOp)
     jit.promote(result)
     rc = result & 0xffff
     if rc:
@@ -1689,6 +1691,10 @@ def putVarint32(buf, val, index=0):
 #
 # See also: AggStep and AggFinal
 def python_OP_Function(hlquery, pc, rc, op):
+    result = capi.impl_OP_Function(hlquery.p, hlquery.db, pc, rc, op.pOp)
+    return _decode_combined_flags_rc_for_p3(result, op)
+
+def incomplete_python_OP_Function(hlquery, pc, rc, op):
     p = hlquery.p
     db = hlquery.db
     encoding = hlquery.enc() # The database encoding
