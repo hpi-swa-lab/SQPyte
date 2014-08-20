@@ -38,47 +38,73 @@ def run(query, queryRes, printRes):
         raise
 
 def entry_point(argv):
+    usageMsg = """\n
+  Usage:
+  For testing:      ./target-c -t db_file query_file [query_results_file]
+  For benchmarking: ./target-c -b [warm_up] db_file query_file
+    """
     try:
         flag = argv[1]
-        testdb = argv[2]
-        queryPath = argv[3]
+        if flag == '-t':
+            testingFlag = True
+            warmup = 0
+            testdb = argv[2]
+            queryPath = argv[3]
+        elif flag == '-b':
+            testingFlag = False
+            warmup = 3
+            if len(argv) > 4:
+                try:
+                    warmup = int(argv[2])
+                except ValueError:
+                    print "Error: '%s' is not a valid number for warm_up argument.%s" % (argv[2], usageMsg)
+                    return 1
+                testdb = argv[3]
+                queryPath = argv[4]
+            else:
+                testdb = argv[2]
+                queryPath = argv[3]
+        else:
+            print "Error: Unknown flag '%s'.%s" % (flag, usageMsg)
+            return 1        
     except IndexError:
-        print "Error: Not enough arguments."
-        print "Usage:"
-        print "For testing: './target-c -t path_to_db path_to_query_file [path_to_file_with_query_results]'"
-        print "For benchmarking: './target-c -b path_to_db path_to_query_file'"
+        print "Error: Not enough arguments.%s" % usageMsg
         return 1
 
-    if flag == '-t':
-        testingFlag = True
-    elif flag == '-b':
-        testingFlag = False
-    else:
-        print "Error: Unknown flag %s." % flag
-        print "Usage:"
-        print "For testing: './target-c -t path_to_db path_to_query_file [path_to_file_with_query_results]'"
-        print "For benchmarking: './target-c -b path_to_db path_to_query_file'"
+    try:
+        fp = os.open(testdb, os.O_RDONLY, 0777)
+        os.close(fp)
+    except OSError:
+        print "Error: Can't open '%s' file provided for db_file argument.%s" % (testdb, usageMsg)
         return 1
 
-    fp = os.open(queryPath, os.O_RDONLY, 0777)
-    queryStr = ""
-    while True:
-        read = os.read(fp, 4096)
-        if len(read) == 0:
-            break
-        queryStr += read
-    os.close(fp)
-
-    queryRes = ""
-    if len(argv) > 4:
-        queryResPath = argv[4]
-        fp = os.open(queryResPath, os.O_RDONLY, 0777)
+    try:
+        fp = os.open(queryPath, os.O_RDONLY, 0777)
+        queryStr = ""
         while True:
             read = os.read(fp, 4096)
             if len(read) == 0:
                 break
-            queryRes += read
+            queryStr += read
         os.close(fp)
+    except OSError:
+        print "Error: Can't open '%s' file provided for query_file argument.%s" % (queryPath, usageMsg)
+        return 1
+
+    queryRes = ""
+    if flag == '-t' and len(argv) > 4:
+        queryResPath = argv[4]
+        try:
+            fp = os.open(queryResPath, os.O_RDONLY, 0777)
+            while True:
+                read = os.read(fp, 4096)
+                if len(read) == 0:
+                    break
+                queryRes += read
+            os.close(fp)
+        except OSError:
+            print "Error: Can't open '%s' file provided for query_results_file argument.%s" % (queryResPath, usageMsg)
+            return 1
 
     db = Sqlite3DB(testdb).db
     query = Sqlite3Query(db, queryStr)
@@ -86,7 +112,7 @@ def entry_point(argv):
     if testingFlag:
         run(query, queryRes, True)
     else:
-        for i in range(5):
+        for i in range(warmup):
             run(query, "", False)
         t1 = time.time()
         run(query, queryRes, False)
