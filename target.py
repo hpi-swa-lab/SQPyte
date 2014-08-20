@@ -86,7 +86,7 @@ def entry_point(argv):
     if testingFlag:
         run(query, queryRes, True)
     else:
-        for i in range(20):
+        for i in range(5):
             run(query, "", False)
         t1 = time.time()
         run(query, queryRes, False)
