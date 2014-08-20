@@ -394,9 +394,9 @@ class Mem(object):
             self.set_flags(flags | srcType)
 
     @jit.dont_look_inside
-    def _memcpy_partial_hidden(self, other):
+    def _memcpy_partial_hidden(self, from_):
         MEMCELLSIZE = rffi.offsetof(capi.MEM, 'zMalloc')
-        rffi.c_memcpy(rffi.cast(rffi.VOIDP, self.pMem), rffi.cast(rffi.VOIDP, other.pMem), MEMCELLSIZE)
+        rffi.c_memcpy(rffi.cast(rffi.VOIDP, self.pMem), rffi.cast(rffi.VOIDP, from_.pMem), MEMCELLSIZE)
 
     def sqlite3MemCompare(self, other, coll):
         flags1 = self.get_flags()
@@ -505,6 +505,7 @@ class Mem(object):
         if f & (CConfig.MEM_Str | CConfig.MEM_Blob) and z != self.get_zMalloc():
             if self.sqlite3VdbeMemGrow(self.get_n() + 2, 1):
                 return CConfig.SQLITE_NOMEM
+            z = self.get_z()
             n = self.get_n()
             z[n] = chr(0)
             z[n + 1] = chr(0)
