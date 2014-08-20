@@ -379,8 +379,8 @@ class Sqlite3Query(object):
 
     @cache_safe()
     def python_OP_IfZero(self, pc, op):
-        # XXX port me?
-        return capi.impl_OP_IfZero(self.p, pc, op.pOp)
+        # return capi.impl_OP_IfZero(self.p, pc, op.pOp)
+        return translated.python_OP_IfZero(self, pc, op)
 
     @cache_safe()
     def python_OP_IdxRowid(self, pc, rc, op):

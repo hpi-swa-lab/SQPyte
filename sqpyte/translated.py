@@ -1433,7 +1433,7 @@ def python_OP_Gosub(hlquery, pc, op):
     # See vdbe.c lines 451-455.
     # REGISTER_TRACE(pOp->p1, pIn1);
 
-    pc = op.p_Signed(2) - 1
+    pc = op.p2as_pc()
 
     return pc
 
@@ -1882,7 +1882,7 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
             if flags3 & CConfig.MEM_Real == 0:
                 # If the P3 value cannot be converted into any kind of a number,
                 # then the seek is not possible, so jump to P2
-                pc = op.p_Signed(2) - 1
+                pc = op.p2as_pc()
 
                 # VdbeBranchTaken() is used for test suite validation only and 
                 # does not appear an production builds.
@@ -1997,7 +1997,7 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
     # VdbeBranchTaken(res!=0,2);
 
     if res:
-        pc = op.p_Signed(2) - 1
+        pc = op.p2as_pc()
 
     return pc, rc
 
@@ -2059,3 +2059,23 @@ def python_OP_Null(hlquery, op):
         pOut.VdbeMemRelease()
         pOut.set_flags(nullFlag)
         index += 1
+
+
+# Opcode: IfZero P1 P2 P3 * *
+# Synopsis: r[P1]+=P3, if r[P1]==0 goto P2
+#
+# The register P1 must contain an integer.  Add literal P3 to the
+# value in register P1.  If the result is exactly 0, jump to P2.
+#
+# It is illegal to use this instruction on a register that does
+# not contain an integer.  An assertion fault will result if you try.
+
+def python_OP_IfZero(hlquery, pc, op):
+    pIn1 = op.mem_of_p(1)
+    assert pIn1.get_flags() & CConfig.MEM_Int
+    i = pIn1.get_u_i() + op.p_Signed(3)
+    pIn1.set_u_i(i)
+    if i == 0:
+        pc = op.p2as_pc()
+    return pc
+
