@@ -96,6 +96,21 @@ def test_mainloop_mixed_arithmetic():
         count += 1
     assert(count == 53)
 
+def test_count_avg_sum():
+    db = Sqlite3DB(testdb).db
+    query = Sqlite3Query(db, 'select count(*), avg(age), sum(age) from contacts where 2 * age + 2 - age / 1 > 48;')
+    rc = query.mainloop()
+    assert rc == CConfig.SQLITE_ROW
+    textlen = query.python_sqlite3_column_bytes(0)
+    count = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
+    assert count == "53"
+    textlen = query.python_sqlite3_column_bytes(1)
+    avg = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(1)), textlen)
+    assert avg == "72.5283018867924"
+    textlen = query.python_sqlite3_column_bytes(2)
+    sum = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(2)), textlen)
+    assert sum == "3844"
+
 def test_mainloop_namelist():
     fname = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'names.txt')
     names = [name.strip() for name in open(fname)]

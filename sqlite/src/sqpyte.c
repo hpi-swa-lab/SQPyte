@@ -774,7 +774,7 @@ op_column_error:
   UPDATE_MAX_BLOBSIZE(pDest);
   REGISTER_TRACE(pOp->p3, pDest);
 
-  return (long)rc;
+  return (long)rc | (((int)pDest->flags) << 16);
 }
 
 /* Opcode: ResultRow P1 P2 * * *
@@ -1763,7 +1763,7 @@ long impl_OP_Function(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp) {
   REGISTER_TRACE(pOp->p3, pOut);
   UPDATE_MAX_BLOBSIZE(pOut);
   // break;
-  return rc;
+  return (long)rc | (((int)pOut->flags) << 16);
 }
 
 /* Opcode: Real * P2 * P4 *
