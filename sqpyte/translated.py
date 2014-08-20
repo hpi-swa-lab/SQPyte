@@ -2073,8 +2073,9 @@ def python_OP_Null(hlquery, op):
 def python_OP_IfZero(hlquery, pc, op):
     pIn1 = op.mem_of_p(1)
     assert pIn1.get_flags() & CConfig.MEM_Int
+    constant = pIn1.is_constant_u_i()
     i = pIn1.get_u_i() + op.p_Signed(3)
-    pIn1.set_u_i(i)
+    pIn1.set_u_i(i, constant=constant)
     if i == 0:
         pc = op.p2as_pc()
     return pc
