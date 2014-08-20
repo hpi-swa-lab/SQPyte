@@ -384,6 +384,7 @@ class Mem(object):
         """
         assert not from_.get_flags() & CConfig.MEM_RowSet
         self.VdbeMemRelease()
+        self.invalidate_cache()
         self._memcpy_partial_hidden(from_)
         self.assure_flags(from_.get_flags())
         self.set_xDel_null()
