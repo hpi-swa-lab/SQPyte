@@ -1,4 +1,4 @@
-from rpython.rlib import jit, rarithmetic, objectmodel
+from rpython.rlib import jit, rarithmetic, objectmodel, longlong2float
 from rpython.rtyper.lltypesystem import rffi, lltype
 from sqpyte.capi import CConfig
 from sqpyte import capi
@@ -449,6 +449,21 @@ class Mem(object):
     def sqlite3VdbeSerialPut(self, buf, serial_type):
         return capi.sqlite3VdbeSerialPut(buf, self.pMem, rffi.cast(CConfig.u32, serial_type))
 
+    def _sqlite3VdbeSerialPut_with_length(self, buf, serial_type, length):
+        flags = self.get_flags()
+        if flags & CConfig.MEM_Null:
+            return 0
+        if flags & (CConfig.MEM_Int | CConfig.MEM_Real):
+            if flags & CConfig.MEM_Int:
+                i = self.get_u_i()
+            else:
+                i = longlong2float.float2longlong(self.get_r())
+            _write_int_to_buf(buf, i, length)
+            return length
+        else:
+            rffi.c_memcpy(rffi.cast(rffi.VOIDP, buf), rffi.cast(rffi.VOIDP, self.get_z()), length)
+            return length
+
     def sqlite3VdbeChangeEncoding(self, encoding):
         #if not (self.get_flags() & CConfig.MEM_Str) or self.get_enc() == encoding:
         #    return CConfig.SQLITE_OK
@@ -514,6 +529,13 @@ class Mem(object):
     sqlite3_value_double = sqlite3VdbeRealValue
     sqlite3_result_int64 = sqlite3VdbeMemSetInt64
     sqlite3_result_double = sqlite3VdbeMemSetDouble
+
+@jit.look_inside_iff(lambda buf, v, length: jit.isconstant(length))
+def _write_int_to_buf(buf, v, length):
+    while length:
+        buf[length] = rffi.cast(rffi.UCHAR, chr(v & 0xff))
+        v >>= 8
+        length -= 1
 
 @jit.look_inside_iff(lambda i, file_format: jit.isconstant(i))
 def _get_serial_type_of_int_hidden(i, file_format):

@@ -1621,10 +1621,10 @@ def python_OP_MakeRecord(hlquery, pc, rc, op):
         return hlquery.gotoNoMem(pc)
 
     zNewRecord = pOut.get_z()
+    curr_content_ptr = rffi.ptradd(zNewRecord, nHdr)
 
     # Write the record
     i = putVarint32(zNewRecord, nHdr)
-    j = nHdr
     index = 0
     for memindex in range(data0, data0 + nField):
         pRec = hlquery.mem_with_index(memindex)
@@ -1634,12 +1634,11 @@ def python_OP_MakeRecord(hlquery, pc, rc, op):
             i += 1
         else:
             i += putVarint32(zNewRecord, serial_type, i) # serial type
-        addj = pRec.sqlite3VdbeSerialPut(rffi.cast(capi.U8P, rffi.ptradd(zNewRecord, j)), serial_type) # content
+        addj = pRec._sqlite3VdbeSerialPut_with_length(rffi.cast(capi.U8P, curr_content_ptr), serial_type, length) # content
         assert addj == length
-        j += length
+        curr_content_ptr = rffi.ptradd(curr_content_ptr, length)
         index += 1
     assert i == nHdr
-    assert j == nByte
 
     pOut.set_n(nByte)
     pOut.set_flags(CConfig.MEM_Blob)
