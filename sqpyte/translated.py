@@ -1057,9 +1057,9 @@ def python_OP_AggStep(hlquery, rc, pc, op):
     n = op.p_Signed(5)
     index = op.p_Signed(2)
     func = op.p4_pFunc()
-    if func.exists_in_python():
+    if func.agg_exists_in_python():
         return func.aggstep_in_python(hlquery, op, index, n)
-    hlquery.invalidate_caches()
+    hlquery.invalidate_caches() # XXX more fine-grained
     apVal = p.apArg
     assert apVal or n == 0
     for i in range(n):
@@ -1114,7 +1114,7 @@ def python_OP_AggStep(hlquery, rc, pc, op):
 def python_OP_AggFinal(hlquery, pc, rc, op):
     func = op.p4_pFunc()
     mem = op.mem_of_p(1)
-    if func.exists_in_python():
+    if func.agg_exists_in_python():
         return func.aggfinal_in_python(hlquery, op, mem)
     hlquery.invalidate_caches()
     return capi.impl_OP_AggFinal(hlquery.p, hlquery.db, pc, rc, op.pOp)
@@ -1692,6 +1692,13 @@ def putVarint32(buf, val, index=0):
 #
 # See also: AggStep and AggFinal
 def python_OP_Function(hlquery, pc, rc, op):
+    func = op.p4_pFunc()
+    if func.func_exists_in_python():
+        index = op.p_Signed(2)
+        n = op.p_Signed(5)
+        memout = op.mem_of_p(3)
+        return func.call_in_python(hlquery, op, index, n, memout)
+    hlquery.invalidate_caches() # XXX more fine-grained
     result = capi.impl_OP_Function(hlquery.p, hlquery.db, pc, rc, op.pOp)
     return _decode_combined_flags_rc_for_p3(result, op)
 

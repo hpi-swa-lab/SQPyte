@@ -7,6 +7,10 @@ from rpython.rtyper.lltypesystem import lltype
 class FunctionError(interpreter.SQPyteException):
     pass
 
+class CantDoThis(FunctionError):
+    def __init__(self):
+        pass
+
 class Func(object):
     _elidable_function_ = ["pFunc", "name", "nArg"]
 
@@ -19,8 +23,12 @@ class Func(object):
         return self.pFunc.apArg
 
     @jit.elidable
-    def exists_in_python(self):
+    def agg_exists_in_python(self):
         return self.python_context_class() is not Context
+
+    @jit.elidable
+    def func_exists_in_python(self):
+        return self.name == "like" and self.nArg == 2
 
     @jit.elidable
     def python_context_class(self):
@@ -45,6 +53,15 @@ class Func(object):
         p = memout._python_ctx
         cls.finalize(p, memout)
         memout._python_ctx = None
+        return 0
+
+    @jit.unroll_safe
+    def call_in_python(self, hlquery, op, index, numargs, memout):
+        from sqpyte.like import like_as_sqlite_func
+        args = [hlquery.mem_with_index(index + i) for i in range(numargs)]
+        for arg in args:
+            assert not arg.get_flags() & CConfig.MEM_Ephem # XXX for now
+        like_as_sqlite_func(hlquery, args, memout)
         return 0
 
 

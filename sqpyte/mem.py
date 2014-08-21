@@ -6,13 +6,14 @@ import sys, math
 
 class Mem(object):
     _immutable_fields_ = ['hlquery', 'pMem', '_cache_index']
-    _attrs_ = ['hlquery', 'pMem', '_cache_index', '_cache', '_python_ctx']
+    _attrs_ = ['hlquery', 'pMem', '_cache_index', '_cache', '_python_ctx', '_python_func_cache']
 
     def __init__(self, hlquery, pMem, _cache_index=-1):
         self.hlquery = hlquery
         self.pMem = pMem
         self._cache_index = _cache_index
         self._python_ctx = None
+        self._python_func_cache = None
 
     def invalidate_cache(self):
         if self._cache_index != -1:
@@ -245,9 +246,9 @@ class Mem(object):
             self.set_zMalloc(lltype.nullptr(rffi.CCHARP.TO))
         self.set_z_null()
 
-    def sqlite3VdbeMemSetInt64(self, val):
+    def sqlite3VdbeMemSetInt64(self, val, constant=False):
         self.sqlite3VdbeMemRelease()
-        self.set_u_i(val)
+        self.set_u_i(val, constant=constant)
         self.set_flags(CConfig.MEM_Int)
 
     def sqlite3VdbeMemSetDouble(self, val):

@@ -171,6 +171,15 @@ def test_makerecord():
     name = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(1)), textlen)
     assert name == "Jermaine Mayo"
 
+def test_function_like():
+    db = Sqlite3DB(testdb).db
+    query = Sqlite3Query(db, 'select name from contacts where name like "Za% %";')
+    rc = query.mainloop()
+    assert rc == CConfig.SQLITE_ROW
+    textlen = query.python_sqlite3_column_bytes(0)
+    name = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
+    assert name == "Zachary Short"
+
 def test_translated_allocateCursor():
     db = Sqlite3DB(testdb).db
     p = Sqlite3Query(db, 'select name from contacts;').p

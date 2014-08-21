@@ -318,7 +318,7 @@ class Sqlite3Query(object):
     def python_OP_String8(self, pc, rc, op):
         return capi.impl_OP_String8(self.p, self.db, pc, rc, op.pOp)
 
-    @cache_safe(mutates=["p2@p5"])
+    @cache_safe()
     def python_OP_Function(self, pc, rc, op):
         # return capi.impl_OP_Function(self.p, self.db, pc, rc, op.pOp)
         return translated.python_OP_Function(self, pc, rc, op)
