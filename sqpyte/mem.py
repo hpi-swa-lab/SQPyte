@@ -532,10 +532,11 @@ class Mem(object):
 
 @jit.look_inside_iff(lambda buf, v, length: jit.isconstant(length))
 def _write_int_to_buf(buf, v, length):
+    v = rarithmetic.r_uint(v)
     while length:
-        buf[length] = rffi.cast(rffi.UCHAR, chr(v & 0xff))
-        v >>= 8
         length -= 1
+        buf[length] = rffi.cast(rffi.UCHAR, v & 0xff)
+        v >>= 8
 
 @jit.look_inside_iff(lambda i, file_format: jit.isconstant(i))
 def _get_serial_type_of_int_hidden(i, file_format):
