@@ -1,4 +1,4 @@
-from rpython.rlib import jit, rarithmetic, objectmodel, longlong2float
+from rpython.rlib import jit, rarithmetic, objectmodel
 from rpython.rtyper.lltypesystem import rffi, lltype
 from sqpyte.capi import CConfig
 from sqpyte import capi
@@ -123,7 +123,9 @@ class Mem(object):
         The MEM structure is already a MEM_Real.  Try to also make it a
         MEM_Int if we can.
         """
-        flags = self.get_flags()
+        self._sqlite3VdbeIntegerAffinity_flags(self.get_flags())
+
+    def _sqlite3VdbeIntegerAffinity_flags(self, flags):
         assert flags & CConfig.MEM_Real
         assert not flags & CConfig.MEM_RowSet
         # assert( mem->db==0 || sqlite3_mutex_held(mem->db->mutex) );
@@ -164,6 +166,10 @@ class Mem(object):
             No-op.  pRec is unchanged.
         """
         flags = self.get_flags()
+
+        return self._applyAffinity_flags_read(flags, affinity, enc)
+
+    def _applyAffinity_flags_read(self, flags, affinity, enc):
         assert isinstance(affinity, int)
         if affinity == CConfig.SQLITE_AFF_TEXT:
             # Only attempt the conversion to TEXT if there is an integer or real
@@ -180,9 +186,10 @@ class Mem(object):
             assert affinity in (CConfig.SQLITE_AFF_INTEGER,
                                 CConfig.SQLITE_AFF_REAL,
                                 CConfig.SQLITE_AFF_NUMERIC)
-            self.applyNumericAffinity()
-            if self.get_flags() & CConfig.MEM_Real:
-                self.sqlite3VdbeIntegerAffinity()
+            flags = self._applyNumericAffinity_flags_read(flags)
+            if flags & CConfig.MEM_Real:
+                flags = self._sqlite3VdbeIntegerAffinity_flags(flags)
+        return flags
 
     def sqlite3VdbeMemIntegerify(self):
         self.invalidate_cache()
@@ -195,7 +202,9 @@ class Mem(object):
         looks like a number, convert it into a number.  If it does not
         look like a number, leave it alone.
         """
-        flags = self.get_flags()
+        self._applyNumericAffinity_flags_read(self.get_flags())
+
+    def _applyNumericAffinity_flags_read(self, flags):
         if flags & (CConfig.MEM_Real|CConfig.MEM_Int):
             return flags
         if not flags & CConfig.MEM_Str:
@@ -206,7 +215,9 @@ class Mem(object):
         return self.get_flags()
 
     def numericType(self):
-        flags = self.get_flags()
+        return self._numericType_with_flags(self.get_flags())
+
+    def _numericType_with_flags(self, flags):
         if flags & (CConfig.MEM_Int | CConfig.MEM_Real):
             return flags & (CConfig.MEM_Int | CConfig.MEM_Real)
         if flags & (CConfig.MEM_Str | CConfig.MEM_Blob):
@@ -273,7 +284,13 @@ class Mem(object):
 
 
     def MemSetTypeFlag(self, flags):
-        self.set_flags((self.get_flags() & ~(CConfig.MEM_TypeMask | CConfig.MEM_Zero)) | flags)
+        self.set_flags((self.get_flags(promote=True) & ~(CConfig.MEM_TypeMask | CConfig.MEM_Zero)) | flags)
+
+
+    def _MemSetTypeFlag_flags(self, oldflags, flags):
+        newflags = (oldflags & ~(CConfig.MEM_TypeMask | CConfig.MEM_Zero)) | flags
+        if newflags != oldflags:
+            self.set_flags(newflags)
 
     def VdbeMemDynamic(self):
         return (self.get_flags() & (CConfig.MEM_Agg|CConfig.MEM_Dyn|CConfig.MEM_RowSet|CConfig.MEM_Frame))!=0
@@ -297,7 +314,9 @@ class Mem(object):
         If pMem represents a string value, its encoding might be changed.
         """
 
-        flags = self.get_flags()
+        return self._sqlite3VdbeIntValue_flags(self.get_flags())
+
+    def _sqlite3VdbeIntValue_flags(self, flags):
         #assert( pMem->db==0 || sqlite3_mutex_held(pMem->db->mutex) );
         #assert( EIGHT_BYTE_ALIGNMENT(pMem) );
         if flags & CConfig.MEM_Int:
@@ -321,7 +340,10 @@ class Mem(object):
         value.  If it is a string or blob, try to convert it to a double.
         If it is a NULL, return 0.0.
         """
-        flags = self.get_flags()
+
+        return self._sqlite3VdbeRealValue_flags(self.get_flags())
+
+    def _sqlite3VdbeRealValue_flags(self, flags):
         # assert( pMem->db==0 || sqlite3_mutex_held(pMem->db->mutex) );
         # assert( EIGHT_BYTE_ALIGNMENT(pMem) );
         if flags & CConfig.MEM_Real:
@@ -449,21 +471,6 @@ class Mem(object):
     def sqlite3VdbeSerialPut(self, buf, serial_type):
         return capi.sqlite3VdbeSerialPut(buf, self.pMem, rffi.cast(CConfig.u32, serial_type))
 
-    def _sqlite3VdbeSerialPut_with_length(self, buf, serial_type, length):
-        flags = self.get_flags()
-        if flags & CConfig.MEM_Null:
-            return 0
-        if flags & (CConfig.MEM_Int | CConfig.MEM_Real):
-            if flags & CConfig.MEM_Int:
-                i = self.get_u_i()
-            else:
-                i = longlong2float.float2longlong(self.get_r())
-            _write_int_to_buf(buf, i, length)
-            return length
-        else:
-            rffi.c_memcpy(rffi.cast(rffi.VOIDP, buf), rffi.cast(rffi.VOIDP, self.get_z()), length)
-            return length
-
     def sqlite3VdbeChangeEncoding(self, encoding):
         #if not (self.get_flags() & CConfig.MEM_Str) or self.get_enc() == encoding:
         #    return CConfig.SQLITE_OK
@@ -529,13 +536,6 @@ class Mem(object):
     sqlite3_value_double = sqlite3VdbeRealValue
     sqlite3_result_int64 = sqlite3VdbeMemSetInt64
     sqlite3_result_double = sqlite3VdbeMemSetDouble
-
-@jit.look_inside_iff(lambda buf, v, length: jit.isconstant(length))
-def _write_int_to_buf(buf, v, length):
-    while length:
-        buf[length] = rffi.cast(rffi.UCHAR, chr(v & 0xff))
-        v >>= 8
-        length -= 1
 
 @jit.look_inside_iff(lambda i, file_format: jit.isconstant(i))
 def _get_serial_type_of_int_hidden(i, file_format):

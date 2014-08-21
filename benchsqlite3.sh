@@ -18,7 +18,7 @@ done
 rm $SQPYTE_DIR/tpch/tmp-bench/prefix.txt
 
 
-for i in {2..3}
+for i in {1..22}
 do
     echo "========== Query $i =========="
     for j in {1..$WARMUP}

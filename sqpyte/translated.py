@@ -406,8 +406,8 @@ def _cmp_depending_on_opcode(opcode, a, b):
 def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, op):
     p = hlquery.p
     db = hlquery.db
-    pIn1, flags1 = op.mem_and_flags_of_p(1)    # 1st input operand
-    pIn3, flags3 = op.mem_and_flags_of_p(3)    # 3st input operand
+    pIn1, flags1 = op.mem_and_flags_of_p(1, promote=True)    # 1st input operand
+    pIn3, flags3 = op.mem_and_flags_of_p(3, promote=True)    # 3st input operand
     orig_flags1 = flags1
     orig_flags3 = flags3
     opcode = op.get_opcode()
@@ -478,10 +478,8 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, op):
             affinity = rffi.cast(lltype.Signed, p5 & CConfig.SQLITE_AFF_MASK)
             if affinity != 0:
                 encoding = hlquery.enc()
-                pIn1.applyAffinity(affinity, encoding)
-                flags1 = pIn1.get_flags()
-                pIn3.applyAffinity(affinity, encoding)
-                flags3 = pIn3.get_flags()
+                flags1 = pIn1._applyAffinity_flags_read(flags1, affinity, encoding)
+                flags3 = pIn3._applyAffinity_flags_read(flags3, affinity, encoding)
                 if rffi.cast(lltype.Unsigned, db.mallocFailed) != 0:
                     # goto no_mem;
                     print 'In python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(): no_mem.'
@@ -591,14 +589,14 @@ def python_OP_Once(hlquery, pc, op):
 def python_OP_MustBeInt(hlquery, pc, rc, op):
     # not a full translation, only translate the fast path where the argument
     # is already an int
-    pIn1, flags1 = op.mem_and_flags_of_p(1)
+    pIn1, flags1 = op.mem_and_flags_of_p(1, promote=True)
     if not flags1 & CConfig.MEM_Int:
         hlquery.internalPc[0] = rffi.cast(rffi.LONG, pc)
         pIn1.invalidate_cache()
         rc = capi.impl_OP_MustBeInt(hlquery.p, hlquery.db, hlquery.internalPc, rc, op.pOp)
         retPc = hlquery.internalPc[0]
         return retPc, rc
-    pIn1.MemSetTypeFlag(CConfig.MEM_Int)
+    pIn1._MemSetTypeFlag_flags(flags1, CConfig.MEM_Int)
     return pc, rc
 
 
@@ -633,11 +631,11 @@ def python_OP_Affinity(hlquery, op):
 # to have only a real value.
 
 def python_OP_RealAffinity(hlquery, op):
-    pIn1, flags = op.mem_and_flags_of_p(1)
+    pIn1, flags = op.mem_and_flags_of_p(1, promote=True)
     if flags & CConfig.MEM_Int and not flags & CConfig.MEM_Real:
         # only relevant parts of sqlite3VdbeMemRealify
         pIn1.set_r(float(pIn1.get_u_i()))
-        pIn1.MemSetTypeFlag(CConfig.MEM_Real)
+        pIn1._MemSetTypeFlag_flags(flags, CConfig.MEM_Real)
 
 
 # Opcode: If P1 P2 P3 * *
@@ -654,7 +652,7 @@ def python_OP_RealAffinity(hlquery, op):
 
 def python_OP_If_IfNot(hlquery, pc, op):
     p = hlquery.p
-    pIn1, flags1 = op.mem_and_flags_of_p(1)    # 1st input operand
+    pIn1, flags1 = op.mem_and_flags_of_p(1, promote=True)    # 1st input operand
     opcode = op.get_opcode()
 
     if flags1 & CConfig.MEM_Null:
@@ -664,7 +662,7 @@ def python_OP_If_IfNot(hlquery, pc, op):
         # #ifdef SQLITE_OMIT_FLOATING_POINT
         #     c = sqlite3VdbeIntValue(pIn1)!=0;
         # #else
-        c = pIn1.sqlite3VdbeRealValue() != 0.0
+        c = pIn1._sqlite3VdbeRealValue_flags(flags1) != 0.0
         # #endif
         if opcode == CConfig.OP_IfNot:
             c = not c
@@ -722,10 +720,10 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
     p = hlquery.p
     opcode = op.get_opcode()
 
-    pIn1, flags1 = op.mem_and_flags_of_p(1)    # 1st input operand
-    type1 = pIn1.numericType()
-    pIn2, flags2 = op.mem_and_flags_of_p(2)    # 1st input operand
-    type2 = pIn2.numericType()
+    pIn1, flags1 = op.mem_and_flags_of_p(1, promote=True)    # 1st input operand
+    type1 = pIn1._numericType_with_flags(flags1)
+    pIn2, flags2 = op.mem_and_flags_of_p(2, promote=True)    # 1st input operand
+    type2 = pIn2._numericType_with_flags(flags2)
     pOut = op.mem_of_p(3)
     flags = flags1 | flags2
 
@@ -748,8 +746,8 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
                 pOut.MemSetTypeFlag(CConfig.MEM_Int)
                 return
             bIntint = True
-        rA = pIn1.sqlite3VdbeRealValue()
-        rB = pIn2.sqlite3VdbeRealValue()
+        rA = pIn1._sqlite3VdbeRealValue_flags(flags1)
+        rB = pIn2._sqlite3VdbeRealValue_flags(flags2)
         rB += rA
         # SQLITE_OMIT_FLOATING_POINT is not defined.
         #ifdef SQLITE_OMIT_FLOATING_POINT
@@ -779,8 +777,8 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
                 pOut.MemSetTypeFlag(CConfig.MEM_Int)
                 return
             bIntint = True
-        rA = pIn1.sqlite3VdbeRealValue()
-        rB = pIn2.sqlite3VdbeRealValue()
+        rA = pIn1._sqlite3VdbeRealValue_flags(flags1)
+        rB = pIn2._sqlite3VdbeRealValue_flags(flags2)
         rB -= rA
         # SQLITE_OMIT_FLOATING_POINT is not defined.
         #ifdef SQLITE_OMIT_FLOATING_POINT
@@ -810,8 +808,8 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
                 pOut.MemSetTypeFlag(CConfig.MEM_Int)
                 return
             bIntint = True
-        rA = pIn1.sqlite3VdbeRealValue()
-        rB = pIn2.sqlite3VdbeRealValue()
+        rA = pIn1._sqlite3VdbeRealValue_flags(flags1)
+        rB = pIn2._sqlite3VdbeRealValue_flags(flags2)
         rB *= rA
         # SQLITE_OMIT_FLOATING_POINT is not defined.
         #ifdef SQLITE_OMIT_FLOATING_POINT
@@ -844,8 +842,8 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
                 pOut.MemSetTypeFlag(CConfig.MEM_Int)
                 return
             bIntint = True
-        rA = pIn1.sqlite3VdbeRealValue()
-        rB = pIn2.sqlite3VdbeRealValue()
+        rA = pIn1._sqlite3VdbeRealValue_flags(flags1)
+        rB = pIn2._sqlite3VdbeRealValue_flags(flags2)
         # /* (double)0 In case of SQLITE_OMIT_FLOATING_POINT... */
         if rA == 0.0:
             pOut.sqlite3VdbeMemSetNull()
@@ -882,8 +880,8 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
             return
         else:
             bIntint = 0
-            rA = pIn1.sqlite3VdbeRealValue()
-            rB = pIn2.sqlite3VdbeRealValue()
+            rA = pIn1._sqlite3VdbeRealValue_flags(flags1)
+            rB = pIn2._sqlite3VdbeRealValue_flags(flags2)
             iA = int(rA)
             iB = int(rB)
             if iA == 0:
@@ -1032,8 +1030,8 @@ def python_OP_Seek(hlquery, op):
     assert pC.pCursor
     # assert( pC.isTable );
     rffi.setintfield(pC, 'nullRow', 0)
-    pIn2 = op.mem_of_p(2)
-    pC.movetoTarget = pIn2.sqlite3VdbeIntValue()
+    pIn2, flags = op.mem_and_flags_of_p(2, promote=True)
+    pC.movetoTarget = pIn2._sqlite3VdbeIntValue_flags(flags)
     rffi.setintfield(pC, 'rowidIsValid', 0)
     rffi.setintfield(pC, 'deferredMoveto', 1)
 
@@ -1408,7 +1406,7 @@ def _decode_combined_flags_rc_for_p3(result, op):
 
 def python_OP_Return(hlquery, op):
     p = hlquery.p
-    pIn1, flags1 = op.mem_and_flags_of_p(1)    # 1st input operand
+    pIn1, flags1 = op.mem_and_flags_of_p(1, promote=True)    # 1st input operand
     assert flags1 == CConfig.MEM_Int
     pc = pIn1.get_u_i()
     pIn1.set_flags(CConfig.MEM_Undefined)
@@ -1621,10 +1619,10 @@ def python_OP_MakeRecord(hlquery, pc, rc, op):
         return hlquery.gotoNoMem(pc)
 
     zNewRecord = pOut.get_z()
-    curr_content_ptr = rffi.ptradd(zNewRecord, nHdr)
 
     # Write the record
     i = putVarint32(zNewRecord, nHdr)
+    j = nHdr
     index = 0
     for memindex in range(data0, data0 + nField):
         pRec = hlquery.mem_with_index(memindex)
@@ -1634,11 +1632,12 @@ def python_OP_MakeRecord(hlquery, pc, rc, op):
             i += 1
         else:
             i += putVarint32(zNewRecord, serial_type, i) # serial type
-        addj = pRec._sqlite3VdbeSerialPut_with_length(rffi.cast(capi.U8P, curr_content_ptr), serial_type, length) # content
+        addj = pRec.sqlite3VdbeSerialPut(rffi.cast(capi.U8P, rffi.ptradd(zNewRecord, j)), serial_type) # content
         assert addj == length
-        curr_content_ptr = rffi.ptradd(curr_content_ptr, length)
+        j += length
         index += 1
     assert i == nHdr
+    assert j == nByte
 
     pOut.set_n(nByte)
     pOut.set_flags(CConfig.MEM_Blob)
@@ -1878,7 +1877,7 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
         # The input value in P3 might be of any type: integer, real, string,
         # blob, or NULL.  But it needs to be an integer before we can do
         # the seek, so covert it.
-        pIn3, flags3 = op.mem_and_flags_of_p(3)
+        pIn3, flags3 = op.mem_and_flags_of_p(3, promote=True)
         pIn3.applyNumericAffinity()
         iKey = pIn3.sqlite3VdbeIntValue()
         pC.rowidIsValid = rffi.cast(rffi.UCHAR, 0)
