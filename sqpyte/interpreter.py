@@ -898,9 +898,9 @@ class Op(object):
     def mem_of_p(self, i):
         return self.hlquery.mem_with_index(self.p_Signed(i))
 
-    def mem_and_flags_of_p(self, i):
+    def mem_and_flags_of_p(self, i, promote=False):
         mem = self.mem_of_p(i)
-        flags = mem.get_flags()
+        flags = mem.get_flags(promote=promote)
         return mem, flags
 
     @jit.elidable
