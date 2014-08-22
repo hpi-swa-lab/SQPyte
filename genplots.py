@@ -21,8 +21,11 @@ def process_data(data):
         retStd.append(np.std(data[i]))
     return retMean, retStd
 
-def geomean(num_list):
-    return sum(num_list) ** (1.0/len(num_list))
+def geomean(numbers):
+    product = 1
+    for n in numbers:
+        product *= n
+    return product ** (1.0/len(numbers))
 
 def normalise_data(base, data):
     ret = []
