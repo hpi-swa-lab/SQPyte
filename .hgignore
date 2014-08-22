@@ -23,6 +23,7 @@ tpch/tables-data/
 tpch/tables-info.txt
 tpch/tpch.db
 tpch/tpch2.17.0.pdf
+benches-res/
 
 sqlite/.libs/libsqlite3.0.dylib
 sqlite/.libs/libsqlite3.0.dylib.dSYM/Contents/Info.plist
