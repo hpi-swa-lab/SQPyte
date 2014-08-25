@@ -32,8 +32,8 @@ def like_as_sqlite_func(hlquery, args, memout):
 
 
 def like(string, pattern):
-    pat = Pattern(pattern)
-    return pat.like(string)
+    pat = Pattern(pattern, None)
+    return pat.like(string, len(string))
 
 def get_printable_location(pattern):
     return pattern.pattern
@@ -73,7 +73,7 @@ class Pattern(object):
 
     def like(self, string, length):
         jitdriver.jit_merge_point(self=self, string=string, length=length)
-        if length < len(self.prefix):
+        if prefix and length < len(self.prefix):
             return False
         #import pdb; pdb.set_trace()
         i = 0
@@ -121,6 +121,7 @@ def char_match(sc, pc):
 
 def char_match_pat_known(sc, pc):
     if pc.isalpha():
+        return (sc == pc) | (sc == pc.upper())
         if ord(sc) >= ord('a'):
             return sc == pc
         else:
@@ -244,7 +245,7 @@ def test_underscore():
     assert like("5", "_")
     assert not like("5a", "_")
 
-    p = Pattern("_____________________________%____________________")
+    p = Pattern("_____________________________%____________________", None)
     assert p.pattern == "%"
 
     assert like("afbcde", "a_b%")
@@ -274,12 +275,12 @@ class TestLLtype(LLJitMixin):
 
         def interp_w():
             res = 0
-            p = Pattern(".._f%a_b%r_..")
+            p = Pattern(".._f%a_b%r_..", 0)
             for i in range(100):
                 s =  "X" * (i % 11 == 0) + "...f" + "o" * i + "a?b" + "a.A" * i + "r..." + "X" * (i % 3 == 0)
                 if i % 7 == 5:
                     s = s.upper()
-                if p.like(s):
+                if p.like(s, len(s)):
                     res += 1
             return res
         res = interp_w()
