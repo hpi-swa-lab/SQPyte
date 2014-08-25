@@ -27,6 +27,7 @@ def like_as_sqlite_func(hlquery, args, memout):
         memout.sqlite3_result_int64(0, constant=True)
     if not objectmodel.we_are_translated():
         print res
+    return res
 
 
 
