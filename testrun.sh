@@ -6,13 +6,7 @@ mkdir $DIR/tmp
 
 for i in {1..22}
 do
-    if [ $i != 15 ]; then
-        ./target-c -t $DB $DIR/tpch/sqlite-queries-in/$i.sql > $DIR/tmp/$i.out
-    else
-        ./target-c -t $DB $DIR/tpch/sqlite-queries-in/15-view-create.sql
-        ./target-c -t $DB $DIR/tpch/sqlite-queries-in/15-query.sql > $DIR/tmp/15.out
-        ./target-c -t $DB $DIR/tpch/sqlite-queries-in/15-view-delete.sql
-    fi
+    ./target-c -t $DB $DIR/tpch/sqlite-queries-in/$i.sql > $DIR/tmp/$i.out
 
     DIFF=$(diff $DIR/tmp/$i.out $DIR/tpch/sqlite-queries-out/$i.txt) 
     if [ "$DIFF" == "" ]; then
