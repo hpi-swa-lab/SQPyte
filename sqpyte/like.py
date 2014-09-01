@@ -19,6 +19,7 @@ def like_as_sqlite_func(hlquery, args, memout):
         print pystring, pattern.pattern,
     cache_state = hlquery.mem_cache.cache_state()
     hlquery.mem_cache.hide()
+    jit.promote(pattern)
     res = pattern.like(string_mem.get_z(), string_mem.get_n())
     hlquery.mem_cache.reveal(cache_state)
     if res:
@@ -35,12 +36,23 @@ def like(string, pattern):
     pat = Pattern(pattern, None)
     return pat.like(string, len(string))
 
-def get_printable_location(pattern):
-    return pattern.pattern
+def get_printable_location(phase, pattern):
+    if phase == 0:
+        pat = " prefix " + pattern.prefix
+    elif 1 <= phase <= len(pattern.middle):
+        pat = " middle " + pattern.middle[phase - 1] + " " + str(pattern.skips_and_masks[phase - 1][1])
+    else:
+        pat = " suffix " + pattern.suffix
+    return pattern.pattern + " " + pat
 
 jitdriver = jit.JitDriver(
     greens=["self"],
     reds=["length", "string"],
+    get_printable_location=get_printable_location,
+    )
+jitdriver = jit.JitDriver(
+    greens=["phase", "self"],
+    reds=["length", "curr_string_index", "string"],
     get_printable_location=get_printable_location,
     )
 
@@ -55,6 +67,7 @@ class Pattern(object):
             oldpattern = pattern
             pattern = rstring.replace(pattern, "_%", "%")
             pattern = rstring.replace(pattern, "%_", "%")
+            pattern = rstring.replace(pattern, "%%", "%")
 
         parts = pattern.split("%")
         self.prefix = parts[0]
@@ -71,40 +84,98 @@ class Pattern(object):
             self.suffix = None
         self.pattern = pattern
 
-    def like(self, string, length):
-        jitdriver.jit_merge_point(self=self, string=string, length=length)
-        if prefix and length < len(self.prefix):
-            return False
-        #import pdb; pdb.set_trace()
-        i = 0
-        for c in self.prefix:
-            if not char_match_pat_known(string[i], c):
+    def quick_check_can_possibly_match(self, string, length):
+        if self.prefix:
+            if length < len(self.prefix):
                 return False
-            i += 1
-        jit.jit_debug("after prefix")
-        for partindex, nextpart in enumerate(self.middle):
-            # of form %nextpart
-            if not nextpart:
-                continue
-            skip, mask = self.skips_and_masks[partindex]
-            # search for nextpart
-            search = switch_search("_" in nextpart, skip != 0)
-            i = search(string, length, nextpart, skip, mask, i, length - len(self.suffix))
-            if i == -1:
-                return False
-            i += len(nextpart)
-        # of form %suffix
-        jit.jit_debug("after middle")
-        if self.suffix is None:
-            return i == length
-        if i > length - len(self.suffix):
-            return False
-        i = length - len(self.suffix)
-        for c in self.suffix:
-            if not char_match_pat_known(string[i], c):
+            return char_match_pat_known(string[0], self.prefix[0])
+        return True
+
+    @jit.unroll_safe
+    def _match(self, string, length, known_pattern, i, last_is_checked=False):
+        mlast = len(known_pattern)
+        if last_is_checked:
+            mlast -= 1
+        assert i >= 0
+        for j in range(mlast):
+            if not char_match_pat_known(string[i], known_pattern[j]):
+                if ord(string[i]) > 127:
+                    raise CantDoThis
                 return False
             i += 1
         return True
+
+    def like(self, string, length):
+        if not self.quick_check_can_possibly_match(string, length):
+            return False
+        phase = 0
+        curr_string_index = 0
+        while 1:
+            jitdriver.jit_merge_point(self=self, phase=phase, curr_string_index=curr_string_index, string=string, length=length)
+            if phase == 0:
+                if self.prefix and length < len(self.prefix):
+                    return False
+                if self.prefix:
+                    if length < len(self.prefix):
+                        return False
+                    curr_string_index = 0
+                    match = self._match(string, length, self.prefix, curr_string_index)
+                    if not match:
+                        return False
+                curr_string_index = len(self.prefix)
+                phase += 1
+            elif 1 <= phase <= len(self.middle):
+                # of form %nextpart
+                # search for nextpart
+                assert curr_string_index >= 0
+                partindex = phase - 1
+                nextpart = self.middle[partindex]
+                lenpattern = len(nextpart)
+                skip, mask = self.skips_and_masks[partindex]
+                endindex = curr_string_index + (lenpattern - 1)
+                should_bloom = mask != -1 and len(nextpart) > 2 # random value
+                if endindex < length:
+                    assert endindex >= 0
+                    if char_match_pat_known(string[endindex], nextpart[lenpattern - 1]):
+                        match = self._match(string, length, nextpart, curr_string_index, True)
+                        if match:
+                            curr_string_index += len(nextpart)
+                            phase += 1
+                            continue
+
+                        if should_bloom:
+                            if curr_string_index + lenpattern < length:
+                                c = string[curr_string_index + lenpattern]
+                            else:
+                                c = '\0'
+                            if not bloom(mask, c):
+                                curr_string_index += lenpattern
+                        elif skip:
+                            curr_string_index += skip
+                    else:
+                        if should_bloom:
+                            if curr_string_index + lenpattern < length:
+                                c = string[curr_string_index + lenpattern]
+                            else:
+                                c = '\0'
+                            if not bloom(mask, c):
+                                curr_string_index += lenpattern
+                else:
+                    return False
+                curr_string_index += 1
+            elif phase == len(self.middle) + 1:
+                # of form %suffix, check endswith
+                if self.suffix and curr_string_index > length - len(self.suffix):
+                    return False
+                if self.suffix is not None:
+                    curr_string_index = length - len(self.suffix)
+                    if self.suffix == "":
+                        return True
+                    match = self._match(string, length, self.suffix, curr_string_index)
+                    return match
+                return curr_string_index == length
+            else:
+                assert 0, "invalid phase"
 
 
 
@@ -235,8 +306,9 @@ def test_like_only_prefix():
     assert not like('me', 'MEDIUM%')
 
 def test_complex():
-    assert like("abaaabababbbbcbcbcbcarststrstde", "ab%bc%de")
+    assert like("abaaababacccacfcbbbbcbcbcbcarststrstde", "ab%bc%de")
     assert not like("afbcfde", "ab%bc%de")
+    assert not like("abfbcfd", "ab%bc%de")
     assert like("abcfdedebcdedededede", "ab%bc%de")
 
 def test_underscore():
