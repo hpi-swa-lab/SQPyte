@@ -175,6 +175,49 @@ class Sqlite3Query(object):
             self.mem_cache.invalidate(i)
     # _______________________________________________________________
 
+    def p1_mutation(self, op):
+        i = op.p_Signed(1)
+        self.mem_cache.invalidate(i)
+
+    def p2_mutation(self, op):
+        i = op.p_Signed(2)
+        self.mem_cache.invalidate(i)
+
+    def p3_mutation(self, op):
+        i = op.p_Signed(3)
+        self.mem_cache.invalidate(i)
+
+    @jit.unroll_safe
+    def p1_p2_mutation(self, op):
+        for i in range(op.p_Signed(1), op.p_Signed(1) + op.p_Signed(2)):
+            self.mem_cache.invalidate(i)
+
+    @jit.unroll_safe
+    def p2_p3_mutation(self, op):
+        self.mem_cache.invalidate(op.p_Signed(2))
+        if op.p_Signed(3) > op.p_Signed(2):
+            for i in range(op.p_Signed(2) + 1, op.p_Signed(3) + 1):
+                self.mem_cache.invalidate(i)
+
+    @jit.unroll_safe
+    def p3_p4_mutation(self, op):
+        for i in range(op.p_Signed(3), op.p_Signed(3) + op.p4_i()):
+            self.mem_cache.invalidate(i)
+
+    @jit.unroll_safe
+    def p3_p4_or_p3_mutation(self, op):
+        length = op.p4_i()
+        if not length:
+            length = 1
+        for i in range(op.p_Signed(3), op.p_Signed(3) + length):
+            self.mem_cache.invalidate(i)
+
+    @jit.unroll_safe
+    def p2_p5_mutation(self, op):
+        for i in range(op.p_Signed(2), op.p_Signed(2) + op.p_Signed(5)):
+            self.mem_cache.invalidate(i)
+    # _______________________________________________________________
+
     def is_op_cache_safe(self, opcode):
         return _cache_safe_opcodes[opcode]
 
