@@ -70,82 +70,13 @@ def cache_safe(opcodes=None, hide=False, mutates=None):
     return decorate
 
 def mutate_func(func, mutates):
-    if mutates == "p1":
-        def p1_mutation(hlquery, *args):
-            result = func(hlquery, *args)
-            op = args[-1]
-            i = op.p_Signed(1)
-            hlquery.mem_cache.invalidate(i)
-            return result
-        return p1_mutation
-    if mutates == "p2":
-        def p2_mutation(hlquery, *args):
-            result = func(hlquery, *args)
-            op = args[-1]
-            i = op.p_Signed(2)
-            hlquery.mem_cache.invalidate(i)
-            return result
-        return p2_mutation
-    if mutates == "p3":
-        def p3_mutation(hlquery, *args):
-            result = func(hlquery, *args)
-            op = args[-1]
-            i = op.p_Signed(3)
-            hlquery.mem_cache.invalidate(i)
-            return result
-        return p3_mutation
-    if mutates == "p1@p2":
-        @jit.unroll_safe
-        def p1_p2_mutation(hlquery, *args):
-            result = func(hlquery, *args)
-            op = args[-1]
-            for i in range(op.p_Signed(1), op.p_Signed(1) + op.p_Signed(2)):
-                hlquery.mem_cache.invalidate(i)
-            return result
-        return p1_p2_mutation
-    if mutates == "p2..p3":
-        @jit.unroll_safe
-        def p2_p3_mutation(hlquery, *args):
-            result = func(hlquery, *args)
-            op = args[-1]
-            hlquery.mem_cache.invalidate(op.p_Signed(2))
-            if op.p_Signed(3) > op.p_Signed(2):
-                for i in range(op.p_Signed(2) + 1, op.p_Signed(3) + 1):
-                    hlquery.mem_cache.invalidate(i)
-            return result
-        return p2_p3_mutation
-    if mutates == "p3@p4":
-        @jit.unroll_safe
-        def p3_p4_mutation(hlquery, *args):
-            result = func(hlquery, *args)
-            op = args[-1]
-            for i in range(op.p_Signed(3), op.p_Signed(3) + op.p4_i()):
-                hlquery.mem_cache.invalidate(i)
-            return result
-        return p3_p4_mutation
-    if mutates == "p3@p4 or p3":
-        @jit.unroll_safe
-        def p3_p4_mutation(hlquery, *args):
-            result = func(hlquery, *args)
-            op = args[-1]
-            length = op.p4_i()
-            if not length:
-                length = 1
-            for i in range(op.p_Signed(3), op.p_Signed(3) + length):
-                hlquery.mem_cache.invalidate(i)
-            return result
-        return p3_p4_mutation
-    if mutates == "p2@p5":
-        @jit.unroll_safe
-        def p2_p5_mutation(hlquery, *args):
-            result = func(hlquery, *args)
-            op = args[-1]
-            for i in range(op.p_Signed(2), op.p_Signed(2) + op.p_Signed(5)):
-                hlquery.mem_cache.invalidate(i)
-            return result
-        return p2_p5_mutation
-    else:
-        raise ValueError("unknown mutation %s" % mutates)
+    methname = mutates.replace("@", "_").replace(":", "_").replace(" ", "_") + "_mutation"
+    def mutation(hlquery, *args):
+        result = func(hlquery, *args)
+        op = args[-1]
+        getattr(hlquery, methname)(op)
+        return result
+    return mutation
 
 
 class Sqlite3Query(object):
@@ -195,9 +126,54 @@ class Sqlite3Query(object):
             mem.check_cache_consistency()
 
 
+    # _______________________________________________________________
+    # cache invalidation
     @jit.unroll_safe
     def invalidate_caches(self):
         self.mem_cache.invalidate_all()
+
+    def p1_mutation(self, op):
+        i = op.p_Signed(1)
+        self.mem_cache.invalidate(i)
+
+    def p2_mutation(self, op):
+        i = op.p_Signed(2)
+        self.mem_cache.invalidate(i)
+
+    def p3_mutation(self, op):
+        i = op.p_Signed(3)
+        self.mem_cache.invalidate(i)
+
+    @jit.unroll_safe
+    def p1_p2_mutation(self, op):
+        for i in range(op.p_Signed(1), op.p_Signed(1) + op.p_Signed(2)):
+            self.mem_cache.invalidate(i)
+
+    @jit.unroll_safe
+    def p2_p3_mutation(self, op):
+        self.mem_cache.invalidate(op.p_Signed(2))
+        if op.p_Signed(3) > op.p_Signed(2):
+            for i in range(op.p_Signed(2) + 1, op.p_Signed(3) + 1):
+                self.mem_cache.invalidate(i)
+
+    @jit.unroll_safe
+    def p3_p4_mutation(self, op):
+        for i in range(op.p_Signed(3), op.p_Signed(3) + op.p4_i()):
+            self.mem_cache.invalidate(i)
+
+    @jit.unroll_safe
+    def p3_p4_or_p3_mutation(self, op):
+        length = op.p4_i()
+        if not length:
+            length = 1
+        for i in range(op.p_Signed(3), op.p_Signed(3) + length):
+            self.mem_cache.invalidate(i)
+
+    @jit.unroll_safe
+    def p2_p5_mutation(self, op):
+        for i in range(op.p_Signed(2), op.p_Signed(2) + op.p_Signed(5)):
+            self.mem_cache.invalidate(i)
+    # _______________________________________________________________
 
     def is_op_cache_safe(self, opcode):
         return _cache_safe_opcodes[opcode]
