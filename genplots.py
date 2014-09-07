@@ -149,34 +149,86 @@ def create_normalised_plot(series, outfile):
     fig.savefig(outfile, bbox_inches="tight")
     plt.clf()
 
+def create_warmup_line_plot(series, queryNum, outfile):
+    N = len(series)
+    ind = np.arange(N)  # the x locations for the groups
+    width = 1
+
+    # define plot size in inches (width, height) & resolution(DPI)
+    fig, ax = plt.subplots(1)
+
+    # define font size
+    plt.rc("font", size=9)
+
+    ax.plot(ind, series, linewidth=3.0)
+
+    ax.set_ylabel('Runtime', size=10)
+    ax.set_xlabel('Iteration', size=10)
+    ax.set_title('Query %s Warmup' % queryNum)
+    ax.set_xticks(ind)
+
+    # do not display top and right axes
+    ax.spines["right"].set_visible(False)
+    ax.spines["top"].set_visible(False)
+
+    # remove unneeded ticks 
+    ax.get_xaxis().tick_bottom()
+    ax.get_yaxis().tick_left()
+
+    # outward ticks
+    ax.tick_params(direction='out')
+
+    # plt.show()
+    fig.savefig(outfile, bbox_inches="tight")
+    plt.clf()
+
 
 def run(argv):
     usageMsg = """\n
   Usage:
-  python script.py data-set-1.csv data-set-2.csv [output-file-name.pdf]
+  python genplots.py -{a,n} data-set-1.csv data-set-2.csv [output-file-name.pdf]
+  python genplots.py -w query-number data-set.csv [output-file-name.pdf]
+
+  where
+    -a  absolute comparison graph
+    -n  normalised comparison graph
+    -w  warmup graph
     """
 
-    if len(argv) < 2:
+    if len(argv) < 3:
         print "Not enough arguments. %s" % usageMsg
         return 1
     else:
-        if len(argv) > 3:
-            outfile = argv[3]
+        if len(argv) > 4:
+            outfile = argv[4]
         else:
             outfile = "out.pdf"
 
-        data1 = get_data(argv[1])
-        data2 = get_data(argv[2])
-        series1, std1 = process_data(data1)
-        series2, std2 = process_data(data2)
-
-        # create_absolute_plot(series1, std1, series2, std2, outfile)
-        
-        normaldata, geom = normalise_data(series1, series2)
-        series3 = normaldata + [geom]
-
-        create_normalised_plot(series3, outfile)
-
+        if argv[1] == '-w':
+            try:
+                queryNum = int(argv[2])
+            except ValueError:
+                print "Error: '%s' is not a valid query number.%s" % (argv[2], usageMsg)
+                return 1
+            series4 = get_data(argv[3])
+            create_warmup_line_plot(series4[0], queryNum, outfile)
+        elif argv[1] == '-a':
+            data1 = get_data(argv[2])
+            data2 = get_data(argv[3])
+            series1, std1 = process_data(data1)
+            series2, std2 = process_data(data2)
+            create_absolute_plot(series1, std1, series2, std2, outfile)
+        elif argv[1] == '-n':
+            data1 = get_data(argv[2])
+            data2 = get_data(argv[3])
+            series1, std1 = process_data(data1)
+            series2, std2 = process_data(data2)
+            normaldata, geom = normalise_data(series1, series2)
+            series3 = normaldata + [geom]
+            create_normalised_plot(series3, outfile)
+        else:
+            print "Unknown flag '%s'. %s" % (argv[1], usageMsg)
+            return 1
 
 if __name__ == "__main__":
     run(sys.argv)
