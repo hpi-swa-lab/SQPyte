@@ -209,3 +209,7 @@ sqlite/tsrc/whereInt.h
 sqlite/config.h
 sqlite/lemon.dSYM
 sqlite/mkkeywordhash.dSYM
+
+toy-interpreter
+profiling
+mrun.sh
