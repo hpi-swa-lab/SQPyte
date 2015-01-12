@@ -246,9 +246,10 @@ class Mem(object):
         self.set_z_null()
 
     def sqlite3VdbeMemSetInt64(self, val):
-        self.sqlite3VdbeMemRelease()
+        if self.get_flags() != CConfig.MEM_Int:
+            self.sqlite3VdbeMemRelease()
+            self.set_flags(CConfig.MEM_Int)
         self.set_u_i(val)
-        self.set_flags(CConfig.MEM_Int)
 
     def sqlite3VdbeMemSetDouble(self, val):
         """
@@ -258,9 +259,10 @@ class Mem(object):
         if math.isnan(val):
             self.sqlite3VdbeMemSetNull();
         else:
-            self.sqlite3VdbeMemRelease()
+            if self.get_flags() != CConfig.MEM_Real:
+                self.sqlite3VdbeMemRelease()
+                self.set_flags(CConfig.MEM_Real)
             self.set_r(val)
-            self.set_flags(CConfig.MEM_Real)
 
     def sqlite3VdbeMemSetNull(self):
         """ Delete any previous value and set the value stored in *pMem to NULL. """
