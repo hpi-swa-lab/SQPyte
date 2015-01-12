@@ -772,10 +772,16 @@ impl_OP_DropTable = llexternal('impl_OP_DropTable', [SQLITE3P, VDBEOPP],
 sqlite3_reset = llexternal('sqlite3_reset', [VDBEP],
     rffi.INT)
 
+sqlite3_column_type = llexternal('sqlite3_column_type', [VDBEP, rffi.INT],
+    rffi.INT)
 sqlite3_column_text = llexternal('sqlite3_column_text', [VDBEP, rffi.INT],
     rffi.UCHARP)
 sqlite3_column_bytes = llexternal('sqlite3_column_bytes', [VDBEP, rffi.INT],
     rffi.INT)
+sqlite3_column_int64 = llexternal('sqlite3_column_int64', [VDBEP, rffi.INT],
+    rffi.LONG)
+sqlite3_column_double = llexternal('sqlite3_column_double', [VDBEP, rffi.INT],
+    rffi.DOUBLE)
 
 sqlite3_sqlite3BtreeNext = llexternal('sqlite3BtreeNext', [BTCURSORP, rffi.INTP],
     rffi.INT)
@@ -785,7 +791,7 @@ sqlite3BtreeMovetoUnpacked = llexternal('sqlite3BtreeMovetoUnpacked', [BTCURSORP
     rffi.INT)
 
 sqlite3_applyNumericAffinity = llexternal('applyNumericAffinity', [MEMP],
-    lltype.Void, macro=True)
+    lltype.Void, )
 
 sqlite3AtoF = llexternal('sqlite3AtoF', [rffi.CCHARP, rffi.DOUBLEP, rffi.INT, CConfig.u8],
     rffi.INT)

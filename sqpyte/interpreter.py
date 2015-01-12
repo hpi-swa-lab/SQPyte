@@ -125,6 +125,31 @@ class Sqlite3Query(object):
         for mem in self._mem_as_python_list:
             mem.check_cache_consistency()
 
+    # _______________________________________________________________
+    # externally useful API
+
+    def python_sqlite3_data_count(self):
+        if rffi.getintfield(self.p, 'pResultSet') == 0:
+            return 0
+        return self.p.nResColumn
+
+    def python_sqlite3_column_type(self, iCol):
+        # XXX use the cache!
+        return capi.sqlite3_column_type(self.p, iCol)
+
+    def python_sqlite3_column_text(self, iCol):
+        return capi.sqlite3_column_text(self.p, iCol)
+
+    def python_sqlite3_column_bytes(self, iCol):
+        return capi.sqlite3_column_bytes(self.p, iCol)
+
+    def python_sqlite3_column_int64(self, iCol):
+        return capi.sqlite3_column_int64(self.p, iCol)
+
+    def python_sqlite3_column_double(self, iCol):
+        return capi.sqlite3_column_double(self.p, iCol)
+
+
 
     # _______________________________________________________________
     # cache invalidation
@@ -539,12 +564,6 @@ class Sqlite3Query(object):
 
     def python_OP_DropTable(self, op):
         return capi.impl_OP_DropTable(self.db, op.pOp)
-
-
-    def python_sqlite3_column_text(self, iCol):
-        return capi.sqlite3_column_text(self.p, iCol)
-    def python_sqlite3_column_bytes(self, iCol):
-        return capi.sqlite3_column_bytes(self.p, iCol)
 
 
     def debug_print(self, s):
