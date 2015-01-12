@@ -724,7 +724,7 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
 
     pIn1, flags1 = op.mem_and_flags_of_p(1)    # 1st input operand
     type1 = pIn1.numericType()
-    pIn2, flags2 = op.mem_and_flags_of_p(2)    # 1st input operand
+    pIn2, flags2 = op.mem_and_flags_of_p(2)    # 2nd input operand
     type2 = pIn2.numericType()
     pOut = op.mem_of_p(3)
     flags = flags1 | flags2
