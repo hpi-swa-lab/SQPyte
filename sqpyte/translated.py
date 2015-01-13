@@ -1692,6 +1692,7 @@ def putVarint32(buf, val, index=0):
 #
 # See also: AggStep and AggFinal
 def python_OP_Function(hlquery, pc, rc, op):
+    hlquery.p2_p5_mutation(op)
     result = capi.impl_OP_Function(hlquery.p, hlquery.db, pc, rc, op.pOp)
     return _decode_combined_flags_rc_for_p3(result, op)
 
