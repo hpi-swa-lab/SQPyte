@@ -1,4 +1,5 @@
 import os
+import sys
 from rpython.rtyper.tool import rffi_platform as platform
 from rpython.rtyper.lltypesystem import rffi, lltype
 from rpython.translator.tool.cbuild import ExternalCompilationInfo
@@ -790,8 +791,13 @@ sqlite3_sqlite3BtreePrevious = llexternal('sqlite3BtreePrevious', [BTCURSORP, rf
 sqlite3BtreeMovetoUnpacked = llexternal('sqlite3BtreeMovetoUnpacked', [BTCURSORP, rffi.VOIDP, CConfig.i64, rffi.INT, rffi.INTP],
     rffi.INT)
 
+# XXX ugly hack, we need macro=True, but only when translating
+if sys.argv[0].endswith("rpython"): # we're translating
+    kwargs = dict(macro=True)
+else:
+    kwargs = {}
 sqlite3_applyNumericAffinity = llexternal('applyNumericAffinity', [MEMP],
-    lltype.Void, )
+    lltype.Void, **kwargs)
 
 sqlite3AtoF = llexternal('sqlite3AtoF', [rffi.CCHARP, rffi.DOUBLEP, rffi.INT, CConfig.u8],
     rffi.INT)
