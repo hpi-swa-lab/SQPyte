@@ -93,11 +93,17 @@ class Sqlite3Query(object):
         self.prepare(query)
         self.iCompare = 0
 
+    def close(self):
+        if self.internalPc:
+            lltype.free(self.internalPc, flavor='raw')
+            lltype.free(self.intp, flavor='raw')
+            lltype.free(self.longp, flavor='raw')
+            lltype.free(self.unpackedrecordp, flavor='raw')
+            self.internalPc = lltype.nullptr(rffi.LONGP.TO)
+
     def __del__(self):
-        lltype.free(self.internalPc, flavor='raw')
-        lltype.free(self.intp, flavor='raw')
-        lltype.free(self.longp, flavor='raw')
-        lltype.free(self.unpackedrecordp, flavor='raw')
+        self.close()
+
 
     def prepare(self, query):
         length = len(query)
