@@ -8,7 +8,7 @@ class FunctionError(interpreter.SQPyteException):
     pass
 
 class Func(object):
-    _elidable_function_ = ["pFunc", "name", "nArg"]
+    _immutable_fields_ = ["pFunc", "name", "nArg"]
 
     def __init__(self, pFunc):
         self.pFunc = pFunc
