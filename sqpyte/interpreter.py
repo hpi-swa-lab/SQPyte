@@ -35,7 +35,9 @@ class Sqlite3DB(object):
     _immutable_fields_ = ['db']
 
     def __init__(self, db_name):
+        from sqpyte.function import FuncRegistry
         self.opendb(db_name)
+        self.funcregistry = FuncRegistry()
 
     def opendb(self, db_name):
         with rffi.scoped_str2charp(db_name) as db_name, lltype.scoped_alloc(capi.SQLITE3PP.TO, 1) as result:
@@ -46,6 +48,18 @@ class Sqlite3DB(object):
     def execute(self, sql):
         return Sqlite3Query(self, sql)
 
+
+    def create_aggregate(self, name, nargs, contextcls):
+        index = self.funcregistry.create_aggregate(name, nargs, contextcls)
+        with rffi.scoped_str2charp(name) as name:
+            # pass in a (small) index as the funtion pointers
+            errorcode = capi.sqlite3_create_function(self.db, name, nargs, CConfig.SQLITE_UTF8,
+                                                     lltype.nullptr(rffi.VOIDP.TO),
+                                                     lltype.nullptr(rffi.VOIDP.TO),
+                                                     rffi.cast(rffi.VOIDP, index),
+                                                     rffi.cast(rffi.VOIDP, index),
+                                                     )
+            assert errorcode == 0
 
 _cache_safe_opcodes = [False] * 256
 
@@ -352,8 +366,9 @@ class Sqlite3Query(object):
 
     @cache_safe()
     def python_OP_Copy(self, pc, rc, op):
-        return translated.python_OP_Copy(self, pc, rc, op)
-        # return capi.impl_OP_Copy(self.p, self.db, pc, rc, op.pOp)
+        if objectmodel.we_are_translated():
+            return translated.python_OP_Copy(self, pc, rc, op)
+        return capi.impl_OP_Copy(self.p, self.db, pc, rc, op.pOp)
 
     @cache_safe()
     def python_OP_MustBeInt(self, pc, rc, op):
@@ -910,8 +925,7 @@ class Op(object):
 
     @jit.elidable
     def p4_pFunc(self):
-        from sqpyte.function import Func
-        return Func(self.pOp.p4.pFunc)
+        return self.hlquery.hldb.funcregistry.get_func(self.pOp.p4.pFunc)
 
     @jit.elidable
     def p4_pColl(self):

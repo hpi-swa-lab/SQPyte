@@ -8,12 +8,13 @@ class FunctionError(interpreter.SQPyteException):
     pass
 
 class Func(object):
-    _immutable_fields_ = ["pFunc", "name", "nArg"]
+    _immutable_fields_ = ["pFunc", "name", "nArg", "contextcls"]
 
-    def __init__(self, pFunc):
+    def __init__(self, pFunc, contextcls=None):
         self.pFunc = pFunc
         self.name = rffi.charp2str(pFunc.zName)
         self.nArg = rffi.cast(lltype.Signed, pFunc.nArg)
+        self.contextcls = contextcls
 
     def apArg(self):
         return self.pFunc.apArg
@@ -24,6 +25,8 @@ class Func(object):
 
     @jit.elidable
     def python_context_class(self):
+        if self.contextcls is not None:
+            return self.contextcls
         if self.name == "count":
             return CountCtx
         if self.name == "sum" and self.nArg == 1:
@@ -47,6 +50,35 @@ class Func(object):
         memout._python_ctx = None
         return 0
 
+
+MAX_SAFE_NONFUNC_FUNCPOINTER = 4095 # a page should be safe
+
+class FuncRegistry(object):
+
+    def __init__(self):
+        self.aggregates = {}
+        self.contextclasses = []
+        self.funcs = []
+
+    def create_aggregate(self, name, numargs, contextcls):
+        self.aggregates[name, numargs] = contextcls
+        self.contextclasses.append(contextcls)
+        self.funcs.append(None)
+        assert len(self.contextclasses) < MAX_SAFE_NONFUNC_FUNCPOINTER
+        return len(self.contextclasses) # off by one to not get 0
+
+    def get_func(self, pfunc):
+        step_as_int = rffi.cast(lltype.Signed, pfunc.xStep)
+        if 0 < step_as_int < MAX_SAFE_NONFUNC_FUNCPOINTER:
+            index = step_as_int - 1
+            func = self.funcs[index]
+            if func is None:
+                contextcls = self.contextclasses[index]
+                func = Func(pfunc, contextcls)
+                self.funcs[index] = func
+            return func
+        # XXX what here?
+        return Func(pfunc)
 
 def aggregate_context(mem, cls):
     if mem._python_ctx is None:
