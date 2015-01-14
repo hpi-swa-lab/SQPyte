@@ -7,8 +7,8 @@ import os, sys
 tpchdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tpch.db")
 
 def test_join():
-    db = Sqlite3DB(tpchdb).db
-    query = Sqlite3Query(db, 'select S.name, N.name from Supplier S, Nation N where S.nationkey = N.nationkey;')
+    db = Sqlite3DB(tpchdb)
+    query = db.execute('select S.name, N.name from Supplier S, Nation N where S.nationkey = N.nationkey;')
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
     i = 0
@@ -18,7 +18,7 @@ def test_join():
     assert i == 100
 
 def test_query_6():
-    db = Sqlite3DB(tpchdb).db
+    db = Sqlite3DB(tpchdb)
     queryStr = ("select "
                     "sum(l.extendedprice * l.discount) as revenue "
                 "from "
@@ -29,7 +29,7 @@ def test_query_6():
                     "and l.discount between 0.04 and 0.07 "
                     "and l.quantity < 25;"
         )
-    query = Sqlite3Query(db, queryStr)
+    query = db.execute(queryStr)
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
     textlen = query.python_sqlite3_column_bytes(0)
@@ -37,7 +37,7 @@ def test_query_6():
     assert float(result) == 1524721.6695
 
 def test_query_14():
-    db = Sqlite3DB(tpchdb).db
+    db = Sqlite3DB(tpchdb)
     queryStr = ("select "
                     "100.00 * sum(case "
                         "when p.type like 'PROMO%' "
@@ -52,7 +52,7 @@ def test_query_14():
                     "and l.shipdate >= date('1995-01-01') "
                     "and l.shipdate < date('1995-01-01', '+1 month');"
         )
-    query = Sqlite3Query(db, queryStr)
+    query = db.execute(queryStr)
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
     textlen = query.python_sqlite3_column_bytes(0)
@@ -60,7 +60,7 @@ def test_query_14():
     assert float(result) == 15.9871053076363
 
 def test_query_17():
-    db = Sqlite3DB(tpchdb).db
+    db = Sqlite3DB(tpchdb)
     queryStr = ("select "
                     "sum(l.extendedprice) / 7.0 as avg_yearly "
                 "from "
@@ -79,7 +79,7 @@ def test_query_17():
                             "partkey = p.partkey "
                     ");"
         )
-    query = Sqlite3Query(db, queryStr)
+    query = db.execute(queryStr)
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
     textlen = query.python_sqlite3_column_bytes(0)
@@ -89,7 +89,7 @@ def test_query_17():
     assert float(result) == 3655.76571428571
 
 def test_query_19():
-    db = Sqlite3DB(tpchdb).db
+    db = Sqlite3DB(tpchdb)
     queryStr = ("select "
                     "sum(l.extendedprice* (1 - l.discount)) as revenue "
                 "from "
@@ -126,7 +126,7 @@ def test_query_19():
                         "and l.shipinstruct = 'DELIVER IN PERSON' "
                     ");"
         )
-    query = Sqlite3Query(db, queryStr)
+    query = db.execute(queryStr)
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
     textlen = query.python_sqlite3_column_bytes(0)
@@ -134,7 +134,7 @@ def test_query_19():
     assert float(result) == 22923.028
 
 def test_query_20():
-    db = Sqlite3DB(tpchdb).db
+    db = Sqlite3DB(tpchdb)
     queryStr = ("select "
                     "s.name, "
                     "s.address "
@@ -173,7 +173,7 @@ def test_query_20():
                 "order by "
                     "s.name; "
         )
-    query = Sqlite3Query(db, queryStr)
+    query = db.execute(queryStr)
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
     textlen = query.python_sqlite3_column_bytes(0)

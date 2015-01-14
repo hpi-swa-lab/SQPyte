@@ -43,6 +43,10 @@ class Sqlite3DB(object):
             assert(errorcode == 0)
             self.db = rffi.cast(capi.SQLITE3P, result[0])
 
+    def execute(self, sql):
+        return Sqlite3Query(self, sql)
+
+
 _cache_safe_opcodes = [False] * 256
 
 def cache_safe(opcodes=None, hide=False, mutates=None):
@@ -84,8 +88,9 @@ class Sqlite3Query(object):
     _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]', '_llmem_as_python_list[*]', 'intp', 'longp', 'unpackedrecordp',
                           '_hlops[*]', 'mem_cache']
 
-    def __init__(self, db, query):
-        self.db = db
+    def __init__(self, hldb, query):
+        self.hldb = hldb
+        self.db = hldb.db
         self.internalPc = lltype.malloc(rffi.LONGP.TO, 1, flavor='raw')
         self.unpackedrecordp = lltype.malloc(capi.UNPACKEDRECORD, flavor='raw')
         self.intp = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
@@ -953,8 +958,8 @@ class Op(object):
 
 
 def main_work(query):
-    db = Sqlite3DB(testdb).db
-    query = Sqlite3Query(db, query)
+    db = Sqlite3DB(testdb)
+    query = db.execute(query)
     rc = query.mainloop()
     count = 0
     while rc == CConfig.SQLITE_ROW:
