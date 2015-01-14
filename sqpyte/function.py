@@ -57,20 +57,22 @@ class FuncRegistry(object):
 
     def __init__(self):
         self.aggregates = {}
-        self.contextclasses = []
-        self.funcs = []
+        self.contextclasses = [None] # dummy function
+        self.funcs = [None] # dummy context
 
     def create_aggregate(self, name, numargs, contextcls):
-        self.aggregates[name, numargs] = contextcls
+        key = name, numargs
+        assert key not in self.aggregates
+        self.aggregates[key] = contextcls
         self.contextclasses.append(contextcls)
         self.funcs.append(None)
-        assert len(self.contextclasses) < MAX_SAFE_NONFUNC_FUNCPOINTER
-        return len(self.contextclasses) # off by one to not get 0
+        assert len(self.aggregates) < MAX_SAFE_NONFUNC_FUNCPOINTER
+        return len(self.aggregates) # off by one to not get 0
 
     def get_func(self, pfunc):
         step_as_int = rffi.cast(lltype.Signed, pfunc.xStep)
         if 0 < step_as_int < MAX_SAFE_NONFUNC_FUNCPOINTER:
-            index = step_as_int - 1
+            index = step_as_int
             func = self.funcs[index]
             if func is None:
                 contextcls = self.contextclasses[index]
