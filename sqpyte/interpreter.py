@@ -31,6 +31,12 @@ class SQPyteException(Exception):
     def __init__(self, msg):
         print msg
 
+class SqliteException(SQPyteException):
+    def __init__(self, errorcode, msg):
+        self.errorcode = errorcode
+        self.msg = msg
+
+
 class Sqlite3DB(object):
     _immutable_fields_ = ['db']
 
@@ -42,7 +48,7 @@ class Sqlite3DB(object):
     def opendb(self, db_name):
         with rffi.scoped_str2charp(db_name) as db_name, lltype.scoped_alloc(capi.SQLITE3PP.TO, 1) as result:
             errorcode = capi.sqlite3_open(db_name, result)
-            assert(errorcode == 0)
+            assert errorcode == 0
             self.db = rffi.cast(capi.SQLITE3P, result[0])
 
     def execute(self, sql):
@@ -131,7 +137,8 @@ class Sqlite3Query(object):
         length = len(query)
         with rffi.scoped_str2charp(query) as query, lltype.scoped_alloc(rffi.VOIDPP.TO, 1) as result, lltype.scoped_alloc(rffi.CCHARPP.TO, 1) as unused_buffer:
             errorcode = capi.sqlite3_prepare(self.db, query, length, result, unused_buffer)
-            assert errorcode == 0
+            if not errorcode == 0:
+                raise SqliteException(errorcode, rffi.charp2str(capi.sqlite3_errmsg(self.db)))
             self.p = rffi.cast(capi.VDBEP, result[0])
         self._init_python_data()
 

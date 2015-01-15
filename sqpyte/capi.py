@@ -852,3 +852,5 @@ sqlite3_create_function = llexternal(
     [SQLITE3P, rffi.CCHARP, rffi.INT, rffi.INT, rffi.VOIDP,
         rffi.VOIDP, rffi.VOIDP, rffi.VOIDP],
     rffi.INT)
+
+sqlite3_errmsg = llexternal('sqlite3_errmsg', [SQLITE3P], rffi.CCHARP)
