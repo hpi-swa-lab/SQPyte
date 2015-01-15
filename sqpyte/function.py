@@ -8,16 +8,18 @@ class FunctionError(interpreter.SQPyteException):
     pass
 
 class Func(object):
-    _immutable_fields_ = ["pFunc", "name", "nArg", "contextcls"]
+    _immutable_fields_ = ["pfunc", "name", "nArg", "contextcls"]
 
-    def __init__(self, pFunc, contextcls=None):
-        self.pFunc = pFunc
-        self.name = rffi.charp2str(pFunc.zName)
-        self.nArg = rffi.cast(lltype.Signed, pFunc.nArg)
+    def __init__(self, name, narg, contextcls=None):
+        # will be set before first use
+        self.pfunc = lltype.nullptr(capi.FUNCDEFP.TO)
+        self.name = name
+        self.nArg = narg
+        assert not isinstance(contextcls, int)
         self.contextcls = contextcls
 
     def apArg(self):
-        return self.pFunc.apArg
+        return self.pfunc.apArg
 
     @jit.elidable
     def exists_in_python(self):
@@ -39,7 +41,7 @@ class Func(object):
     def aggstep_in_python(self, hlquery, op, index, numargs):
         cls = self.python_context_class()
         args = [hlquery.mem_with_index(index + i) for i in range(numargs)]
-        p = aggregate_context(op.mem_of_p(3), cls)
+        p = aggregate_context(op.mem_of_p(3), cls, self)
         p.step(args)
         return 0
 
@@ -51,53 +53,53 @@ class Func(object):
         return 0
 
 
-MAX_SAFE_NONFUNC_FUNCPOINTER = 4095 # a page should be safe
-
 class FuncRegistry(object):
 
     def __init__(self):
         self.aggregates = {}
-        self.contextclasses = [None] # dummy function
-        self.funcs = [None] # dummy context
+        self.funcs = [None] # dummy func
 
     def create_aggregate(self, name, numargs, contextcls):
+        func = Func(name, numargs, contextcls)
         key = name, numargs
         assert key not in self.aggregates
         self.aggregates[key] = contextcls
-        self.contextclasses.append(contextcls)
-        self.funcs.append(None)
-        assert len(self.aggregates) < MAX_SAFE_NONFUNC_FUNCPOINTER
-        return len(self.aggregates) # off by one to not get 0
+        self.funcs.append(func)
+        return len(self.aggregates), func
 
     def get_func(self, pfunc):
         step_as_int = rffi.cast(lltype.Signed, pfunc.xStep)
-        if 0 < step_as_int < MAX_SAFE_NONFUNC_FUNCPOINTER:
-            index = step_as_int
+        if step_as_int == 1: # an rpython-defined function
+            assert rffi.cast(lltype.Signed, pfunc.xFinalize) == 1
+            index = rffi.cast(lltype.Signed, pfunc.pUserData)
             func = self.funcs[index]
-            if func is None:
-                contextcls = self.contextclasses[index]
-                func = Func(pfunc, contextcls)
-                self.funcs[index] = func
+            if func and not func.pfunc:
+                func.pfunc = pfunc
             return func
         # XXX what here?
-        return Func(pfunc)
+        name = rffi.charp2str(pfunc.zName)
+        nArg = rffi.cast(lltype.Signed, pfunc.nArg)
+        func = Func(name, nArg)
+        func.pfunc = pfunc
+        return func
 
-def aggregate_context(mem, cls):
+def aggregate_context(mem, cls, func):
     if mem._python_ctx is None:
-        mem._python_ctx = cls()
+        mem._python_ctx = cls(func)
     return mem._python_ctx
 
 
 class Context(object):
-    def __init__(self):
-        pass
+    def __init__(self, func):
+        self.func = func
 
 class CountCtx(Context):
     """
     The following structure keeps track of state information for the
     count() aggregate function.
     """
-    def __init__(self):
+    def __init__(self, func):
+        self.func = func
         self.n = 0
 
     def step(self, args):
@@ -119,7 +121,8 @@ class AbstractSumCtx(Context):
     sum() or avg() aggregate computation.
     """
 
-    def __init__(self):
+    def __init__(self, func):
+        self.func = func
         self.rSum = 0.0        # Floating point sum
         self.iSum = 0          # Integer sum
         self.cnt = 0           # Number of elements summed

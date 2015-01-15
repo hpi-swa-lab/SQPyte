@@ -1064,7 +1064,7 @@ def python_OP_AggStep(hlquery, rc, pc, op):
     assert apVal or n == 0
     for i in range(n):
         apVal[i] = hlquery.mem_with_index(index + i).pMem
-    pFunc = func.pFunc
+    pFunc = func.pfunc
     mem = op.mem_of_p(3)
     with lltype.scoped_alloc(capi.CONTEXT) as ctx:
         mems = Mem(hlquery, ctx.s)

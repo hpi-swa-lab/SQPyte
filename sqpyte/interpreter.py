@@ -50,16 +50,19 @@ class Sqlite3DB(object):
 
 
     def create_aggregate(self, name, nargs, contextcls):
-        index = self.funcregistry.create_aggregate(name, nargs, contextcls)
+        index, func = self.funcregistry.create_aggregate(name, nargs, contextcls)
         with rffi.scoped_str2charp(name) as name:
-            # pass in a (small) index as the funtion pointers
-            errorcode = capi.sqlite3_create_function(self.db, name, nargs, CConfig.SQLITE_UTF8,
-                                                     lltype.nullptr(rffi.VOIDP.TO),
-                                                     lltype.nullptr(rffi.VOIDP.TO),
-                                                     rffi.cast(rffi.VOIDP, index),
-                                                     rffi.cast(rffi.VOIDP, index),
-                                                     )
+            # use 1 as the function pointer and pass in the index as the user
+            # data
+            errorcode = capi.sqlite3_create_function(
+                    self.db, name, nargs, CConfig.SQLITE_UTF8,
+                    rffi.cast(rffi.VOIDP, index),
+                    lltype.nullptr(rffi.VOIDP.TO),
+                    rffi.cast(rffi.VOIDP, 1),
+                    rffi.cast(rffi.VOIDP, 1),
+            )
             assert errorcode == 0
+        return func
 
 _cache_safe_opcodes = [False] * 256
 

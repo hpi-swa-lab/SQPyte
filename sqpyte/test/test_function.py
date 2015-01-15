@@ -9,7 +9,8 @@ testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test.db")
 
 def test_create_function():
     class MyContext(function.Context):
-        def __init__(self):
+        def __init__(self, pfunc):
+            self.pfunc = pfunc
             self.currlength = 0
 
         def step(self, args):
@@ -20,8 +21,8 @@ def test_create_function():
             memout.sqlite3_result_int64(self.currlength)
 
     db = Sqlite3DB(testdb)
-    db.create_aggregate("stringlength", 1, MyContext)
-    query = db.execute('select stringlength(name), sum(length(name)) from contacts;')
+    db.create_aggregate("sumlength", 1, MyContext)
+    query = db.execute('select sumlength(name), sum(length(name)) from contacts;')
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
     assert query.python_sqlite3_column_int64(0) == query.python_sqlite3_column_int64(1)
