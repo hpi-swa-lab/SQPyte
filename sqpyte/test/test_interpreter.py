@@ -1,3 +1,4 @@
+import pytest
 from rpython.rtyper.lltypesystem import rffi
 from sqpyte.interpreter import Sqlite3DB, Sqlite3Query
 from sqpyte.capi import CConfig
@@ -110,6 +111,12 @@ def test_count_avg_sum():
     textlen = query.python_sqlite3_column_bytes(2)
     sum = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(2)), textlen)
     assert sum == "3844"
+
+def test_select_without_from():
+    db = Sqlite3DB(testdb)
+    query = db.execute('select 1, 2;')
+    rc = query.mainloop()
+    assert rc == CConfig.SQLITE_ROW
 
 def test_mainloop_namelist():
     fname = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'names.txt')

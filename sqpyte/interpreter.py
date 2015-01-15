@@ -137,9 +137,9 @@ class Sqlite3Query(object):
 
     def _init_python_data(self):
         from sqpyte.mem import Mem
-        self._llmem_as_python_list = [self.p.aMem[i] for i in range(self.p.nMem)]
+        self._llmem_as_python_list = [self.p.aMem[i] for i in range(self.p.nMem + 1)]
         self._mem_as_python_list = [Mem(self, self.p.aMem[i], i)
-                for i in range(self.p.nMem)]
+                for i in range(self.p.nMem + 1)]
         self._hlops = [Op(self, self.p.aOp[i]) for i in range(self.p.nOp)]
         self.init_mem_cache()
 
