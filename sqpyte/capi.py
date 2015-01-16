@@ -617,8 +617,8 @@ def llexternal(name, args, result, **kwargs):
 
 sqlite3_open = llexternal('sqlite3_open', [rffi.CCHARP, SQLITE3PP],
                                rffi.INT)
-sqlite3_prepare = llexternal('sqlite3_prepare', [rffi.VOIDP, rffi.CCHARP, rffi.INT, rffi.VOIDPP, rffi.CCHARPP],
-                                  rffi.INT)
+sqlite3_prepare_v2 = llexternal('sqlite3_prepare_v2', [rffi.VOIDP, rffi.CCHARP, rffi.INT, rffi.VOIDPP, rffi.CCHARPP],
+                                rffi.INT)
 sqlite3_allocateCursor = llexternal('allocateCursor', [lltype.Ptr(VDBE), rffi.INT, rffi.INT, rffi.INT, rffi.INT],
     VDBECURSORP)
 sqlite3_sqlite3VdbeMemIntegerify = llexternal('sqlite3VdbeMemIntegerify', [lltype.Ptr(MEM)],

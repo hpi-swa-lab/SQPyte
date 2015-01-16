@@ -136,7 +136,7 @@ class Sqlite3Query(object):
     def prepare(self, query):
         length = len(query)
         with rffi.scoped_str2charp(query) as query, lltype.scoped_alloc(rffi.VOIDPP.TO, 1) as result, lltype.scoped_alloc(rffi.CCHARPP.TO, 1) as unused_buffer:
-            errorcode = capi.sqlite3_prepare(self.db, query, length, result, unused_buffer)
+            errorcode = capi.sqlite3_prepare_v2(self.db, query, length, result, unused_buffer)
             if not errorcode == 0:
                 raise SqliteException(errorcode, rffi.charp2str(capi.sqlite3_errmsg(self.db)))
             self.p = rffi.cast(capi.VDBEP, result[0])
