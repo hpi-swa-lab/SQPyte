@@ -7,31 +7,28 @@ from rpython.rtyper.lltypesystem import lltype
 class FunctionError(interpreter.SQPyteException):
     pass
 
-class CantDoThis(FunctionError):
-    def __init__(self):
-        pass
-
 class Func(object):
-    _elidable_function_ = ["pFunc", "name", "nArg"]
+    _immutable_fields_ = ["pfunc", "name", "nArg", "contextcls"]
 
-    def __init__(self, pFunc):
-        self.pFunc = pFunc
-        self.name = rffi.charp2str(pFunc.zName)
-        self.nArg = rffi.cast(lltype.Signed, pFunc.nArg)
+    def __init__(self, name, narg, contextcls=None):
+        # will be set before first use
+        self.pfunc = lltype.nullptr(capi.FUNCDEFP.TO)
+        self.name = name
+        self.nArg = narg
+        assert not isinstance(contextcls, int)
+        self.contextcls = contextcls
 
     def apArg(self):
-        return self.pFunc.apArg
+        return self.pfunc.apArg
 
     @jit.elidable
-    def agg_exists_in_python(self):
+    def exists_in_python(self):
         return self.python_context_class() is not Context
 
     @jit.elidable
-    def func_exists_in_python(self):
-        return self.name == "like" and self.nArg == 2
-
-    @jit.elidable
     def python_context_class(self):
+        if self.contextcls is not None:
+            return self.contextcls
         if self.name == "count":
             return CountCtx
         if self.name == "sum" and self.nArg == 1:
@@ -44,7 +41,7 @@ class Func(object):
     def aggstep_in_python(self, hlquery, op, index, numargs):
         cls = self.python_context_class()
         args = [hlquery.mem_with_index(index + i) for i in range(numargs)]
-        p = aggregate_context(op.mem_of_p(3), cls)
+        p = aggregate_context(op.mem_of_p(3), cls, self)
         p.step(args)
         return 0
 
@@ -55,32 +52,54 @@ class Func(object):
         memout._python_ctx = None
         return 0
 
-    @jit.unroll_safe
-    def call_in_python(self, hlquery, op, index, numargs, memout):
-        from sqpyte.like import like_as_sqlite_func
-        args = [hlquery.mem_with_index(index + i) for i in range(numargs)]
-        for arg in args:
-            assert not arg.get_flags() & CConfig.MEM_Ephem # XXX for now
-        like_as_sqlite_func(hlquery, args, memout)
-        return 0
 
+class FuncRegistry(object):
 
-def aggregate_context(mem, cls):
+    def __init__(self):
+        self.aggregates = {}
+        self.funcs = [None] # dummy func
+
+    def create_aggregate(self, name, numargs, contextcls):
+        func = Func(name, numargs, contextcls)
+        key = name, numargs
+        assert key not in self.aggregates
+        self.aggregates[key] = contextcls
+        self.funcs.append(func)
+        return len(self.aggregates), func
+
+    def get_func(self, pfunc):
+        step_as_int = rffi.cast(lltype.Signed, pfunc.xStep)
+        if step_as_int == 1: # an rpython-defined function
+            assert rffi.cast(lltype.Signed, pfunc.xFinalize) == 1
+            index = rffi.cast(lltype.Signed, pfunc.pUserData)
+            func = self.funcs[index]
+            if func and not func.pfunc:
+                func.pfunc = pfunc
+            return func
+        # XXX what here?
+        name = rffi.charp2str(pfunc.zName)
+        nArg = rffi.cast(lltype.Signed, pfunc.nArg)
+        func = Func(name, nArg)
+        func.pfunc = pfunc
+        return func
+
+def aggregate_context(mem, cls, func):
     if mem._python_ctx is None:
-        mem._python_ctx = cls()
+        mem._python_ctx = cls(func)
     return mem._python_ctx
 
 
 class Context(object):
-    def __init__(self):
-        pass
+    def __init__(self, func):
+        self.func = func
 
 class CountCtx(Context):
     """
     The following structure keeps track of state information for the
     count() aggregate function.
     """
-    def __init__(self):
+    def __init__(self, func):
+        self.func = func
         self.n = 0
 
     def step(self, args):
@@ -102,7 +121,8 @@ class AbstractSumCtx(Context):
     sum() or avg() aggregate computation.
     """
 
-    def __init__(self):
+    def __init__(self, func):
+        self.func = func
         self.rSum = 0.0        # Floating point sum
         self.iSum = 0          # Integer sum
         self.cnt = 0           # Number of elements summed

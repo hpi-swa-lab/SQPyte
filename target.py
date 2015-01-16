@@ -106,8 +106,8 @@ def entry_point(argv):
             print "Error: Can't open '%s' file provided for query_results_file argument.%s" % (queryResPath, usageMsg)
             return 1
 
-    db = Sqlite3DB(testdb).db
-    query = Sqlite3Query(db, queryStr)
+    db = Sqlite3DB(testdb)
+    query = db.execute(queryStr)
     
     if testingFlag:
         run(query, queryRes, True)

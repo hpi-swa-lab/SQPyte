@@ -31,17 +31,44 @@ class SQPyteException(Exception):
     def __init__(self, msg):
         print msg
 
+class SqliteException(SQPyteException):
+    def __init__(self, errorcode, msg):
+        self.errorcode = errorcode
+        self.msg = msg
+
+
 class Sqlite3DB(object):
     _immutable_fields_ = ['db']
 
     def __init__(self, db_name):
+        from sqpyte.function import FuncRegistry
         self.opendb(db_name)
+        self.funcregistry = FuncRegistry()
 
     def opendb(self, db_name):
         with rffi.scoped_str2charp(db_name) as db_name, lltype.scoped_alloc(capi.SQLITE3PP.TO, 1) as result:
             errorcode = capi.sqlite3_open(db_name, result)
-            assert(errorcode == 0)
+            assert errorcode == 0
             self.db = rffi.cast(capi.SQLITE3P, result[0])
+
+    def execute(self, sql):
+        return Sqlite3Query(self, sql)
+
+
+    def create_aggregate(self, name, nargs, contextcls):
+        index, func = self.funcregistry.create_aggregate(name, nargs, contextcls)
+        with rffi.scoped_str2charp(name) as name:
+            # use 1 as the function pointer and pass in the index as the user
+            # data
+            errorcode = capi.sqlite3_create_function(
+                    self.db, name, nargs, CConfig.SQLITE_UTF8,
+                    rffi.cast(rffi.VOIDP, index),
+                    lltype.nullptr(rffi.VOIDP.TO),
+                    rffi.cast(rffi.VOIDP, 1),
+                    rffi.cast(rffi.VOIDP, 1),
+            )
+            assert errorcode == 0
+        return func
 
 _cache_safe_opcodes = [False] * 256
 
@@ -70,82 +97,13 @@ def cache_safe(opcodes=None, hide=False, mutates=None):
     return decorate
 
 def mutate_func(func, mutates):
-    if mutates == "p1":
-        def p1_mutation(hlquery, *args):
-            result = func(hlquery, *args)
-            op = args[-1]
-            i = op.p_Signed(1)
-            hlquery.mem_cache.invalidate(i)
-            return result
-        return p1_mutation
-    if mutates == "p2":
-        def p2_mutation(hlquery, *args):
-            result = func(hlquery, *args)
-            op = args[-1]
-            i = op.p_Signed(2)
-            hlquery.mem_cache.invalidate(i)
-            return result
-        return p2_mutation
-    if mutates == "p3":
-        def p3_mutation(hlquery, *args):
-            result = func(hlquery, *args)
-            op = args[-1]
-            i = op.p_Signed(3)
-            hlquery.mem_cache.invalidate(i)
-            return result
-        return p3_mutation
-    if mutates == "p1@p2":
-        @jit.unroll_safe
-        def p1_p2_mutation(hlquery, *args):
-            result = func(hlquery, *args)
-            op = args[-1]
-            for i in range(op.p_Signed(1), op.p_Signed(1) + op.p_Signed(2)):
-                hlquery.mem_cache.invalidate(i)
-            return result
-        return p1_p2_mutation
-    if mutates == "p2..p3":
-        @jit.unroll_safe
-        def p2_p3_mutation(hlquery, *args):
-            result = func(hlquery, *args)
-            op = args[-1]
-            hlquery.mem_cache.invalidate(op.p_Signed(2))
-            if op.p_Signed(3) > op.p_Signed(2):
-                for i in range(op.p_Signed(2) + 1, op.p_Signed(3) + 1):
-                    hlquery.mem_cache.invalidate(i)
-            return result
-        return p2_p3_mutation
-    if mutates == "p3@p4":
-        @jit.unroll_safe
-        def p3_p4_mutation(hlquery, *args):
-            result = func(hlquery, *args)
-            op = args[-1]
-            for i in range(op.p_Signed(3), op.p_Signed(3) + op.p4_i()):
-                hlquery.mem_cache.invalidate(i)
-            return result
-        return p3_p4_mutation
-    if mutates == "p3@p4 or p3":
-        @jit.unroll_safe
-        def p3_p4_mutation(hlquery, *args):
-            result = func(hlquery, *args)
-            op = args[-1]
-            length = op.p4_i()
-            if not length:
-                length = 1
-            for i in range(op.p_Signed(3), op.p_Signed(3) + length):
-                hlquery.mem_cache.invalidate(i)
-            return result
-        return p3_p4_mutation
-    if mutates == "p2@p5":
-        @jit.unroll_safe
-        def p2_p5_mutation(hlquery, *args):
-            result = func(hlquery, *args)
-            op = args[-1]
-            for i in range(op.p_Signed(2), op.p_Signed(2) + op.p_Signed(5)):
-                hlquery.mem_cache.invalidate(i)
-            return result
-        return p2_p5_mutation
-    else:
-        raise ValueError("unknown mutation %s" % mutates)
+    methname = mutates.replace("@", "_").replace(":", "_").replace(" ", "_") + "_mutation"
+    def mutation(hlquery, *args):
+        result = func(hlquery, *args)
+        op = args[-1]
+        getattr(hlquery, methname)(op)
+        return result
+    return mutation
 
 
 class Sqlite3Query(object):
@@ -153,8 +111,9 @@ class Sqlite3Query(object):
     _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]', '_llmem_as_python_list[*]', 'intp', 'longp', 'unpackedrecordp',
                           '_hlops[*]', 'mem_cache']
 
-    def __init__(self, db, query):
-        self.db = db
+    def __init__(self, hldb, query):
+        self.hldb = hldb
+        self.db = hldb.db
         self.internalPc = lltype.malloc(rffi.LONGP.TO, 1, flavor='raw')
         self.unpackedrecordp = lltype.malloc(capi.UNPACKEDRECORD, flavor='raw')
         self.intp = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
@@ -162,25 +121,33 @@ class Sqlite3Query(object):
         self.prepare(query)
         self.iCompare = 0
 
+    def close(self):
+        if self.internalPc:
+            lltype.free(self.internalPc, flavor='raw')
+            lltype.free(self.intp, flavor='raw')
+            lltype.free(self.longp, flavor='raw')
+            lltype.free(self.unpackedrecordp, flavor='raw')
+            self.internalPc = lltype.nullptr(rffi.LONGP.TO)
+
     def __del__(self):
-        lltype.free(self.internalPc, flavor='raw')
-        lltype.free(self.intp, flavor='raw')
-        lltype.free(self.longp, flavor='raw')
-        lltype.free(self.unpackedrecordp, flavor='raw')
+        self.close()
+
 
     def prepare(self, query):
         length = len(query)
         with rffi.scoped_str2charp(query) as query, lltype.scoped_alloc(rffi.VOIDPP.TO, 1) as result, lltype.scoped_alloc(rffi.CCHARPP.TO, 1) as unused_buffer:
-            errorcode = capi.sqlite3_prepare(self.db, query, length, result, unused_buffer)
-            assert errorcode == 0
+            errorcode = capi.sqlite3_prepare_v2(self.db, query, length, result, unused_buffer)
+            if not errorcode == 0:
+                raise SqliteException(errorcode, rffi.charp2str(capi.sqlite3_errmsg(self.db)))
             self.p = rffi.cast(capi.VDBEP, result[0])
         self._init_python_data()
 
     def _init_python_data(self):
         from sqpyte.mem import Mem
-        self._llmem_as_python_list = [self.p.aMem[i] for i in range(self.p.nMem)]
+        nMem = rffi.getintfield(self.p, 'nMem')
+        self._llmem_as_python_list = [self.p.aMem[i] for i in range(nMem + 1)]
         self._mem_as_python_list = [Mem(self, self.p.aMem[i], i)
-                for i in range(self.p.nMem)]
+                for i in range(nMem + 1)]
         self._hlops = [Op(self, self.p.aOp[i]) for i in range(self.p.nOp)]
         self.init_mem_cache()
 
@@ -194,10 +161,123 @@ class Sqlite3Query(object):
         for mem in self._mem_as_python_list:
             mem.check_cache_consistency()
 
+    # _______________________________________________________________
+    # externally useful API
 
+    def python_sqlite3_data_count(self):
+        if rffi.getintfield(self.p, 'pResultSet') == 0:
+            return 0
+        return self.p.nResColumn
+
+    def python_sqlite3_column_type(self, iCol):
+        # XXX use the cache!
+        return capi.sqlite3_column_type(self.p, iCol)
+
+    def python_sqlite3_column_text(self, iCol):
+        return capi.sqlite3_column_text(self.p, iCol)
+
+    def python_sqlite3_column_bytes(self, iCol):
+        return capi.sqlite3_column_bytes(self.p, iCol)
+
+    def python_sqlite3_column_int64(self, iCol):
+        return capi.sqlite3_column_int64(self.p, iCol)
+
+    def python_sqlite3_column_double(self, iCol):
+        return capi.sqlite3_column_double(self.p, iCol)
+
+
+
+    # _______________________________________________________________
+    # cache invalidation
     @jit.unroll_safe
     def invalidate_caches(self):
         self.mem_cache.invalidate_all()
+
+    def p1_mutation(self, op):
+        i = op.p_Signed(1)
+        self.mem_cache.invalidate(i)
+
+    def p2_mutation(self, op):
+        i = op.p_Signed(2)
+        self.mem_cache.invalidate(i)
+
+    def p3_mutation(self, op):
+        i = op.p_Signed(3)
+        self.mem_cache.invalidate(i)
+
+    @jit.unroll_safe
+    def p1_p2_mutation(self, op):
+        for i in range(op.p_Signed(1), op.p_Signed(1) + op.p_Signed(2)):
+            self.mem_cache.invalidate(i)
+
+    @jit.unroll_safe
+    def p2_p3_mutation(self, op):
+        self.mem_cache.invalidate(op.p_Signed(2))
+        if op.p_Signed(3) > op.p_Signed(2):
+            for i in range(op.p_Signed(2) + 1, op.p_Signed(3) + 1):
+                self.mem_cache.invalidate(i)
+
+    @jit.unroll_safe
+    def p3_p4_mutation(self, op):
+        for i in range(op.p_Signed(3), op.p_Signed(3) + op.p4_i()):
+            self.mem_cache.invalidate(i)
+
+    @jit.unroll_safe
+    def p3_p4_or_p3_mutation(self, op):
+        length = op.p4_i()
+        if not length:
+            length = 1
+        for i in range(op.p_Signed(3), op.p_Signed(3) + length):
+            self.mem_cache.invalidate(i)
+
+    @jit.unroll_safe
+    def p2_p5_mutation(self, op):
+        for i in range(op.p_Signed(2), op.p_Signed(2) + op.p_Signed(5)):
+            self.mem_cache.invalidate(i)
+    # _______________________________________________________________
+
+    def p1_mutation(self, op):
+        i = op.p_Signed(1)
+        self.mem_cache.invalidate(i)
+
+    def p2_mutation(self, op):
+        i = op.p_Signed(2)
+        self.mem_cache.invalidate(i)
+
+    def p3_mutation(self, op):
+        i = op.p_Signed(3)
+        self.mem_cache.invalidate(i)
+
+    @jit.unroll_safe
+    def p1_p2_mutation(self, op):
+        for i in range(op.p_Signed(1), op.p_Signed(1) + op.p_Signed(2)):
+            self.mem_cache.invalidate(i)
+
+    @jit.unroll_safe
+    def p2_p3_mutation(self, op):
+        self.mem_cache.invalidate(op.p_Signed(2))
+        if op.p_Signed(3) > op.p_Signed(2):
+            for i in range(op.p_Signed(2) + 1, op.p_Signed(3) + 1):
+                self.mem_cache.invalidate(i)
+
+    @jit.unroll_safe
+    def p3_p4_mutation(self, op):
+        for i in range(op.p_Signed(3), op.p_Signed(3) + op.p4_i()):
+            self.mem_cache.invalidate(i)
+
+    @jit.unroll_safe
+    def p3_p4_or_p3_mutation(self, op):
+        length = op.p4_i()
+        if not length:
+            length = 1
+        for i in range(op.p_Signed(3), op.p_Signed(3) + length):
+            self.mem_cache.invalidate(i)
+
+    @jit.unroll_safe
+    def p2_p5_mutation(self, op):
+        for i in range(op.p_Signed(2), op.p_Signed(2) + op.p_Signed(5)):
+            self.mem_cache.invalidate(i)
+    # _______________________________________________________________
 
     def is_op_cache_safe(self, opcode):
         return _cache_safe_opcodes[opcode]
@@ -297,8 +377,9 @@ class Sqlite3Query(object):
 
     @cache_safe()
     def python_OP_Copy(self, pc, rc, op):
-        return translated.python_OP_Copy(self, pc, rc, op)
-        # return capi.impl_OP_Copy(self.p, self.db, pc, rc, op.pOp)
+        if objectmodel.we_are_translated():
+            return translated.python_OP_Copy(self, pc, rc, op)
+        return capi.impl_OP_Copy(self.p, self.db, pc, rc, op.pOp)
 
     @cache_safe()
     def python_OP_MustBeInt(self, pc, rc, op):
@@ -318,7 +399,7 @@ class Sqlite3Query(object):
     def python_OP_String8(self, pc, rc, op):
         return capi.impl_OP_String8(self.p, self.db, pc, rc, op.pOp)
 
-    @cache_safe()
+    @cache_safe(mutates=["p2@p5"])
     def python_OP_Function(self, pc, rc, op):
         # return capi.impl_OP_Function(self.p, self.db, pc, rc, op.pOp)
         return translated.python_OP_Function(self, pc, rc, op)
@@ -563,12 +644,6 @@ class Sqlite3Query(object):
 
     def python_OP_DropTable(self, op):
         return capi.impl_OP_DropTable(self.db, op.pOp)
-
-
-    def python_sqlite3_column_text(self, iCol):
-        return capi.sqlite3_column_text(self.p, iCol)
-    def python_sqlite3_column_bytes(self, iCol):
-        return capi.sqlite3_column_bytes(self.p, iCol)
 
 
     def debug_print(self, s):
@@ -861,8 +936,7 @@ class Op(object):
 
     @jit.elidable
     def p4_pFunc(self):
-        from sqpyte.function import Func
-        return Func(self.pOp.p4.pFunc)
+        return self.hlquery.hldb.funcregistry.get_func(self.pOp.p4.pFunc)
 
     @jit.elidable
     def p4_pColl(self):
@@ -909,8 +983,8 @@ class Op(object):
 
 
 def main_work(query):
-    db = Sqlite3DB(testdb).db
-    query = Sqlite3Query(db, query)
+    db = Sqlite3DB(testdb)
+    query = db.execute(query)
     rc = query.mainloop()
     count = 0
     while rc == CConfig.SQLITE_ROW:

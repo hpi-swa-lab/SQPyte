@@ -38,7 +38,7 @@ class TestLLtype(LLJitMixin):
                 rc = query.mainloop()
                 i += textlen
             return i
-
+            
         res = interp_w()
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True, inline=True)
 
@@ -56,28 +56,9 @@ class TestLLtype(LLJitMixin):
                 rc = query.mainloop()
                 i += textlen
             return i
-
+            
         res = interp_w()
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True, inline=True)
-
-    def test_like(self):
-
-        def interp_w():
-            db = Sqlite3DB(testdb).db
-            query = Sqlite3Query(db, 'select name from contacts where name like "Za% %";')
-
-            rc = query.mainloop()
-            i = 0
-            while rc == CConfig.SQLITE_ROW:
-                jitdriver.jit_merge_point(i=i, query=query, rc=rc)
-                textlen = query.python_sqlite3_column_bytes(0)
-                rc = query.mainloop()
-                i += textlen
-            return i
-
-        res = interp_w()
-        self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True, inline=True)
-
 
     def test_count(self):
 

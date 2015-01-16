@@ -724,7 +724,7 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
 
     pIn1, flags1 = op.mem_and_flags_of_p(1)    # 1st input operand
     type1 = pIn1.numericType()
-    pIn2, flags2 = op.mem_and_flags_of_p(2)    # 1st input operand
+    pIn2, flags2 = op.mem_and_flags_of_p(2)    # 2nd input operand
     type2 = pIn2.numericType()
     pOut = op.mem_of_p(3)
     flags = flags1 | flags2
@@ -1057,14 +1057,14 @@ def python_OP_AggStep(hlquery, rc, pc, op):
     n = op.p_Signed(5)
     index = op.p_Signed(2)
     func = op.p4_pFunc()
-    if func.agg_exists_in_python():
+    if func.exists_in_python():
         return func.aggstep_in_python(hlquery, op, index, n)
-    hlquery.invalidate_caches() # XXX more fine-grained
+    hlquery.invalidate_caches()
     apVal = p.apArg
     assert apVal or n == 0
     for i in range(n):
         apVal[i] = hlquery.mem_with_index(index + i).pMem
-    pFunc = func.pFunc
+    pFunc = func.pfunc
     mem = op.mem_of_p(3)
     with lltype.scoped_alloc(capi.CONTEXT) as ctx:
         mems = Mem(hlquery, ctx.s)
@@ -1114,7 +1114,7 @@ def python_OP_AggStep(hlquery, rc, pc, op):
 def python_OP_AggFinal(hlquery, pc, rc, op):
     func = op.p4_pFunc()
     mem = op.mem_of_p(1)
-    if func.agg_exists_in_python():
+    if func.exists_in_python():
         return func.aggfinal_in_python(hlquery, op, mem)
     hlquery.invalidate_caches()
     return capi.impl_OP_AggFinal(hlquery.p, hlquery.db, pc, rc, op.pOp)
@@ -1692,13 +1692,7 @@ def putVarint32(buf, val, index=0):
 #
 # See also: AggStep and AggFinal
 def python_OP_Function(hlquery, pc, rc, op):
-    func = op.p4_pFunc()
-    if func.func_exists_in_python():
-        index = op.p_Signed(2)
-        n = op.p_Signed(5)
-        memout = op.mem_of_p(3)
-        return func.call_in_python(hlquery, op, index, n, memout)
-    hlquery.invalidate_caches() # XXX more fine-grained
+    hlquery.p2_p5_mutation(op)
     result = capi.impl_OP_Function(hlquery.p, hlquery.db, pc, rc, op.pOp)
     return _decode_combined_flags_rc_for_p3(result, op)
 

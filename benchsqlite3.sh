@@ -23,11 +23,11 @@ do
     echo "========== Query $i =========="
     for j in {1..$WARMUP}
     do
-        sqlite3 $DB < $SQPYTE_DIR/tpch/tmp-bench/input$i.sql > /dev/null
+        $SQPYTE_DIR/sqlite-install/bin/sqlite3 $DB < $SQPYTE_DIR/tpch/tmp-bench/input$i.sql > /dev/null
     done
     for j in {1..10}
     do
-        sqlite3 $DB < $SQPYTE_DIR/tpch/tmp-bench/input$i.sql
+        $SQPYTE_DIR/sqlite-install/bin/sqlite3 $DB < $SQPYTE_DIR/tpch/tmp-bench/input$i.sql
     done    
 done
 

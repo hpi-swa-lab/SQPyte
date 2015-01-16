@@ -6,14 +6,13 @@ import sys, math
 
 class Mem(object):
     _immutable_fields_ = ['hlquery', 'pMem', '_cache_index']
-    _attrs_ = ['hlquery', 'pMem', '_cache_index', '_cache', '_python_ctx', '_python_func_cache']
+    _attrs_ = ['hlquery', 'pMem', '_cache_index', '_cache', '_python_ctx']
 
     def __init__(self, hlquery, pMem, _cache_index=-1):
         self.hlquery = hlquery
         self.pMem = pMem
         self._cache_index = _cache_index
         self._python_ctx = None
-        self._python_func_cache = None
 
     def invalidate_cache(self):
         if self._cache_index != -1:
@@ -246,10 +245,11 @@ class Mem(object):
             self.set_zMalloc(lltype.nullptr(rffi.CCHARP.TO))
         self.set_z_null()
 
-    def sqlite3VdbeMemSetInt64(self, val, constant=False):
-        self.sqlite3VdbeMemRelease()
-        self.set_u_i(val, constant=constant)
-        self.set_flags(CConfig.MEM_Int)
+    def sqlite3VdbeMemSetInt64(self, val):
+        if self.get_flags() != CConfig.MEM_Int:
+            self.sqlite3VdbeMemRelease()
+            self.set_flags(CConfig.MEM_Int)
+        self.set_u_i(val)
 
     def sqlite3VdbeMemSetDouble(self, val):
         """
@@ -259,9 +259,10 @@ class Mem(object):
         if math.isnan(val):
             self.sqlite3VdbeMemSetNull();
         else:
-            self.sqlite3VdbeMemRelease()
+            if self.get_flags() != CConfig.MEM_Real:
+                self.sqlite3VdbeMemRelease()
+                self.set_flags(CConfig.MEM_Real)
             self.set_r(val)
-            self.set_flags(CConfig.MEM_Real)
 
     def sqlite3VdbeMemSetNull(self):
         """ Delete any previous value and set the value stored in *pMem to NULL. """

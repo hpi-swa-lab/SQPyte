@@ -1,4 +1,5 @@
 import os
+import sys
 from rpython.rtyper.tool import rffi_platform as platform
 from rpython.rtyper.lltypesystem import rffi, lltype
 from rpython.translator.tool.cbuild import ExternalCompilationInfo
@@ -616,8 +617,8 @@ def llexternal(name, args, result, **kwargs):
 
 sqlite3_open = llexternal('sqlite3_open', [rffi.CCHARP, SQLITE3PP],
                                rffi.INT)
-sqlite3_prepare = llexternal('sqlite3_prepare', [rffi.VOIDP, rffi.CCHARP, rffi.INT, rffi.VOIDPP, rffi.CCHARPP],
-                                  rffi.INT)
+sqlite3_prepare_v2 = llexternal('sqlite3_prepare_v2', [rffi.VOIDP, rffi.CCHARP, rffi.INT, rffi.VOIDPP, rffi.CCHARPP],
+                                rffi.INT)
 sqlite3_allocateCursor = llexternal('allocateCursor', [lltype.Ptr(VDBE), rffi.INT, rffi.INT, rffi.INT, rffi.INT],
     VDBECURSORP)
 sqlite3_sqlite3VdbeMemIntegerify = llexternal('sqlite3VdbeMemIntegerify', [lltype.Ptr(MEM)],
@@ -772,10 +773,16 @@ impl_OP_DropTable = llexternal('impl_OP_DropTable', [SQLITE3P, VDBEOPP],
 sqlite3_reset = llexternal('sqlite3_reset', [VDBEP],
     rffi.INT)
 
+sqlite3_column_type = llexternal('sqlite3_column_type', [VDBEP, rffi.INT],
+    rffi.INT)
 sqlite3_column_text = llexternal('sqlite3_column_text', [VDBEP, rffi.INT],
     rffi.UCHARP)
 sqlite3_column_bytes = llexternal('sqlite3_column_bytes', [VDBEP, rffi.INT],
     rffi.INT)
+sqlite3_column_int64 = llexternal('sqlite3_column_int64', [VDBEP, rffi.INT],
+    rffi.LONG)
+sqlite3_column_double = llexternal('sqlite3_column_double', [VDBEP, rffi.INT],
+    rffi.DOUBLE)
 
 sqlite3_sqlite3BtreeNext = llexternal('sqlite3BtreeNext', [BTCURSORP, rffi.INTP],
     rffi.INT)
@@ -784,8 +791,13 @@ sqlite3_sqlite3BtreePrevious = llexternal('sqlite3BtreePrevious', [BTCURSORP, rf
 sqlite3BtreeMovetoUnpacked = llexternal('sqlite3BtreeMovetoUnpacked', [BTCURSORP, rffi.VOIDP, CConfig.i64, rffi.INT, rffi.INTP],
     rffi.INT)
 
+# XXX ugly hack, we need macro=True, but only when translating
+if sys.argv[0].endswith("rpython"): # we're translating
+    kwargs = dict(macro=True)
+else:
+    kwargs = {}
 sqlite3_applyNumericAffinity = llexternal('applyNumericAffinity', [MEMP],
-    lltype.Void, macro=True)
+    lltype.Void, **kwargs)
 
 sqlite3AtoF = llexternal('sqlite3AtoF', [rffi.CCHARP, rffi.DOUBLEP, rffi.INT, CConfig.u8],
     rffi.INT)
@@ -833,3 +845,12 @@ gotoTooBig = llexternal('gotoTooBig', [VDBEP, SQLITE3P, rffi.INT],
 
 sqlite3PutVarint32 = llexternal('sqlite3PutVarint32', [rffi.UCHARP, CConfig.u32], rffi.INT)
 sqlite3VdbeMemExpandBlob = llexternal('sqlite3VdbeMemExpandBlob', [MEMP], rffi.INT)
+
+
+sqlite3_create_function = llexternal(
+    'sqlite3_create_function',
+    [SQLITE3P, rffi.CCHARP, rffi.INT, rffi.INT, rffi.VOIDP,
+        rffi.VOIDP, rffi.VOIDP, rffi.VOIDP],
+    rffi.INT)
+
+sqlite3_errmsg = llexternal('sqlite3_errmsg', [SQLITE3P], rffi.CCHARP)
