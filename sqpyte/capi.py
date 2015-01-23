@@ -61,6 +61,7 @@ p4names = ['P4_INT32', 'P4_KEYINFO', 'P4_COLLSEQ', 'P4_FUNCDEF']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR', 'OPFLAG_CLEARCACHE', 'OPFLAG_LENGTHARG', 'OPFLAG_TYPEOFARG', 'OPFLG_OUT2_PRERELEASE', 'OPFLAG_PERMUTE']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW', 'SQLITE_BUSY', 'SQLITE_CORRUPT_BKPT', 'SQLITE_NOMEM']
 sqlite_codes = ['SQLITE_NULLEQ', 'SQLITE_JUMPIFNULL', 'SQLITE_STOREP2', 'SQLITE_AFF_MASK', 'SQLITE_FUNC_NEEDCOLL']
+mem_codes = ['SQLITE_STATIC', 'SQLITE_TRANSIENT']
 affinity_codes = ['SQLITE_AFF_TEXT', 'SQLITE_AFF_NONE', 'SQLITE_AFF_INTEGER', 'SQLITE_AFF_REAL', 'SQLITE_AFF_NUMERIC']
 btree_values = ['BTCURSOR_MAX_DEPTH', 'BTREE_BULKLOAD']
 other_constants = ['SQLITE_MAX_VARIABLE_NUMBER', 'CACHE_STALE', 'SQLITE_LIMIT_LENGTH', 'CURSOR_VALID']
@@ -79,7 +80,7 @@ sqlite_types = [
 
 for name in (p4names + opnames + p5flags + result_codes + sqlite_codes +
              btree_values + other_constants + memValues + affinity_codes +
-             encodings + sqlite_types):
+             encodings + sqlite_types + mem_codes):
     setattr(CConfig, name, platform.DefinedConstantInteger(name))
 
 
@@ -776,7 +777,7 @@ sqlite3_reset = llexternal('sqlite3_reset', [VDBEP],
 sqlite3_column_type = llexternal('sqlite3_column_type', [VDBEP, rffi.INT],
     rffi.INT)
 sqlite3_column_text = llexternal('sqlite3_column_text', [VDBEP, rffi.INT],
-    rffi.UCHARP)
+    rffi.CCHARP)
 sqlite3_column_bytes = llexternal('sqlite3_column_bytes', [VDBEP, rffi.INT],
     rffi.INT)
 sqlite3_column_int64 = llexternal('sqlite3_column_int64', [VDBEP, rffi.INT],
@@ -833,6 +834,8 @@ sqlite3_sqlite3VdbeMemShallowCopy = llexternal('sqlite3VdbeMemShallowCopy', [MEM
     lltype.Void)
 sqlite3_sqlite3VdbeMemStringify = llexternal('sqlite3VdbeMemStringify', [MEMP, rffi.INT],
     rffi.INT)
+sqlite3_sqlite3VdbeMemNulTerminate = llexternal('sqlite3VdbeMemNulTerminate', [MEMP],
+    rffi.INT)
 sqlite3VdbeMemGrow = llexternal('sqlite3VdbeMemGrow', [MEMP, rffi.INT, rffi.INT], rffi.INT)
 sqlite3_gotoAbortDueToInterrupt = llexternal('gotoAbortDueToInterrupt', [VDBEP, SQLITE3P, rffi.INT, rffi.INT],
     rffi.INT)
@@ -854,3 +857,6 @@ sqlite3_create_function = llexternal(
     rffi.INT)
 
 sqlite3_errmsg = llexternal('sqlite3_errmsg', [SQLITE3P], rffi.CCHARP)
+
+
+sqlite3VdbeMemSetStr = llexternal('sqlite3VdbeMemSetStr', [MEMP, rffi.CCHARP, rffi.INT, CConfig.u8, rffi.VOIDP], rffi.INT)
