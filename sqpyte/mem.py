@@ -171,8 +171,6 @@ class Mem(object):
             # representation.
 
             if not (flags & CConfig.MEM_Str) and flags & (CConfig.MEM_Real|CConfig.MEM_Int):
-                self.invalidate_cache()
-                capi.sqlite3_sqlite3VdbeMemStringify(self.pMem, enc)
                 flags = self.get_flags()
             flags = flags & ~(CConfig.MEM_Real|CConfig.MEM_Int)
             self.set_flags(flags)
@@ -183,6 +181,16 @@ class Mem(object):
             self.applyNumericAffinity()
             if self.get_flags() & CConfig.MEM_Real:
                 self.sqlite3VdbeIntegerAffinity()
+
+    def sqlite3VdbeMemStringify(self, enc):
+        self.invalidate_cache()
+        capi.sqlite3_sqlite3VdbeMemStringify(self.pMem, enc)
+
+    def sqlite3VdbeMemNulTerminate(self):
+        if self.get_flags() & CConfig.MEM_Term:
+            return 0
+        return rffi.cast(
+            lltype.Signed, capi.sqlite3_sqlite3VdbeMemNulTerminate(self.pMem))
 
     def sqlite3VdbeMemIntegerify(self):
         self.invalidate_cache()
@@ -349,6 +357,7 @@ class Mem(object):
         return 0
 
     def sqlite3VdbeMemExpandBlob(self):
+        self.invalidate_cache()
         return rffi.cast(lltype.Signed, capi.sqlite3VdbeMemExpandBlob(self.pMem))
 
     # _______________________________________________________________
@@ -529,8 +538,39 @@ class Mem(object):
 
     sqlite3_value_int64 = sqlite3VdbeIntValue
     sqlite3_value_double = sqlite3VdbeRealValue
+
+    def sqlite3_value_text(self):
+        flags = self.get_flags()
+        # this is sqlite3ValueText
+        if flags & CConfig.MEM_Null:
+            return lltype.nullptr(rffi.CCHARP.TO)
+
+        assert (CConfig.MEM_Blob>>3) == CConfig.MEM_Str
+        flags |= (flags & CConfig.MEM_Blob) >> 3
+        self.set_flags(flags)
+
+        self.ExpandBlob()
+        flags = self.get_flags()
+        if flags & CConfig.MEM_Str:
+            self.sqlite3VdbeChangeEncoding(CConfig.SQLITE_UTF8)
+            self.sqlite3VdbeMemNulTerminate() # /* IMP: R-31275-44060 */
+        else:
+            assert flags & CConfig.MEM_Blob
+            self.sqlite3VdbeMemStringify(enc)
+        return self.get_z()
+
     sqlite3_result_int64 = sqlite3VdbeMemSetInt64
     sqlite3_result_double = sqlite3VdbeMemSetDouble
+    sqlite3_result_null = sqlite3VdbeMemSetNull
+
+    def sqlite3_result_text(self, s):
+        self.invalidate_cache()
+        with rffi.scoped_str2charp(s) as charp:
+            capi.sqlite3VdbeMemSetStr(
+                self.pMem, charp, len(s),
+                CConfig.SQLITE_UTF8,
+                rffi.cast(rffi.VOIDP, CConfig.SQLITE_TRANSIENT))
+
 
 @jit.look_inside_iff(lambda buf, v, length: jit.isconstant(length))
 def _write_int_to_buf(buf, v, length):
