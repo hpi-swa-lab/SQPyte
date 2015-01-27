@@ -556,7 +556,7 @@ class Mem(object):
             self.sqlite3VdbeMemNulTerminate() # /* IMP: R-31275-44060 */
         else:
             assert flags & CConfig.MEM_Blob
-            self.sqlite3VdbeMemStringify(enc)
+            self.sqlite3VdbeMemStringify(CConfig.SQLITE_UTF8)
         return self.get_z()
 
     sqlite3_result_int64 = sqlite3VdbeMemSetInt64
