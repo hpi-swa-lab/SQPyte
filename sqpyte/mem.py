@@ -563,6 +563,7 @@ class Mem(object):
     sqlite3_result_double = sqlite3VdbeMemSetDouble
     sqlite3_result_null = sqlite3VdbeMemSetNull
 
+    @jit.dont_look_inside
     def sqlite3_result_text(self, s):
         self.invalidate_cache()
         with rffi.scoped_str2charp(s) as charp:

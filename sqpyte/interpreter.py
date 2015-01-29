@@ -55,6 +55,7 @@ class Sqlite3DB(object):
         return Sqlite3Query(self, sql)
 
 
+    @jit.dont_look_inside
     def create_aggregate(self, name, nargs, contextcls):
         index, func = self.funcregistry.create_aggregate(name, nargs, contextcls)
         with rffi.scoped_str2charp(name) as name:
