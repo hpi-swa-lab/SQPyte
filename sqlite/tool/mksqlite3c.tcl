@@ -79,7 +79,7 @@ puts $out [subst \
 if {$addstatic} {
   puts $out \
 {#ifndef SQLITE_PRIVATE
-# define SQLITE_PRIVATE 
+# define SQLITE_PRIVATE static
 #endif
 #ifndef SQLITE_API
 # define SQLITE_API
@@ -100,6 +100,7 @@ foreach hdr {
    hash.h
    hwtime.h
    keywordhash.h
+   msvc.h
    mutex.h
    opcodes.h
    os_common.h
@@ -212,7 +213,7 @@ proc copy_file {filename} {
         }
       } elseif {[regexp {^(SQLITE_EXTERN )?void \(\*sqlite3IoTrace\)} $line]} {
         regsub {^SQLITE_EXTERN } $line {} line
-        puts $out "SQLITE_PRIVATE $line"
+        puts $out $line
       } elseif {[regexp {^void \(\*sqlite3Os} $line]} {
         puts $out "SQLITE_PRIVATE $line"
       } else {
@@ -253,6 +254,7 @@ foreach file {
    malloc.c
    printf.c
    random.c
+   threads.c
    utf.c
    util.c
    hash.c
@@ -331,8 +333,6 @@ foreach file {
    rtree.c
    icu.c
    fts3_icu.c
-
-   sqpyte.c
 } {
   copy_file tsrc/$file
 }
