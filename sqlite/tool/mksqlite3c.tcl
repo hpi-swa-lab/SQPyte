@@ -79,7 +79,7 @@ puts $out [subst \
 if {$addstatic} {
   puts $out \
 {#ifndef SQLITE_PRIVATE
-# define SQLITE_PRIVATE static
+# define SQLITE_PRIVATE 
 #endif
 #ifndef SQLITE_API
 # define SQLITE_API
