@@ -385,26 +385,28 @@ BTCURSOR.become(lltype.Struct("BtCursor",           # src/btreeInt.h: 494
     ))
 
 
-MEM = lltype.Struct("Mem",          # src/vdbeInt.h: 159
-    ("db", SQLITE3P),               # The associated database connection
-    ("z", rffi.CCHARP),             # String or BLOB value
-    ("r", rffi.DOUBLE),             # Real value
-    ("u", lltype.Struct("u",
+MEM = lltype.Struct("Mem",          # src/vdbeInt.h: 164
+    ("u", lltype.Struct("MemValue",
+        ("r", rffi.DOUBLE),         # Real value used when MEM_Real is set in flags
         ("i", CConfig.i64),         # Integer value used when MEM_Int is set in flags
         ("nZero", rffi.INT),        # Used when bit MEM_Zero is set in flags
         ("pDef", FUNCDEFP),         # Used only when flags==MEM_Agg
         ("pRowSet", rffi.VOIDP),    #     RowSet *pRowSet;    /* Used only when flags==MEM_RowSet */
         ("pFrame", rffi.VOIDP),     #     VdbeFrame *pFrame;  /* Used when flags==MEM_Frame */
         hints={"union": True})),
-    ("n", rffi.INT),                # Number of characters in string value, excluding '\0'
     ("flags", CConfig.u16),         # Some combination of MEM_Null, MEM_Str, MEM_Dyn, etc.
     ("enc", CConfig.u8),            # SQLITE_UTF8, SQLITE_UTF16BE, SQLITE_UTF16LE
+    ("n", rffi.INT),                # Number of characters in string value, excluding '\0'
+    ("z", rffi.CCHARP),             # String or BLOB value    
+    ("zMalloc", rffi.CCHARP),       # Dynamic buffer allocated by sqlite3_malloc()
+    ("szMalloc", rffi.INT),         # Size of the zMalloc allocation
+    ("uTemp", CConfig.u32),         # Transient storage for serial_type in OP_MakeRecord
+    ("db", SQLITE3P),               # The associated database connection
+    ("xDel", rffi.VOIDP)            #   void (*xDel)(void *);  /* If not null, call this function to delete Mem.z */
     # #ifdef SQLITE_DEBUG
     #   Mem *pScopyFrom;    /* This Mem is a shallow copy of pScopyFrom */
     #   void *pFiller;      /* So that sizeof(Mem) is a multiple of 8 */
     # #endif
-    ("xDel", rffi.VOIDP),           #   void (*xDel)(void *);  /* If not null, call this function to delete Mem.z */
-    ("zMalloc", rffi.CCHARP)        # Dynamic buffer allocated by sqlite3_malloc()
     )
 MEMP = lltype.Ptr(MEM)
 MEMPP = rffi.CArrayPtr(MEMP)
@@ -464,7 +466,7 @@ VDBEOP = lltype.Struct("VdbeOp",                # src/vdbe.h: 41
 VDBEOPP = lltype.Ptr(VDBEOP)
 
 
-VDBE.become(lltype.Struct("Vdbe",               # src/vdbeInt.h: 308
+VDBE.become(lltype.Struct("Vdbe",               # src/vdbeInt.h: 325
     ("db", SQLITE3P),                           # The database connection that owns this statement
     ("aOp", lltype.Ptr(lltype.Array(VDBEOP,     # Space to hold the virtual machine's program
         hints={'nolength': True}))),
@@ -515,10 +517,6 @@ VDBE.become(lltype.Struct("Vdbe",               # src/vdbeInt.h: 308
     ("nStmtDefImmCons", CConfig.i64),           # Number of def. imm constraints when stmt started
     ("zSql", rffi.CCHARP),                      # Text of the SQL statement that generated this
     ("pFree", rffi.VOIDP),                      # Free this when deleting the vdbe
-    # #ifdef SQLITE_ENABLE_TREE_EXPLAIN
-    #   Explain *pExplain;      /* The explainer */
-    #   char *zExplain;         /* Explanation of data structures */
-    # #endif
     ("pFrame", rffi.VOIDP),                             #   VdbeFrame *pFrame;      /* Parent frame */
     ("pDelFrame", rffi.VOIDP),                          #   VdbeFrame *pDelFrame;   /* List of frame objects to free on VM reset */
     ("nFrame", rffi.INT),                               # Number of frames in pFrame list
@@ -527,6 +525,11 @@ VDBE.become(lltype.Struct("Vdbe",               # src/vdbeInt.h: 308
     ("nOnceFlag", rffi.INT),                            # Size of array aOnceFlag[]
     ("aOnceFlag", U8P),                                 # Flags for OP_Once
     ("pAuxData", rffi.VOIDP)                            #   AuxData *pAuxData;      /* Linked list of auxdata allocations */
+    # #ifdef SQLITE_ENABLE_STMT_SCANSTATUS
+    #   i64 *anExec;            /* Number of times each op has been executed */
+    #   int nScan;              /* Entries in aScan[] */
+    #   ScanStatus *aScan;      /* Scan definitions for sqlite3_stmt_scanstatus() */
+    # #endif    
     ))
 
 
@@ -538,19 +541,21 @@ VDBECURSOR.become(lltype.Struct("VdbeCursor",   # src/vdbeInt.h: 63
     ("pseudoTableReg", rffi.INT),               # Register holding pseudotable content.
     ("nField", CConfig.i16),                    # Number of fields in the header
     ("nHdrParsed", CConfig.i16),                # Number of header fields parsed so far
+    # #ifdef SQLITE_DEBUG
+    #   u8 seekOp;            /* Most recent seek operation on this cursor */
+    # #endif
     ("iDb", CConfig.i8),                        # Index of cursor database in db->aDb[] (or -1)
     ("nullRow", CConfig.u8),                    # True if pointing to a row with no data
-    ("rowidIsValid", CConfig.u8),               # True if lastRowid is valid
     ("deferredMoveto", CConfig.u8),             # A call to sqlite3BtreeMoveto() is needed
     ("scary_bitfield", lltype.Unsigned),          #
     #("isEphemeral", lltype.Bool),               #   Bool isEphemeral:1;   /* True for an ephemeral table */
     #("useRandomRowid", lltype.Bool),            #   Bool useRandomRowid:1;/* Generate new record numbers semi-randomly */
     #("isTable", lltype.Bool),                   #   Bool isTable:1;       /* True if a table requiring integer keys */
     #("isOrdered", lltype.Bool),                 #   Bool isOrdered:1;     /* True if the underlying table is BTREE_UNORDERED */
+    ("pgnoRoot", CConfig.u32),                  # Pgno pgnoRoot;        /* Root page of the open btree cursor */
     ("pVtabCursor", rffi.VOIDP),                #   sqlite3_vtab_cursor *pVtabCursor;  /* The cursor for a virtual table */
     ("seqCount", CConfig.i64),                  # Sequence counter
     ("movetoTarget", CConfig.i64),              # Argument to the deferred sqlite3BtreeMoveto()
-    ("lastRowid", CConfig.i64),                 # Rowid being deleted by OP_Delete
     ("pSorter", rffi.VOIDP),                    #   VdbeSorter *pSorter;  /* Sorter object for OP_SorterOpen cursors */
     #   /* Cached information about the header for the data record that the
     #   ** cursor is currently pointing to.  Only valid if cacheStatus matches
@@ -568,6 +573,7 @@ VDBECURSOR.become(lltype.Struct("VdbeCursor",   # src/vdbeInt.h: 63
     ("aRow", rffi.UCHARP),                          #   const u8 *aRow;       /* Data for the current row, if all on one page */
     # ("aType", lltype.Ptr(lltype.Array(CConfig.u32,  # Type values for all entries in the record
     #     hints={'nolength': True})))
+    ("aOffset", rffi.UINTP),                        # u32 *aOffset;         /* Pointer to aType[nField] */
     ("aType", lltype.FixedSizeArray(CConfig.u32, 1)) # Type values for all entries in the record
     #   /* 2*nField extra array elements allocated for aType[], beyond the one
     #   ** static element declared in the structure.  nField total array slots for
