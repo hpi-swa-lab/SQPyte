@@ -25,7 +25,7 @@ class Mem(object):
         if state.is_flag_known(self._cache_index):
             assert rffi.cast(lltype.Unsigned, self.pMem.flags) == self.get_flags()
         if state.is_r_known(self._cache_index):
-            assert self.pMem.r == self.get_r()
+            assert self.pMem.r == self.get_u_r()
         if state.is_u_i_known(self._cache_index):
             assert self.pMem.u.i == self.get_u_i()
 
@@ -41,12 +41,6 @@ class Mem(object):
     def assure_flags(self, newflags):
         self.hlquery.mem_cache.assure_flags(self, newflags)
 
-    def get_r(self):
-        return self.hlquery.mem_cache.get_r(self)
-
-    def set_r(self, val):
-        return self.hlquery.mem_cache.set_r(self, val)
-
 
     def get_u_i(self):
         return self.hlquery.mem_cache.get_u_i(self)
@@ -54,8 +48,17 @@ class Mem(object):
     def set_u_i(self, val, constant=False):
         return self.hlquery.mem_cache.set_u_i(self, val, constant)
 
+    def get_u_r(self):
+        return self.hlquery.mem_cache.get_u_r(self)
+
+    def set_u_r(self, val, constant=False):
+        return self.hlquery.mem_cache.set_u_r(self, val, constant)
+
     def is_constant_u_i(self):
         return self.hlquery.mem_cache.is_constant_u_i(self)
+
+    def is_constant_u_r(self):
+        return self.hlquery.mem_cache.is_constant_u_r(self)
 
 
     def get_u_nZero(self):
@@ -128,7 +131,7 @@ class Mem(object):
         assert not flags & CConfig.MEM_RowSet
         # assert( mem->db==0 || sqlite3_mutex_held(mem->db->mutex) );
         # assert( EIGHT_BYTE_ALIGNMENT(mem) );
-        floatval = self.get_r()
+        floatval = self.get_u_r()
         intval = int(floatval)
         # Only mark the value as an integer if
         #
@@ -221,7 +224,7 @@ class Mem(object):
             val1 = lltype.malloc(rffi.DOUBLEP.TO, 1, flavor='raw')
             val1[0] = 0.0
             atof = capi.sqlite3AtoF(self.get_z(), val1, self.get_n(), self.get_enc())
-            self.set_r(val1[0])
+            self.set_u_r(val1[0])
             lltype.free(val1, flavor='raw')
 
             if atof == 0:
@@ -270,7 +273,7 @@ class Mem(object):
             if self.get_flags() != CConfig.MEM_Real:
                 self.sqlite3VdbeMemRelease()
                 self.set_flags(CConfig.MEM_Real)
-            self.set_r(val)
+            self.set_u_r(val)
 
     def sqlite3VdbeMemSetNull(self):
         """ Delete any previous value and set the value stored in *pMem to NULL. """
@@ -313,7 +316,7 @@ class Mem(object):
         if flags & CConfig.MEM_Int:
             return self.get_u_i()
         elif flags & CConfig.MEM_Real:
-            return int(self.get_r())
+            return int(self.get_u_r())
         elif flags & (CConfig.MEM_Str|CConfig.MEM_Blob):
             val2 = lltype.malloc(rffi.LONGLONGP.TO, 1, flavor='raw')
             val2[0] = 0
@@ -335,7 +338,7 @@ class Mem(object):
         # assert( pMem->db==0 || sqlite3_mutex_held(pMem->db->mutex) );
         # assert( EIGHT_BYTE_ALIGNMENT(pMem) );
         if flags & CConfig.MEM_Real:
-            return self.get_r()
+            return self.get_u_r()
         elif flags & CConfig.MEM_Int:
             return self.get_u_i()
         elif flags & (CConfig.MEM_Str | CConfig.MEM_Blob):
@@ -410,13 +413,13 @@ class Mem(object):
                 return 0
             else:
                 if flags1 & CConfig.MEM_Real:
-                    r1 = self.get_r()
+                    r1 = self.get_u_r()
                 elif flags1 & CConfig.MEM_Int:
                     r1 = float(self.get_u_i())
                 else:
                     return 1
                 if flags2 & CConfig.MEM_Real:
-                    r2 = other.get_r()
+                    r2 = other.get_u_r()
                 elif flags2 & CConfig.MEM_Int:
                     r2 = float(other.get_u_i())
                 else:
@@ -468,7 +471,7 @@ class Mem(object):
             if flags & CConfig.MEM_Int:
                 i = self.get_u_i()
             else:
-                i = longlong2float.float2longlong(self.get_r())
+                i = longlong2float.float2longlong(self.get_u_r())
             _write_int_to_buf(buf, i, length)
             return length
         else:
@@ -726,31 +729,6 @@ class CacheHolder(object):
             assert self.cache_state().get_flags(i) == rffi.cast(lltype.Unsigned, mem.pMem.flags) == newflags
 
 
-
-    def get_r(self, mem):
-        i = mem._cache_index
-        if i == -1:
-            return mem.pMem.r
-        state = self.cache_state()
-        if state.is_r_known(i):
-            if not objectmodel.we_are_translated() and mem.pMem:
-                assert self.floats[i] == mem.pMem.r
-            return self.floats[i]
-        r = mem.pMem.r
-        return r
-        self.floats[i] = r
-        self.set_cache_state(state.add_knowledge(i, STATE_FLOAT_KNOWN))
-        return r
-
-    def set_r(self, mem, r):
-        i = mem._cache_index
-        mem.pMem.r = r
-        if 1:#i == -1:
-            return
-        state = self.cache_state()
-        self.floats[i] = r
-        self.set_cache_state(state.add_knowledge(i, STATE_FLOAT_KNOWN))
-
     def get_u_i(self, mem):
         i = mem._cache_index
         if i == -1:
@@ -766,6 +744,21 @@ class CacheHolder(object):
         self.set_cache_state(state.add_knowledge(i, STATE_INT_KNOWN))
         return u_i
 
+    def get_u_r(self, mem):
+        i = mem._cache_index
+        if i == -1:
+            return mem.pMem.u.r
+        state = self.cache_state()
+        if state.is_constant_u_r(i):
+            return state.get_constant_u_r(i)
+        if state.is_u_r_known(i):
+            return self.floats[i]
+        u_r = mem.pMem.u.r
+        return u_r
+        self.floats[i] = u_r
+        self.set_cache_state(state.add_knowledge(i, STATE_FLOAT_KNOWN))
+        return u_r
+
     def set_u_i(self, mem, u_i, constant=False):
         i = mem._cache_index
         mem.pMem.u.i = u_i
@@ -780,11 +773,31 @@ class CacheHolder(object):
         else:
             self.set_cache_state(state.set_u_i_constant(i, u_i))
 
+    def set_u_r(self, mem, u_r, constant=False):
+        i = mem._cache_index
+        mem.pMem.u.r = u_r
+        if i == -1:
+            return
+        state = self.cache_state()
+        if not constant:
+            return
+            self.floats[i] = u_r
+            status = (state.cache_states[i] & ~STATE_CONSTANT) | STATE_FLOAT_KNOWN
+            self.set_cache_state(state.change_cache_state(i, status))
+        else:
+            self.set_cache_state(state.set_u_r_constant(i, u_r))
+
     def is_constant_u_i(self, mem):
         i = mem._cache_index
         if i == -1:
             return False
         return self.cache_state().is_constant_u_i(i)
+
+    def is_constant_u_r(self, mem):
+        i = mem._cache_index
+        if i == -1:
+            return False
+        return self.cache_state().is_constant_u_r(i)
 
 
 STATE_UNKNOWN = 0
@@ -800,25 +813,27 @@ def state_hash(self):
     return self.hash()
 
 class CacheState(object):
-    _immutable_fields_ = ['all_flags[*]', 'cache_states[*]', 'u_i_constants[*]']
+    _immutable_fields_ = ['all_flags[*]', 'cache_states[*]', 'u_i_constants[*]', 'u_r_constants[*]']
     _cache = objectmodel.r_dict(state_eq, state_hash)
 
-    def __init__(self, all_flags, cache_states, u_i_constants):
+    def __init__(self, all_flags, cache_states, u_i_constants, u_r_constants):
         self.all_flags = all_flags
         self.cache_states = cache_states
         self.u_i_constants = u_i_constants
+        self.u_r_constants = u_r_constants
 
     def copy(self):
-        return CacheState(self.all_flags[:], self.cache_states[:], self.u_i_constants[:])
+        return CacheState(self.all_flags[:], self.cache_states[:], self.u_i_constants[:], self.u_r_constants[:])
 
     def repr(self):
-        return "CacheState(%s, %s, %s)" % (self.all_flags, self.cache_states, self.u_i_constants)
+        return "CacheState(%s, %s, %s, %s)" % (self.all_flags, self.cache_states, self.u_i_constants, self.u_r_constants)
     __repr__ = repr
 
     def eq(self, other):
         return (self.all_flags == other.all_flags and
                 self.cache_states == other.cache_states and
-                self.u_i_constants == other.u_i_constants
+                self.u_i_constants == other.u_i_constants and
+                self.u_r_constants == other.u_r_constants
                 )
 
 
@@ -834,6 +849,9 @@ class CacheState(object):
         for item in self.u_i_constants:
             y = rffi.cast(lltype.Signed, item)
             x = intmask((1000003 * x) ^ y)
+        for item in self.u_r_constants:
+            y = rffi.cast(lltype.Signed, item)
+            x = intmask((1000003 * x) ^ y)
         return x
 
     def unique(self):
@@ -842,6 +860,7 @@ class CacheState(object):
             assert newself.all_flags == self.all_flags
             assert newself.cache_states == self.cache_states
             assert newself.u_i_constants == self.u_i_constants
+            assert newself.u_r_constants == self.u_r_constants
             return newself
         self._cache[self] = self
         return self
@@ -874,6 +893,13 @@ class CacheState(object):
         result.u_i_constants[i] = u_i
         return result.unique()
 
+    @jit.elidable_promote('all')
+    def set_u_r_constant(self, i, u_r):
+        self = self.add_knowledge(i, STATE_FLOAT_KNOWN | STATE_CONSTANT)
+        result = self.copy()
+        result.u_r_constants[i] = u_r
+        return result.unique()
+
     def set_unknown(self, i):
         if self.cache_states[i]:
             return self.change_flags(i, 0).change_cache_state(i, STATE_UNKNOWN)
@@ -882,14 +908,17 @@ class CacheState(object):
     def is_flag_known(self, i):
         return bool(self.cache_states[i] & STATE_FLAG_KNOWN)
 
-    def is_r_known(self, i):
-        return bool(self.cache_states[i] & STATE_FLOAT_KNOWN)
-
     def is_u_i_known(self, i):
         return bool(self.cache_states[i] & STATE_INT_KNOWN)
 
+    def is_u_r_known(self, i):
+        return bool(self.cache_states[i] & STATE_FLOAT_KNOWN)
+
     def is_constant_u_i(self, i):
         return self.is_u_i_known(i) and bool(self.cache_states[i] & STATE_CONSTANT)
+
+    def is_constant_u_r(self, i):
+        return self.is_u_r_known(i) and bool(self.cache_states[i] & STATE_CONSTANT)
 
     def get_flags(self, i):
         assert self.is_flag_known(i)
@@ -899,5 +928,9 @@ class CacheState(object):
         assert self.is_constant_u_i(i)
         return self.u_i_constants[i]
 
+    def get_constant_u_r(self, i):
+        assert self.is_constant_u_r(i)
+        return self.u_r_constants[i]
+
 def all_unknown(num_flags):
-    return CacheState([0] * num_flags, [0] * num_flags, [0] * num_flags)
+    return CacheState([0] * num_flags, [0] * num_flags, [0] * num_flags, [0] * num_flags)

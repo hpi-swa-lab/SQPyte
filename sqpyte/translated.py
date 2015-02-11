@@ -466,8 +466,8 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, op):
             else:
                 # mixed int and real comparison, convert to real
                 # XXX this is wrong if one of them is not an int nor a float
-                n1 = pIn1.get_u_i() if flags1 & CConfig.MEM_Int else pIn1.get_r()
-                n3 = pIn3.get_u_i() if flags3 & CConfig.MEM_Int else pIn3.get_r()
+                n1 = pIn1.get_u_i() if flags1 & CConfig.MEM_Int else pIn1.get_u_r()
+                n3 = pIn3.get_u_i() if flags3 & CConfig.MEM_Int else pIn3.get_u_r()
 
                 res = int(_cmp_depending_on_opcode(opcode, n3, n1))
         else:
@@ -636,7 +636,7 @@ def python_OP_RealAffinity(hlquery, op):
     pIn1, flags = op.mem_and_flags_of_p(1)
     if flags & CConfig.MEM_Int and not flags & CConfig.MEM_Real:
         # only relevant parts of sqlite3VdbeMemRealify
-        pIn1.set_r(float(pIn1.get_u_i()))
+        pIn1.set_u_r(float(pIn1.get_u_i()))
         pIn1.MemSetTypeFlag(CConfig.MEM_Real)
 
 
@@ -760,7 +760,7 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
         if math.isnan(rB):
             pOut.sqlite3VdbeMemSetNull()
             return
-        pOut.set_r(float(rB))
+        pOut.set_u_r(float(rB))
         pOut.MemSetTypeFlag(CConfig.MEM_Real)
         if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
             pOut.sqlite3VdbeIntegerAffinity()
@@ -791,7 +791,7 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
         if math.isnan(rB):
             pOut.sqlite3VdbeMemSetNull()
             return
-        pOut.set_r(float(rB))
+        pOut.set_u_r(float(rB))
         pOut.MemSetTypeFlag(CConfig.MEM_Real)
         if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
             pOut.sqlite3VdbeIntegerAffinity()
@@ -822,7 +822,7 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
         if math.isnan(rB):
             pOut.sqlite3VdbeMemSetNull()
             return
-        pOut.set_r(float(rB))
+        pOut.set_u_r(float(rB))
         pOut.MemSetTypeFlag(CConfig.MEM_Real)
         if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
             pOut.sqlite3VdbeIntegerAffinity()
@@ -860,7 +860,7 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
         if math.isnan(rB):
             pOut.sqlite3VdbeMemSetNull()
             return
-        pOut.set_r(float(rB))
+        pOut.set_u_r(float(rB))
         pOut.MemSetTypeFlag(CConfig.MEM_Real)
         if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
             pOut.sqlite3VdbeIntegerAffinity()
@@ -901,7 +901,7 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
             if math.isnan(rB):
                 pOut.sqlite3VdbeMemSetNull()
                 return
-            pOut.set_r(float(rB))
+            pOut.set_u_r(float(rB))
             pOut.MemSetTypeFlag(CConfig.MEM_Real)
             if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
                 pOut.sqlite3VdbeIntegerAffinity()
@@ -1906,7 +1906,7 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
             #        (x >  4.9)    ->     (x >= 5)
             #        (x <= 4.9)    ->     (x <  5)
             #
-            if pIn3.get_r() < iKey:
+            if pIn3.get_u_r() < iKey:
                 assert CConfig.OP_SeekGE == CConfig.OP_SeekGT - 1
                 assert CConfig.OP_SeekLT == CConfig.OP_SeekLE - 1
                 assert (CConfig.OP_SeekLE & 0x0001) == (CConfig.OP_SeekGT & 0x0001)
@@ -1915,7 +1915,7 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
 
             # If the approximation iKey is smaller than the actual real search
             # term, substitute <= for < and > for >=.
-            elif pIn3.get_r() > iKey:
+            elif pIn3.get_u_r() > iKey:
                 assert CConfig.OP_SeekLE == CConfig.OP_SeekLT + 1
                 assert CConfig.OP_SeekGT == CConfig.OP_SeekGE + 1
                 assert (CConfig.OP_SeekLT & 0x0001) == (CConfig.OP_SeekGE & 0x0001)

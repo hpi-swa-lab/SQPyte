@@ -17,13 +17,13 @@ def test_caching():
         mem = Mem(FakeHLQuery(), pMem, 0)
         assert mem.get_flags() == CConfig.MEM_Int
         assert mem.get_u_i() == 17
-        assert mem.get_r() == 2.3
+        assert mem.get_u_r() == 2.3
         # check caching by taking the pMem away and see whether reading still
         # works
         mem.pMem = None
         assert mem.get_flags() == CConfig.MEM_Int
         assert mem.get_u_i() == 17
-        assert mem.get_r() == 2.3
+        assert mem.get_u_r() == 2.3
         mem.pMem = pMem
 
         # invalidate cache
@@ -33,21 +33,21 @@ def test_caching():
         pMem.r = 4.5
         assert mem.get_flags() == CConfig.MEM_Real
         assert mem.get_u_i() == 0
-        assert mem.get_r() == 4.5
+        assert mem.get_u_r() == 4.5
 
         # use setters
         mem.set_flags(CConfig.MEM_Null)
         mem.set_u_i(-5)
-        mem.set_r(-0.1)
+        mem.set_u_r(-0.1)
         mem.pMem = None
         assert mem.get_flags() == CConfig.MEM_Null
         assert mem.get_u_i() == -5
-        assert mem.get_r() == -0.1
+        assert mem.get_u_r() == -0.1
         mem.pMem = pMem
         mem.invalidate_cache()
         assert mem.get_flags() == CConfig.MEM_Null
         assert mem.get_u_i() == -5
-        assert mem.get_r() == -0.1
+        assert mem.get_u_r() == -0.1
 
 
 def test_dont_do_superfluous_flag_writes():
