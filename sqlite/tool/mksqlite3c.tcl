@@ -333,6 +333,8 @@ foreach file {
    rtree.c
    icu.c
    fts3_icu.c
+
+   sqpyte.c
 } {
   copy_file tsrc/$file
 }
