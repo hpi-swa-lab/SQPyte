@@ -1885,9 +1885,14 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
         # blob, or NULL.  But it needs to be an integer before we can do
         # the seek, so covert it.
         pIn3, flags3 = op.mem_and_flags_of_p(3)
+
+        # XXX: The next line with applyNumericAffinity() has to change to:
+        # if( (pIn3->flags & (MEM_Int|MEM_Real|MEM_Str))==MEM_Str ){
+        #   applyNumericAffinity(pIn3, 0);
+        # }
         pIn3.applyNumericAffinity()
+
         iKey = pIn3.sqlite3VdbeIntValue()
-        pC.rowidIsValid = rffi.cast(rffi.UCHAR, 0)
 
         # If the P3 value could not be converted into an integer without
         # loss of information, then special processing is required...
@@ -1929,6 +1934,7 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
 
 
         rc = capi.sqlite3BtreeMovetoUnpacked(pC.pCursor, lltype.nullptr(rffi.VOIDP.TO), iKey, 0, hlquery.intp)
+        pC.movetoTarget = iKey
         res = rffi.cast(lltype.Signed, hlquery.intp[0])
         if rc != CConfig.SQLITE_OK:
             # goto abort_due_to_error;
@@ -1964,7 +1970,6 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
             print "In python_OP_SeekLT_SeekLE_SeekGE_SeekGT():2: abort_due_to_error."
             rc = capi.gotoAbortDueToError(p, db, pc, rc)
             return pc, rc
-        pC.rowidIsValid = rffi.cast(rffi.UCHAR, 0)
 
     pC.deferredMoveto = rffi.cast(lltype.typeOf(pC.deferredMoveto), 0)
     pC.cacheStatus = rffi.cast(lltype.typeOf(pC.cacheStatus), CConfig.CACHE_STALE)
@@ -1979,7 +1984,6 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
                 print "In python_OP_SeekLT_SeekLE_SeekGE_SeekGT():3: abort_due_to_error."
                 rc = capi.gotoAbortDueToError(p, db, pc, rc)
                 return pc, rc
-            pC.rowidIsValid = rffi.cast(rffi.UCHAR, 0)
         else:
             res = 0
     else:
@@ -1993,7 +1997,6 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
                 print "In python_OP_SeekLT_SeekLE_SeekGE_SeekGT():4: abort_due_to_error."
                 rc = capi.gotoAbortDueToError(p, db, pc, rc)
                 return pc, rc
-            pC.rowidIsValid = rffi.cast(rffi.UCHAR, 0)
         else:
             # res might be negative because the table is empty.  Check to
             # see if this is the case.
