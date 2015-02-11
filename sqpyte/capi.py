@@ -820,7 +820,7 @@ sqlite3DbFree = llexternal('sqlite3DbFree', [SQLITE3P, rffi.VOIDP],
     lltype.Void)
 sqlite3ValueText = llexternal('sqlite3ValueText', [MEMP, CConfig.u8],
     rffi.VOIDP)
-sqlite3VdbeIdxKeyCompare = llexternal('sqlite3VdbeIdxKeyCompare', [VDBECURSORP, UNPACKEDRECORDP, rffi.INTP],
+sqlite3VdbeIdxKeyCompare = llexternal('sqlite3VdbeIdxKeyCompare', [SQLITE3P, VDBECURSORP, UNPACKEDRECORDP, rffi.INTP],
     rffi.INT)
 sqlite3VdbeMemFinalize = llexternal('sqlite3VdbeMemFinalize', [MEMP, FUNCDEFP],
     rffi.INT)
