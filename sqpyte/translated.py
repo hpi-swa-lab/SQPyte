@@ -1033,7 +1033,6 @@ def python_OP_Seek(hlquery, op):
     rffi.setintfield(pC, 'nullRow', 0)
     pIn2 = op.mem_of_p(2)
     pC.movetoTarget = pIn2.sqlite3VdbeIntValue()
-    rffi.setintfield(pC, 'rowidIsValid', 0)
     rffi.setintfield(pC, 'deferredMoveto', 1)
 
 
