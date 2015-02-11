@@ -294,7 +294,7 @@ class Mem(object):
     def VdbeMemRelease(self):
         if self.VdbeMemDynamic():
             self.invalidate_cache()
-            capi.sqlite3VdbeMemReleaseExternal(self.pMem)
+            capi.vdbeMemClearExternAndSetNull(self.pMem)
 
 
     def sqlite3VdbeIntValue(self):

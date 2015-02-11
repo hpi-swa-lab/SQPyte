@@ -812,7 +812,7 @@ sqlite3Atoi64 = llexternal('sqlite3Atoi64', [rffi.CCHARP, rffi.LONGLONGP, rffi.I
     rffi.INT)
 sqlite3VdbeMemSetNull = llexternal('sqlite3VdbeMemSetNull', [MEMP],
     lltype.Void)
-sqlite3VdbeMemReleaseExternal = llexternal('sqlite3VdbeMemReleaseExternal', [MEMP],
+vdbeMemClearExternAndSetNull = llexternal('vdbeMemClearExternAndSetNull', [MEMP],
     lltype.Void)
 sqlite3VdbeIdxRowid = llexternal('sqlite3VdbeIdxRowid', [SQLITE3P, BTCURSORP, rffi.LONGP],
     rffi.INT)
