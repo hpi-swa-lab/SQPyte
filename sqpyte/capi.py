@@ -701,7 +701,7 @@ impl_OP_IfZero = llexternal('impl_OP_IfZero', [VDBEP, rffi.LONG, VDBEOPP],
     rffi.LONG)
 impl_OP_IdxRowid = llexternal('impl_OP_IdxRowid', [DBP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
     rffi.LONG)
-impl_OP_IdxLE_IdxGT_IdxLT_IdxGE = llexternal('impl_OP_IdxLE_IdxGT_IdxLT_IdxGE', [VDBEP, rffi.LONGP, VDBEOPP],
+impl_OP_IdxLE_IdxGT_IdxLT_IdxGE = llexternal('impl_OP_IdxLE_IdxGT_IdxLT_IdxGE', [VDBEP, SQLITE3P, rffi.LONGP, VDBEOPP],
     rffi.LONG)
 impl_OP_Seek = llexternal('impl_OP_Seek', [VDBEP, VDBEOPP],
     lltype.Void)

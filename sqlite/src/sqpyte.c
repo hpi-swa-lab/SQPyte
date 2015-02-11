@@ -2498,7 +2498,7 @@ long impl_OP_IdxRowid(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp) {
 ** If the P1 index entry is less than or equal to the key value then jump
 ** to P2. Otherwise fall through to the next instruction.
 */
-long impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(Vdbe *p, long *pc, Op *pOp) {
+long impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(Vdbe *p, sqlite3 *db, long *pc, Op *pOp) {
 // case OP_IdxLE:          /* jump */
 // case OP_IdxGT:          /* jump */
 // case OP_IdxLT:          /* jump */

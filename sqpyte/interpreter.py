@@ -474,7 +474,7 @@ class Sqlite3Query(object):
         mutates="p3@p4")
     def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(self, pc, op):
         # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        # rc = capi.impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(self.p, self.internalPc, op.pOp)
+        # rc = capi.impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(self.p, self.db, self.internalPc, op.pOp)
         # retPc = self.internalPc[0]
         # return retPc, rc
 

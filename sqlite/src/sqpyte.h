@@ -13,7 +13,7 @@ long impl_OP_Function(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp);
 long impl_OP_Gosub(Vdbe *p, long pc, Op *pOp);
 long impl_OP_Goto(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp);
 long impl_OP_Halt(Vdbe *p, sqlite3 *db, long *pc, Op *pOp);
-long impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(Vdbe *p, long *pc, Op *pOp);
+long impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(Vdbe *p, sqlite3 *db, long *pc, Op *pOp);
 long impl_OP_IdxRowid(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp);
 long impl_OP_IfPos(Vdbe *p, long pc, Op *pOp);
 long impl_OP_IfZero(Vdbe *p, long pc, Op *pOp);
