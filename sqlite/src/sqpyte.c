@@ -904,6 +904,10 @@ long impl_OP_ResultRow(Vdbe *p, sqlite3 *db, long pc, Op *pOp) {
 ** to the following instruction.  But if the cursor advance was successful,
 ** jump immediately to P2.
 **
+** The Next opcode is only valid following an SeekGT, SeekGE, or
+** OP_Rewind opcode used to position the cursor.  Next is not allowed
+** to follow SeekLT, SeekLE, or OP_Last.
+**
 ** The P1 cursor must be for a real table, not a pseudo-table.  P1 must have
 ** been opened prior to this opcode or the program will segfault.
 **
@@ -922,7 +926,38 @@ long impl_OP_ResultRow(Vdbe *p, sqlite3 *db, long pc, Op *pOp) {
 */
 /* Opcode: NextIfOpen P1 P2 P3 P4 P5
 **
-** This opcode works just like OP_Next except that if cursor P1 is not
+** This opcode works just like Next except that if cursor P1 is not
+** open it behaves a no-op.
+*/
+/* Opcode: Prev P1 P2 P3 P4 P5
+**
+** Back up cursor P1 so that it points to the previous key/data pair in its
+** table or index.  If there is no previous key/value pairs then fall through
+** to the following instruction.  But if the cursor backup was successful,
+** jump immediately to P2.
+**
+**
+** The Prev opcode is only valid following an SeekLT, SeekLE, or
+** OP_Last opcode used to position the cursor.  Prev is not allowed
+** to follow SeekGT, SeekGE, or OP_Rewind.
+**
+** The P1 cursor must be for a real table, not a pseudo-table.  If P1 is
+** not open then the behavior is undefined.
+**
+** The P3 value is a hint to the btree implementation. If P3==1, that
+** means P1 is an SQL index and that this instruction could have been
+** omitted if that index had been unique.  P3 is usually 0.  P3 is
+** always either 0 or 1.
+**
+** P4 is always of type P4_ADVANCE. The function pointer points to
+** sqlite3BtreePrevious().
+**
+** If P5 is positive and the jump is taken, then event counter
+** number P5-1 in the prepared statement is incremented.
+*/
+/* Opcode: PrevIfOpen P1 P2 P3 P4 P5
+**
+** This opcode works just like Prev except that if cursor P1 is not
 ** open it behaves a no-op.
 */
 long impl_OP_Next(Vdbe *p, sqlite3 *db, long *pc, Op *pOp) {
@@ -943,6 +978,16 @@ long impl_OP_Next(Vdbe *p, sqlite3 *db, long *pc, Op *pOp) {
   assert( pOp->opcode!=OP_Prev || pOp->p4.xAdvance==sqlite3BtreePrevious );
   assert( pOp->opcode!=OP_NextIfOpen || pOp->p4.xAdvance==sqlite3BtreeNext );
   assert( pOp->opcode!=OP_PrevIfOpen || pOp->p4.xAdvance==sqlite3BtreePrevious);
+
+  /* The Next opcode is only used after SeekGT, SeekGE, and Rewind.
+  ** The Prev opcode is only used after SeekLT, SeekLE, and Last. */
+  assert( pOp->opcode!=OP_Next || pOp->opcode!=OP_NextIfOpen
+       || pC->seekOp==OP_SeekGT || pC->seekOp==OP_SeekGE
+       || pC->seekOp==OP_Rewind || pC->seekOp==OP_Found);
+  assert( pOp->opcode!=OP_Prev || pOp->opcode!=OP_PrevIfOpen
+       || pC->seekOp==OP_SeekLT || pC->seekOp==OP_SeekLE
+       || pC->seekOp==OP_Last );
+
   rc = pOp->p4.xAdvance(pC->pCursor, &res);
 next_tail:
   pC->cacheStatus = CACHE_STALE;
@@ -957,7 +1002,6 @@ next_tail:
   }else{
     pC->nullRow = 1;
   }
-  pC->rowidIsValid = 0;
 
   // goto check_for_interrupt;
   if( db->u1.isInterrupted ) {
