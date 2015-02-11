@@ -665,7 +665,7 @@ impl_OP_Integer = llexternal('impl_OP_Integer', [VDBEP, VDBEOPP],
     lltype.Void)
 impl_OP_Null = llexternal('impl_OP_Null', [VDBEP, VDBEOPP],
     lltype.Void)
-impl_OP_AggStep = llexternal('impl_OP_AggStep', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
+impl_OP_AggStep = llexternal('impl_OP_AggStep', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
     rffi.LONG)
 impl_OP_AggFinal = llexternal('impl_OP_AggFinal', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
     rffi.LONG)

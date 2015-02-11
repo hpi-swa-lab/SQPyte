@@ -1412,7 +1412,7 @@ void impl_OP_Null(Vdbe *p, Op *pOp) {
 ** The P5 arguments are taken from register P2 and its
 ** successors.
 */
-long impl_OP_AggStep(Vdbe *p, sqlite3 *db, long rc, Op *pOp) {
+long impl_OP_AggStep(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp) {
 // case OP_AggStep: {
   int n;
   int i;
