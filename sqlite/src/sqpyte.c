@@ -770,7 +770,7 @@ op_column_out:
     assert( fx!=0 );
     zData = (const u8*)pDest->z;
     len = pDest->n;
-    if( sqlite3VdbeMemClearAndResize(pDest, len+2) ) {}
+    if( sqlite3VdbeMemClearAndResize(pDest, len+2) ) {
       // goto no_mem;
       printf("In impl_OP_Column(): no_mem.\n");
       rc = gotoNoMem(p, db, (int)pc);
