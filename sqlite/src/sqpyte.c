@@ -2574,7 +2574,6 @@ void impl_OP_Seek(Vdbe *p, Op *pOp) {
   pC->nullRow = 0;
   pIn2 = &aMem[pOp->p2];
   pC->movetoTarget = sqlite3VdbeIntValue(pIn2);
-  pC->rowidIsValid = 0;
   pC->deferredMoveto = 1;
   // break;
 }
