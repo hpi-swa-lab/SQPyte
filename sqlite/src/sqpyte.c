@@ -3259,7 +3259,7 @@ long impl_OP_SorterOpen(Vdbe *p, sqlite3 *db, long pc, Op *pOp) {
   pCx->pKeyInfo = pOp->p4.pKeyInfo;
   assert( pCx->pKeyInfo->db==db );
   assert( pCx->pKeyInfo->enc==ENC(db) );
-  rc = (long)sqlite3VdbeSorterInit(db, pCx);
+  rc = (long)sqlite3VdbeSorterInit(db, pOp->p3, pCx);
   // break;
   return rc;
 }
