@@ -1678,7 +1678,7 @@ def putVarint32(buf, val, index=0):
     if rarithmetic.r_uint(val) < rarithmetic.r_uint(0x80):
         buf[index] = chr(val)
         return 1
-    return capi.sqlite3PutVarint32(rffi.cast(capi.U8P, rffi.ptradd(buf, index)), rffi.cast(CConfig.u32, val))
+    return capi.sqlite3PutVarint(rffi.cast(capi.U8P, rffi.ptradd(buf, index)), rffi.cast(CConfig.u64, val))
 
 # Opcode: Function P1 P2 P3 P4 P5
 # Synopsis: r[P3]=func(r[P2@P5])

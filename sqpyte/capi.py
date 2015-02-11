@@ -852,7 +852,7 @@ gotoNoMem = llexternal('gotoNoMem', [VDBEP, SQLITE3P, rffi.INT],
 gotoTooBig = llexternal('gotoTooBig', [VDBEP, SQLITE3P, rffi.INT],
     rffi.INT)
 
-sqlite3PutVarint32 = llexternal('sqlite3PutVarint32', [rffi.UCHARP, CConfig.u32], rffi.INT)
+sqlite3PutVarint = llexternal('sqlite3PutVarint', [rffi.UCHARP, CConfig.u64], rffi.INT)
 sqlite3VdbeMemExpandBlob = llexternal('sqlite3VdbeMemExpandBlob', [MEMP], rffi.INT)
 
 
