@@ -1192,7 +1192,7 @@ def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(hlquery, pc, op):
 
     resMem = hlquery.intp
     resMem[0] = rffi.cast(rffi.INT, 0)
-    rc = capi.sqlite3VdbeIdxKeyCompare(pC, r, resMem)
+    rc = capi.sqlite3VdbeIdxKeyCompare(hlquery.db, pC, r, resMem)
     res = rffi.cast(lltype.Signed, resMem[0])
     jit.promote(res)
 
