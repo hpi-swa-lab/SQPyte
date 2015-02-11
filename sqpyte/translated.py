@@ -238,6 +238,16 @@ def python_OP_Next_translated(hlquery, pc, op):
     # assert( pOp->opcode!=OP_NextIfOpen || pOp->p4.xAdvance==sqlite3BtreeNext );
     # assert( pOp->opcode!=OP_PrevIfOpen || pOp->p4.xAdvance==sqlite3BtreePrevious);
     
+    # /* The Next opcode is only used after SeekGT, SeekGE, and Rewind.
+    # ** The Prev opcode is only used after SeekLT, SeekLE, and Last. */
+    # assert( pOp->opcode!=OP_Next || pOp->opcode!=OP_NextIfOpen
+    #      || pC->seekOp==OP_SeekGT || pC->seekOp==OP_SeekGE
+    #      || pC->seekOp==OP_Rewind || pC->seekOp==OP_Found);
+    # assert( pOp->opcode!=OP_Prev || pOp->opcode!=OP_PrevIfOpen
+    #      || pC->seekOp==OP_SeekLT || pC->seekOp==OP_SeekLE
+    #      || pC->seekOp==OP_Last );
+
+
     # Specifically for OP_Next, xAdvance() is always sqlite3BtreeNext()
     # as can be deduced from assertions above.
     # rc = pOp->p4.xAdvance(pC->pCursor, &res);
@@ -264,8 +274,6 @@ def python_OP_Next_translated(hlquery, pc, op):
         #endif
     else:
         pC.nullRow = rffi.cast(rffi.UCHAR, 1)
-
-    pC.rowidIsValid = rffi.cast(rffi.UCHAR, 0)
 
     # Translated goto check_for_interrupt;
     if rffi.cast(lltype.Signed, db.u1.isInterrupted) != 0:
