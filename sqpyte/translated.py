@@ -948,13 +948,12 @@ def python_OP_NotExists(hlquery, pc, op):
     iKey = pIn3.get_u_i()
     rc = capi.sqlite3BtreeMovetoUnpacked(pCrsr, lltype.nullptr(rffi.VOIDP.TO), iKey, 0, hlquery.intp)
     res = rffi.cast(lltype.Signed, hlquery.intp[0])
-    pC.rowidIsValid = rffi.cast(lltype.typeOf(pC.rowidIsValid), 1 if res == 0 else 0)
+    pC.movetoTarget = iKey
     pC.nullRow = rffi.cast(lltype.typeOf(pC.nullRow), 0)
     pC.cacheStatus = rffi.cast(lltype.typeOf(pC.cacheStatus), CConfig.CACHE_STALE)
     pC.deferredMoveto = rffi.cast(lltype.typeOf(pC.deferredMoveto), 0)
     if res:
         pc = op.p2as_pc()
-        assert not rffi.cast(lltype.Signed, pC.rowidIsValid)
     pC.seekResult = rffi.cast(lltype.typeOf(pC.seekResult), res)
     return pc, rc
 
