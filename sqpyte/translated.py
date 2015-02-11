@@ -948,7 +948,6 @@ def python_OP_NotExists(hlquery, pc, op):
     iKey = pIn3.get_u_i()
     rc = capi.sqlite3BtreeMovetoUnpacked(pCrsr, lltype.nullptr(rffi.VOIDP.TO), iKey, 0, hlquery.intp)
     res = rffi.cast(lltype.Signed, hlquery.intp[0])
-    pC.lastRowid = iKey
     pC.rowidIsValid = rffi.cast(lltype.typeOf(pC.rowidIsValid), 1 if res == 0 else 0)
     pC.nullRow = rffi.cast(lltype.typeOf(pC.nullRow), 0)
     pC.cacheStatus = rffi.cast(lltype.typeOf(pC.cacheStatus), CConfig.CACHE_STALE)
@@ -1930,9 +1929,6 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
             print "In python_OP_SeekLT_SeekLE_SeekGE_SeekGT():1: abort_due_to_error."
             rc = capi.gotoAbortDueToError(p, db, pc, rc)
             return pc, rc
-        if res == 0:
-            pC.rowidIsValid = rffi.cast(rffi.UCHAR, 1)
-            pC.lastRowid = iKey
     else:
         r = hlquery.unpackedrecordp
         nField = rffi.cast(lltype.Signed, op.p4_i())
