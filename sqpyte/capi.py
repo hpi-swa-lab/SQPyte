@@ -17,7 +17,7 @@ else:
 class CConfig:
     _compilation_info_ = ExternalCompilationInfo(
         includes = ['sqlite3.h', 'stdint.h', 'sqliteInt.h', 'btreeInt.h', 'sqpyte.h'],
-        libraries = ['sqlite3'],
+        libraries = ['sqlite3', 'dl'],
         library_dirs = [os.path.join(sqlite_inst_dir, "lib")],
         include_dirs = [sqlite_src_dir, os.path.join(sqlite_src_dir, "src")],
         link_files = [os.path.join(sqlite_src_dir, "sqlite3.o")]
