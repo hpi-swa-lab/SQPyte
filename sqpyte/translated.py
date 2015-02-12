@@ -1000,13 +1000,18 @@ def python_OP_IdxRowid(hlquery, pc, rc, op):
     assert pC
     pCrsr = pC.pCursor
     assert pCrsr
-    rc = rffi.cast(lltype.Signed, capi.sqlite3VdbeCursorMoveto(pC))
-    if rc:
+    #assert pC.isTable == 0
+    #assert pC.deferredMoveto == 0
+
+    # sqlite3VbeCursorRestore() can only fail if the record has been deleted
+    # out from under the cursor.  That will never happend for an IdxRowid
+    # opcode, hence the NEVER() arround the check of the return value.
+    rc = rffi.cast(lltype.Signed, capi.sqlite3VdbeCursorRestore(pC))
+    if rc != CConfig.SQLITE_OK:
         print "In python_OP_IdxRowid():1: abort_due_to_error."
         rc = capi.gotoAbortDueToError(p, db, pc, rc)
         return rc
-    #assert pC.deferredMoveto == 0
-    #assert pC.isTable == 0
+
     if not rffi.cast(lltype.Signed, pC.nullRow):
         rc = capi.sqlite3VdbeIdxRowid(db, pCrsr, hlquery.longp)
         jit.promote(rc)

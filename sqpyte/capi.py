@@ -634,7 +634,7 @@ sqlite3_sqlite3BtreeCursor = llexternal('sqlite3BtreeCursor', [rffi.VOIDP, rffi.
     rffi.INT)
 sqlite3_sqlite3BtreeCursorHints = llexternal('sqlite3BtreeCursorHints', [BTCURSORP, rffi.UINT],
     lltype.Void)
-sqlite3VdbeCursorMoveto = llexternal('sqlite3VdbeCursorMoveto', [VDBECURSORP],
+sqlite3VdbeCursorRestore = llexternal('sqlite3VdbeCursorRestore', [VDBECURSORP],
     rffi.INT)
 sqlite3_sqlite3VdbeSorterRewind = llexternal('sqlite3VdbeSorterRewind', [SQLITE3P, VDBECURSORP, rffi.INTP],
     rffi.INT)
