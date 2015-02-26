@@ -241,6 +241,7 @@ SQLITE3.become(lltype.Struct("sqlite3",         # src/sqliteInt.h: 960
     ("errCode", rffi.INT),                      # Most recent error code (SQLITE_*)
     ("errMask", rffi.INT),                      # & result codes with this before returning
     ("dbOptFlags", CConfig.u16),                # Flags to enable/disable optimizations
+    ("enc", CConfig.u8),                        # Text encoding.
     ("autoCommit", CConfig.u8),                 # The auto-commit flag.
     ("temp_store", CConfig.u8),                 # 1: file 2: memory 0: default
     ("mallocFailed", CConfig.u8),               # True if we have seen a malloc failure
@@ -255,6 +256,7 @@ SQLITE3.become(lltype.Struct("sqlite3",         # src/sqliteInt.h: 960
     ("nTotalChange", rffi.INT),                 # Value returned by sqlite3_total_changes()
     ("aLimit", lltype.FixedSizeArray(rffi.INT,  # Limits
         CConfig.SQLITE_N_LIMIT)),
+    ("nMaxSorterMmap", rffi.INT),               # Maximum size of regions mapped by sorter
     ("init", lltype.Struct("sqlite3InitInfo",   # Information used during initialization
         ("newTnum", rffi.INT),                  # Rootpage of table being initialized
         ("iDb", CConfig.u8),                    # Which db file is being initialized
@@ -290,8 +292,7 @@ SQLITE3.become(lltype.Struct("sqlite3",         # src/sqliteInt.h: 960
         hints={"union": True}))
     #   Lookaside lookaside;          /* Lookaside malloc configuration */
     # #ifndef SQLITE_OMIT_AUTHORIZATION
-    #   int (*xAuth)(void*,int,const char*,const char*,const char*,const char*);
-    #                                 /* Access authorization function */
+    #   sqlite3_xauth xAuth;          /* Access authorization function */
     #   void *pAuthArg;               /* 1st argument to the access auth function */
     # #endif
     # #ifndef SQLITE_OMIT_PROGRESS_CALLBACK
@@ -547,7 +548,7 @@ VDBECURSOR.become(lltype.Struct("VdbeCursor",   # src/vdbeInt.h: 63
     ("iDb", CConfig.i8),                        # Index of cursor database in db->aDb[] (or -1)
     ("nullRow", CConfig.u8),                    # True if pointing to a row with no data
     ("deferredMoveto", CConfig.u8),             # A call to sqlite3BtreeMoveto() is needed
-    ("scary_bitfield", lltype.Unsigned),          #
+    ("scary_bitfield", CConfig.u8),              #
     #("isEphemeral", lltype.Bool),               #   Bool isEphemeral:1;   /* True for an ephemeral table */
     #("useRandomRowid", lltype.Bool),            #   Bool useRandomRowid:1;/* Generate new record numbers semi-randomly */
     #("isTable", lltype.Bool),                   #   Bool isTable:1;       /* True if a table requiring integer keys */
@@ -609,7 +610,7 @@ UNPACKEDRECORD = lltype.Struct("UnpackedRecord",    # src/sqliteInt.h: 1643
     ("pKeyInfo", KEYINFOP),                         # Collation and sort-order information
     ("nField", CConfig.u16),                        # Number of entries in apMem[]
     ("default_rc", CConfig.i8),                     # Comparison result if keys are equal
-    ("isCorrupt", CConfig.u8),                      # Corruption detected by xRecordCompare()
+    ("errCode", CConfig.u8),                        # Error detected by xRecordCompare (CORRUPT or NOMEM)
     ("aMem", MEMP),                                 # Values
     ("r1", rffi.INT),                               # Value to return if (lhs > rhs)
     ("r2", rffi.INT),                               # Value to return if (rhs < lhs)
@@ -699,7 +700,7 @@ impl_OP_Move = llexternal('impl_OP_Move', [VDBEP, VDBEOPP],
     lltype.Void)
 impl_OP_IfZero = llexternal('impl_OP_IfZero', [VDBEP, rffi.LONG, VDBEOPP],
     rffi.LONG)
-impl_OP_IdxRowid = llexternal('impl_OP_IdxRowid', [DBP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
+impl_OP_IdxRowid = llexternal('impl_OP_IdxRowid', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
     rffi.LONG)
 impl_OP_IdxLE_IdxGT_IdxLT_IdxGE = llexternal('impl_OP_IdxLE_IdxGT_IdxLT_IdxGE', [VDBEP, SQLITE3P, rffi.LONGP, VDBEOPP],
     rffi.LONG)
