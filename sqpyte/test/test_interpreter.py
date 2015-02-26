@@ -21,17 +21,17 @@ def test_prepare():
     assert query.p.db == query.db
     assert query.p.nOp == 17
 
-    assert query.p.aOp[0].opcode == 155
+    assert query.p.aOp[0].opcode == CConfig.OP_Init
     assert query.p.aOp[0].p1 == 0
     assert query.p.aOp[0].p2 == 14
     assert query.p.aOp[0].p3 == 0
 
-    assert query.p.aOp[1].opcode == 52
+    assert query.p.aOp[1].opcode == CConfig.OP_OpenRead
     assert query.p.aOp[1].p1 == 0
     assert query.p.aOp[1].p2 == 2
     assert query.p.aOp[1].p3 == 0
 
-    assert query.p.aOp[2].opcode == 105
+    assert query.p.aOp[2].opcode == CConfig.OP_Rewind
     assert query.p.aOp[2].p1 == 0
     assert query.p.aOp[2].p2 == 12
     assert query.p.aOp[2].p3 == 0
