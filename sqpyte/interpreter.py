@@ -168,7 +168,7 @@ class Sqlite3Query(object):
     def python_sqlite3_data_count(self):
         if rffi.getintfield(self.p, 'pResultSet') == 0:
             return 0
-        return self.p.nResColumn
+        return rffi.getintfield(self.p, 'nResColumn')
 
     def python_sqlite3_column_type(self, iCol):
         # XXX use the cache!
@@ -186,6 +186,8 @@ class Sqlite3Query(object):
     def python_sqlite3_column_double(self, iCol):
         return capi.sqlite3_column_double(self.p, iCol)
 
+    def python_sqlite3_bind_parameter_count(self):
+        return rffi.cast(lltype.Signed, capi.sqlite3_bind_parameter_count(self.p))
 
 
     # _______________________________________________________________

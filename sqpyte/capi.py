@@ -866,3 +866,5 @@ sqlite3_errmsg = llexternal('sqlite3_errmsg', [SQLITE3P], rffi.CCHARP)
 
 
 sqlite3VdbeMemSetStr = llexternal('sqlite3VdbeMemSetStr', [MEMP, rffi.CCHARP, rffi.INT, CConfig.u8, rffi.VOIDP], rffi.INT)
+
+sqlite3_bind_parameter_count = llexternal('sqlite3_bind_parameter_count', [VDBEP], rffi.INT)
