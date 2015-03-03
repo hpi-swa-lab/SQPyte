@@ -1,3 +1,4 @@
+import pytest
 from rpython.rtyper.lltypesystem import rffi, lltype
 from sqpyte.interpreter import Sqlite3DB
 from sqpyte import function
@@ -26,3 +27,20 @@ def test_create_function():
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
     assert query.python_sqlite3_column_int64(0) == query.python_sqlite3_column_int64(1)
+
+def test_sum():
+    db = Sqlite3DB(testdb)
+    query = db.execute('select sum(age) from contacts;')
+    rc = query.mainloop()
+    assert rc == CConfig.SQLITE_ROW
+    res = query.python_sqlite3_column_int64(0)
+    assert res == 4832
+
+
+def test_avg():
+    db = Sqlite3DB(testdb)
+    query = db.execute('select avg(age) from contacts where age > 18;')
+    rc = query.mainloop()
+    assert rc == CConfig.SQLITE_ROW
+    res = query.python_sqlite3_column_double(0)
+    assert round(res, 2) == 58.91
