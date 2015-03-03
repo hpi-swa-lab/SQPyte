@@ -16,7 +16,7 @@ TWOPOWER31 = 1 << 31
 
 
 def allocateCursor(vdbe_struct, p1, nField, iDb, isBtreeCursor):
-    return capi.sqlite3_allocateCursor(vdbe_struct, p1, nField, iDb, isBtreeCursor) 
+    return capi.sqlite3_allocateCursor(vdbe_struct, p1, nField, iDb, isBtreeCursor)
 
 def sqlite3BtreeCursor(p, iTable, wrFlag, pKeyInfo, pCur):
     return capi.sqlite3_sqlite3BtreeCursor(p, iTable, wrFlag, pKeyInfo, pCur)
@@ -1327,7 +1327,7 @@ def python_OP_Copy(hlquery, pc, rc, op):
 def python_OP_Sequence(hlquery, op):
     p = hlquery.p
     pOut = op.mem_of_p(2)
-    pOut.set_flags(CConfig.MEM_Int)
+    assert pOut.get_flags() & CConfig.MEM_Int
     assert op.p_Signed(1) >= 0 and op.p_Signed(1) < rffi.getintfield(p, 'nCursor')
     cursor = p.apCsr[op.p_Signed(1)]
     assert cursor
