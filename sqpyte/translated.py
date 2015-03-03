@@ -765,21 +765,6 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
         rA = pIn1.sqlite3VdbeRealValue()
         rB = pIn2.sqlite3VdbeRealValue()
         rB += rA
-        # SQLITE_OMIT_FLOATING_POINT is not defined.
-        #ifdef SQLITE_OMIT_FLOATING_POINT
-        # pOut->u.i = rB;
-        # MemSetTypeFlag(pOut, MEM_Int);
-        #else
-        # if( sqlite3IsNaN(rB) ){
-        if math.isnan(rB):
-            pOut.sqlite3VdbeMemSetNull()
-            return
-        pOut.set_u_r(float(rB))
-        pOut.MemSetTypeFlag(CConfig.MEM_Real)
-        if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
-            pOut.sqlite3VdbeIntegerAffinity()
-        #endif                
-        return
     elif opcode == CConfig.OP_Subtract:
         if (type1 & type2 & CConfig.MEM_Int) != 0:
             iA = pIn1.get_u_i()
@@ -796,21 +781,6 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
         rA = pIn1.sqlite3VdbeRealValue()
         rB = pIn2.sqlite3VdbeRealValue()
         rB -= rA
-        # SQLITE_OMIT_FLOATING_POINT is not defined.
-        #ifdef SQLITE_OMIT_FLOATING_POINT
-        # pOut->u.i = rB;
-        # MemSetTypeFlag(pOut, MEM_Int);
-        #else
-        # if( sqlite3IsNaN(rB) ){
-        if math.isnan(rB):
-            pOut.sqlite3VdbeMemSetNull()
-            return
-        pOut.set_u_r(float(rB))
-        pOut.MemSetTypeFlag(CConfig.MEM_Real)
-        if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
-            pOut.sqlite3VdbeIntegerAffinity()
-        #endif                
-        return
     elif opcode == CConfig.OP_Multiply:
         if (type1 & type2 & CConfig.MEM_Int) != 0:
             iA = pIn1.get_u_i()
@@ -827,21 +797,6 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
         rA = pIn1.sqlite3VdbeRealValue()
         rB = pIn2.sqlite3VdbeRealValue()
         rB *= rA
-        # SQLITE_OMIT_FLOATING_POINT is not defined.
-        #ifdef SQLITE_OMIT_FLOATING_POINT
-        # pOut->u.i = rB;
-        # MemSetTypeFlag(pOut, MEM_Int);
-        #else
-        # if( sqlite3IsNaN(rB) ){
-        if math.isnan(rB):
-            pOut.sqlite3VdbeMemSetNull()
-            return
-        pOut.set_u_r(float(rB))
-        pOut.MemSetTypeFlag(CConfig.MEM_Real)
-        if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
-            pOut.sqlite3VdbeIntegerAffinity()
-        #endif                
-        return
     elif opcode == CConfig.OP_Divide:
         if (type1 & type2 & CConfig.MEM_Int) != 0:
             iA = pIn1.get_u_i()
@@ -865,26 +820,10 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
             pOut.sqlite3VdbeMemSetNull()
             return
         rB /= rA
-        # SQLITE_OMIT_FLOATING_POINT is not defined.
-        #ifdef SQLITE_OMIT_FLOATING_POINT
-        # pOut->u.i = rB;
-        # MemSetTypeFlag(pOut, MEM_Int);
-        #else
-        # if( sqlite3IsNaN(rB) ){
-        if math.isnan(rB):
-            pOut.sqlite3VdbeMemSetNull()
-            return
-        pOut.set_u_r(float(rB))
-        pOut.MemSetTypeFlag(CConfig.MEM_Real)
-        if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
-            pOut.sqlite3VdbeIntegerAffinity()
-        #endif                
-        return
     elif opcode == CConfig.OP_Remainder:
         if (type1 & type2 & CConfig.MEM_Int) != 0:
             iA = pIn1.get_u_i()
             iB = pIn2.get_u_i()
-            bIntint = 1
             if iA == 0:
                 pOut.sqlite3VdbeMemSetNull()
                 return
@@ -895,7 +834,7 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
             pOut.MemSetTypeFlag(CConfig.MEM_Int)
             return
         else:
-            bIntint = 0
+            bIntint = False
             rA = pIn1.sqlite3VdbeRealValue()
             rB = pIn2.sqlite3VdbeRealValue()
             iA = int(rA)
@@ -906,24 +845,21 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
             if iA == -1:
                 iA = 1
             rB = iB % iA
-            # SQLITE_OMIT_FLOATING_POINT is not defined.
-            #ifdef SQLITE_OMIT_FLOATING_POINT
-            # pOut->u.i = rB;
-            # MemSetTypeFlag(pOut, MEM_Int);
-            #else
-            # if( sqlite3IsNaN(rB) ){
-            if math.isnan(rB):
-                pOut.sqlite3VdbeMemSetNull()
-                return
-            pOut.set_u_r(float(rB))
-            pOut.MemSetTypeFlag(CConfig.MEM_Real)
-            if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
-                pOut.sqlite3VdbeIntegerAffinity()
-            #endif                
-            return;      
     else:
         print "Error: Unknown opcode %s in python_OP_Add_Subtract_Multiply_Divide_Remainder()." % opcode
-    return
+        assert 0
+    # SQLITE_OMIT_FLOATING_POINT is not defined.
+    #ifdef SQLITE_OMIT_FLOATING_POINT
+    # pOut->u.i = rB;
+    # MemSetTypeFlag(pOut, MEM_Int);
+    #else
+    if math.isnan(rB):
+        pOut.sqlite3VdbeMemSetNull()
+        return
+    pOut.set_u_r(float(rB))
+    pOut.MemSetTypeFlag(CConfig.MEM_Real)
+    if ((type1 | type2) & CConfig.MEM_Real) == 0 and not bIntint:
+        pOut.sqlite3VdbeIntegerAffinity()
 
 
 # Opcode: Integer P1 P2 * * *
