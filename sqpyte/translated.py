@@ -1953,16 +1953,16 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
 
 
 def get_isEphemeral(vdbecursor):
-    return vdbecursor.scary_bitfield & 1
+    return rffi.cast(lltype.Signed, vdbecursor.scary_bitfield) & 1
 
 def get_useRandomRowid(vdbecursor):
-    return vdbecursor.scary_bitfield & 2
+    return rffi.cast(lltype.Signed, vdbecursor.scary_bitfield) & 2
 
 def get_isTable(vdbecursor):
-    return vdbecursor.scary_bitfield & 4
+    return rffi.cast(lltype.Signed, vdbecursor.scary_bitfield) & 4
 
 def get_isOrdered(vdbecursor):
-    return vdbecursor.scary_bitfield & 8
+    return rffi.cast(lltype.Signed, vdbecursor.scary_bitfield) & 8
 
 
 # Opcode:  Yield P1 P2 * * *
