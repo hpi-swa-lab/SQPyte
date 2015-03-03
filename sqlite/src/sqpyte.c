@@ -1737,7 +1737,6 @@ long impl_OP_Function(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp) {
   int n;
 
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
-  Mem *pOut;                 /* Output operand */
   u8 encoding = ENC(db);     /* The database encoding */
 
   n = pOp->p5;
@@ -1753,7 +1752,6 @@ long impl_OP_Function(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp) {
   for(i=0; i<n; i++, pArg++){
     assert( memIsValid(pArg) );
     apVal[i] = pArg;
-
     // Translated Deephemeralize(pArg);
     if( ((pArg)->flags&MEM_Ephem)!=0 && sqlite3VdbeMemMakeWriteable(pArg) ) {
       // goto no_mem;
@@ -1761,7 +1759,6 @@ long impl_OP_Function(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp) {
       rc = (long)gotoNoMem(p, db, (int)pc);
       return rc;            
     }
-
     REGISTER_TRACE(pOp->p2+i, pArg);
   }
 
@@ -1795,7 +1792,6 @@ long impl_OP_Function(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp) {
 
   REGISTER_TRACE(pOp->p3, ctx.pOut);
   UPDATE_MAX_BLOBSIZE(ctx.pOut);
-  // break;
   return (long)rc | (((int)ctx.pOut->flags) << 16);
 }
 
