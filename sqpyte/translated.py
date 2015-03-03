@@ -435,6 +435,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, op):
     opcode = op.get_opcode()
     flags_can_have_changed = False
     p5 = op.p_Unsigned(5)
+    encoding = hlquery.enc()
 
 
     if (flags1 | flags3) & CConfig.MEM_Null:
@@ -469,9 +470,12 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, op):
             return pc, rc
     else:
 
-    ################################ MODIFIED BLOCK STARTS ################################
 
-        if (flags1 | flags3) & (CConfig.MEM_Int | CConfig.MEM_Real):
+        affinity = rffi.cast(lltype.Signed, p5 & CConfig.SQLITE_AFF_MASK)
+        ############## MODIFIED BLOCK STARTS #######################
+        # fast path for everything being int or float
+        if (affinity >= CConfig.SQLITE_AFF_NUMERIC and
+                (flags1 | flags3) & (CConfig.MEM_Int | CConfig.MEM_Real)):
             # both are ints
             if flags1 & flags3 & CConfig.MEM_Int:
                 i1 = pIn1.get_u_i()
@@ -479,79 +483,87 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, op):
                 res = int(_cmp_depending_on_opcode(opcode, i3, i1))
             else:
                 # mixed int and real comparison, convert to real
-                # XXX this is wrong if one of them is not an int nor a float
-                n1 = pIn1.get_u_i() if flags1 & CConfig.MEM_Int else pIn1.get_u_r()
-                n3 = pIn3.get_u_i() if flags3 & CConfig.MEM_Int else pIn3.get_u_r()
+                if flags1 & CConfig.MEM_Int:
+                    n1 = float(pIn1.get_u_i())
+                else:
+                    assert flags1 & CConfig.MEM_Real
+                    n1 = pIn1.get_u_r()
+                if flags3 & CConfig.MEM_Int:
+                    n3 = float(pIn3.get_u_i())
+                else:
+                    assert flags3 & CConfig.MEM_Real
+                    n3 = pIn3.get_u_r()
 
                 res = int(_cmp_depending_on_opcode(opcode, n3, n1))
+        ############## MODIFIED BLOCK ENDS #########################
         else:
-            flags_can_have_changed = True
 
-            # Call C functions
-            # /* Neither operand is NULL.  Do a comparison. */
-            affinity = rffi.cast(lltype.Signed, p5 & CConfig.SQLITE_AFF_MASK)
-            if affinity != 0:
-                encoding = hlquery.enc()
-                pIn1.applyAffinity(affinity, encoding)
-                flags1 = pIn1.get_flags()
-                pIn3.applyAffinity(affinity, encoding)
-                flags3 = pIn3.get_flags()
-                if rffi.cast(lltype.Unsigned, db.mallocFailed) != 0:
-                    # goto no_mem;
-                    print 'In python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(): no_mem.'
-                    rc = hlquery.gotoNoMem(pc)
-                    return pc, rc
+            # Neither operand is NULL.  Do a comparison.
+            INT_REAL_STR = CConfig.MEM_Int | CConfig.MEM_Real | CConfig.MEM_Str
+            INT_REAL = CConfig.MEM_Int | CConfig.MEM_Real
+            if affinity >= CConfig.SQLITE_AFF_NUMERIC:
+                if (flags1 & INT_REAL_STR) == CConfig.MEM_Str:
+                    pIn1.applyNumericAffinity(0)
+                    flags_can_have_changed = True
+                    flags1 = pIn1.get_flags()
+                if (flags3 & INT_REAL_STR) == CConfig.MEM_Str:
+                    pIn3.applyNumericAffinity(0)
+                    flags_can_have_changed = True
+                    flags3 = pIn3.get_flags()
+            elif affinity == CConfig.SQLITE_AFF_TEXT:
+                if ((flags1 & CConfig.MEM_Str) == 0 and
+                        (flags1 & (INT_REAL)) != 0):
+                    pIn1.sqlite3VdbeMemStringify(encoding, 1)
+                    flags_can_have_changed = True
+                    flags1 = pIn1.get_flags()
+                if ((flags3 & CConfig.MEM_Str) == 0 and
+                        (flags3 & (INT_REAL)) != 0):
+                    pIn3.sqlite3VdbeMemStringify(encoding, 1)
+                    flags3 = pIn3.get_flags()
+                    flags_can_have_changed = True
 
             assert op.p4type() == CConfig.P4_COLLSEQ or not op.p4_pColl()
-            pIn1.ExpandBlob()
-            pIn3.ExpandBlob()
+            if flags1 & CConfig.MEM_Zero:
+                pIn1.sqlite3VdbeMemExpandBlob()
+                flags1 = pIn1.get_flags()
+                orig_flags1 &= ~CConfig.MEM_Zero
+                flags_can_have_changed = True
+            if flags3 & CConfig.MEM_Zero:
+                pIn3.sqlite3VdbeMemExpandBlob()
+                flags3 = pIn3.get_flags()
+                orig_flags3 &= ~CConfig.MEM_Zero
+                flags_can_have_changed = True
 
             res = pIn3.sqlite3MemCompare(pIn1, op.p4_pColl())
             if opcode == CConfig.OP_Eq:
-                res = 1 if res == 0 else 0
+                res = res == 0
             elif opcode == CConfig.OP_Ne:
-                res = 1 if res != 0 else 0
+                res = res != 0
             elif opcode == CConfig.OP_Lt:
-                res = 1 if res < 0 else 0
+                res = res < 0
             elif opcode == CConfig.OP_Le:
-                res = 1 if res <= 0 else 0
+                res = res <= 0
             elif opcode == CConfig.OP_Gt:
-                res = 1 if res > 0 else 0
+                res = res > 0
             else:
-                res = 1 if res >= 0 else 0
+                res = res >= 0
 
-    ################################# MODIFIED BLOCK ENDS #################################
 
     if p5 & CConfig.SQLITE_STOREP2:
         pOut = op.mem_of_p(2)
-        # Used only for debugging, i.e., not in production.
-        # See vdbe.c lines 24-37.
         #   memAboutToChange(p, pOut);
-
         pOut.MemSetTypeFlag(CConfig.MEM_Int)
-
         pOut.set_u_i(res)
-
-        # Used only for debugging, i.e., not in production.
-        # See vdbe.c lines 451-455.
         # REGISTER_TRACE(pOp->p2, pOut);
     else:
-        # VdbeBranchTaken() is used for test suite validation only and
-        # does not appear an production builds.
-        # See vdbe.c lines 110-136.
         # VdbeBranchTaken(res!=0, (pOp->p5 & SQLITE_NULLEQ)?2:3);
-
-        if res != 0:
+        if res:
             pc = op.p2as_pc()
 
     if flags_can_have_changed:
-        # /* Undo any changes made by applyAffinity() to the input registers. */
-        new_flags1 = (flags1 & ~CConfig.MEM_TypeMask) | (orig_flags1 & CConfig.MEM_TypeMask)
-        new_flags3 = (flags3 & ~CConfig.MEM_TypeMask) | (orig_flags3 & CConfig.MEM_TypeMask)
-        if new_flags1 != flags1:
-            pIn1.set_flags(new_flags1)
-        if new_flags3 != flags3:
-            pIn3.set_flags(new_flags3)
+        # Undo any changes made by applyAffinity() to the input registers.
+        pIn1.set_flags(orig_flags1)
+        pIn3.set_flags(orig_flags3)
 
     return pc, rc
 
