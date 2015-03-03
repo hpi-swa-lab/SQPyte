@@ -101,6 +101,12 @@ class Mem(object):
     def set_zMalloc_null(self):
         self.set_zMalloc(lltype.nullptr(lltype.typeOf(self.pMem).TO.zMalloc.TO))
 
+    def get_szMalloc(self):
+        return rffi.cast(lltype.Signed, self.pMem.szMalloc)
+
+    def set_szMalloc(self, val):
+        rffi.setintfield(self.pMem, 'szMalloc', val)
+
 
     def get_db(self):
         return self.pMem.db
@@ -274,10 +280,20 @@ class Mem(object):
 
     def sqlite3VdbeMemRelease(self):
         self.VdbeMemRelease()
-        if self.get_zMalloc():
+        if self.VdbeMemDynamic() or self.get_szMalloc():
+            self.vdbeMemClear()
+
+    def vdbeMemClear(self):
+        if self.VdbeMemDynamic():
+            self.vdbeMemClearExternAndSetNull()
+        if self.get_szMalloc():
             capi.sqlite3DbFree(self.hlquery.db, rffi.cast(rffi.VOIDP, self.get_zMalloc()))
-            self.set_zMalloc(lltype.nullptr(rffi.CCHARP.TO))
+            self.set_zMalloc_null()
         self.set_z_null()
+
+    def vdbeMemClearExternAndSetNull(self):
+        capi.vdbeMemClearExternAndSetNull(self.pMem)
+        self.invalidate_cache()
 
     def sqlite3VdbeMemSetInt64(self, val):
         if self.get_flags() != CConfig.MEM_Int:
@@ -316,8 +332,7 @@ class Mem(object):
 
     def VdbeMemRelease(self):
         if self.VdbeMemDynamic():
-            self.invalidate_cache()
-            capi.vdbeMemClearExternAndSetNull(self.pMem)
+            self.vdbeMemClearExternAndSetNull()
 
 
     def sqlite3VdbeIntValue(self):
@@ -398,11 +413,10 @@ class Mem(object):
         and flags gets srcType (either MEM_Ephem or MEM_Static).
         """
         assert not from_.get_flags() & CConfig.MEM_RowSet
-        self.VdbeMemRelease()
-        self.invalidate_cache()
+        if self.VdbeMemDynamic():
+            self.vdbeMemClearExternAndSetNull()
         self._memcpy_partial_hidden(from_)
         self.assure_flags(from_.get_flags())
-        self.set_xDel_null()
         if not from_.get_flags() & CConfig.MEM_Static:
             flags = self.get_flags()
             flags &= ~(CConfig.MEM_Dyn | CConfig.MEM_Static | CConfig.MEM_Ephem)
@@ -510,6 +524,12 @@ class Mem(object):
     def sqlite3VdbeMemTooBig(self):
         self.invalidate_cache()
         return capi.sqlite3VdbeMemTooBig(self.pMem)
+
+    def sqlite3VdbeMemMove(self, from_):
+        self.sqlite3VdbeMemRelease()
+        self.memcpy_full(from_)
+        from_.set_flags(CConfig.MEM_Null)
+        from_.set_szMalloc(0)
 
     def memcpy_full(self, from_):
         self.invalidate_cache()

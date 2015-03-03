@@ -1424,24 +1424,14 @@ def python_OP_Move(hlquery, op):
         # assert( pIn1<=&aMem[(p->nMem-p->nCursor)] );
         # assert( memIsValid(pIn1) );
 
-        # Used only for debugging, i.e., not in production.
-        # See vdbe.c lines 24-37.
         # memAboutToChange(p, pOut);
-
-        pOut.VdbeMemRelease()
-        zMalloc = pOut.get_zMalloc()
-        pOut.memcpy_full(pIn1)
+        pOut.sqlite3VdbeMemMove(pIn1)
         #ifdef SQLITE_DEBUG
             # if( pOut->pScopyFrom>=&aMem[p1] && pOut->pScopyFrom<&aMem[p1+pOp->p3] ){
             #   pOut->pScopyFrom += p1 - pOp->p2;
             # }
         #endif
-        pIn1.set_flags(CConfig.MEM_Undefined)
-        pIn1.set_xDel_null()
-        pIn1.set_zMalloc(zMalloc)
 
-        # Used only for debugging, i.e., not in production.
-        # See vdbe.c lines 451-455.
         # REGISTER_TRACE(p2++, pOut);
 
         p1 += 1
@@ -2016,7 +2006,7 @@ def python_OP_Null(hlquery, op):
     index = op.p_Signed(2) + 1
     while index <= op.p_Signed(3):
         pOut = hlquery.mem_with_index(index)
-        pOut.VdbeMemRelease()
+        pOut.sqlite3VdbeMemSetNull()
         pOut.set_flags(nullFlag)
         index += 1
 
@@ -2026,9 +2016,6 @@ def python_OP_Null(hlquery, op):
 #
 # The register P1 must contain an integer.  Add literal P3 to the
 # value in register P1.  If the result is exactly 0, jump to P2.
-#
-# It is illegal to use this instruction on a register that does
-# not contain an integer.  An assertion fault will result if you try.
 
 def python_OP_IfZero(hlquery, pc, op):
     pIn1 = op.mem_of_p(1)
