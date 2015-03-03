@@ -665,7 +665,7 @@ class Sqlite3Query(object):
 
     @jit.elidable
     def enc(self):
-        return self.db.aDb[0].pSchema.enc
+        return self.db.enc
 
     def mem_with_index(self, i):
         return self._mem_as_python_list[i]
