@@ -1891,11 +1891,8 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
         # the seek, so covert it.
         pIn3, flags3 = op.mem_and_flags_of_p(3)
 
-        # XXX: The next line with applyNumericAffinity() has to change to:
-        # if( (pIn3->flags & (MEM_Int|MEM_Real|MEM_Str))==MEM_Str ){
-        #   applyNumericAffinity(pIn3, 0);
-        # }
-        pIn3.applyNumericAffinity()
+        if flags3 & (CConfig.MEM_Int|CConfig.MEM_Real|CConfig.MEM_Str) == CConfig.MEM_Str:
+            pIn3.applyNumericAffinity(0)
 
         iKey = pIn3.sqlite3VdbeIntValue()
 
@@ -1911,7 +1908,7 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
                 # does not appear an production builds.
                 # See vdbe.c lines 110-136.
                 # VdbeBranchTaken(1,2);
-                
+
                 return pc, rc
 
             # If the approximation iKey is larger than the actual real search

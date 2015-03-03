@@ -804,7 +804,7 @@ if sys.argv[0].endswith("rpython"): # we're translating
     kwargs = dict(macro=True)
 else:
     kwargs = {}
-sqlite3_applyNumericAffinity = llexternal('applyNumericAffinity', [MEMP],
+sqlite3_applyNumericAffinity = llexternal('applyNumericAffinity', [MEMP, rffi.INT],
     lltype.Void, **kwargs)
 
 sqlite3AtoF = llexternal('sqlite3AtoF', [rffi.CCHARP, rffi.DOUBLEP, rffi.INT, CConfig.u8],
@@ -839,7 +839,7 @@ sqlite3_sqlite3MemCompare = llexternal('sqlite3MemCompare', [MEMP, MEMP, COLLSEQ
     rffi.INT)
 sqlite3_sqlite3VdbeMemShallowCopy = llexternal('sqlite3VdbeMemShallowCopy', [MEMP, MEMP, rffi.INT],
     lltype.Void)
-sqlite3_sqlite3VdbeMemStringify = llexternal('sqlite3VdbeMemStringify', [MEMP, rffi.INT],
+sqlite3_sqlite3VdbeMemStringify = llexternal('sqlite3VdbeMemStringify', [MEMP, CConfig.u8, CConfig.u8],
     rffi.INT)
 sqlite3_sqlite3VdbeMemNulTerminate = llexternal('sqlite3VdbeMemNulTerminate', [MEMP],
     rffi.INT)
@@ -869,3 +869,6 @@ sqlite3_errmsg = llexternal('sqlite3_errmsg', [SQLITE3P], rffi.CCHARP)
 sqlite3VdbeMemSetStr = llexternal('sqlite3VdbeMemSetStr', [MEMP, rffi.CCHARP, rffi.INT, CConfig.u8, rffi.VOIDP], rffi.INT)
 
 sqlite3_bind_parameter_count = llexternal('sqlite3_bind_parameter_count', [VDBEP], rffi.INT)
+
+
+valueToText = llexternal('valueToText', [MEMP, CConfig.u8], rffi.VOIDP)

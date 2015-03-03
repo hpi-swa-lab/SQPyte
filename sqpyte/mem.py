@@ -168,26 +168,41 @@ class Mem(object):
         """
         flags = self.get_flags()
         assert isinstance(affinity, int)
-        if affinity == CConfig.SQLITE_AFF_TEXT:
+        if affinity >= CConfig.SQLITE_AFF_NUMERIC:
+            assert affinity in (CConfig.SQLITE_AFF_INTEGER,
+                                CConfig.SQLITE_AFF_REAL,
+                                CConfig.SQLITE_AFF_NUMERIC)
+            if flags & CConfig.MEM_Int == 0:
+                if flags & CConfig.MEM_Real == 0:
+                    if flags & CConfig.MEM_Str:
+                        self.applyNumericAffinity(1)
+                    else:
+                        self.sqlite3VdbeIntegerAffinity()
+        elif affinity == CConfig.SQLITE_AFF_TEXT:
             # Only attempt the conversion to TEXT if there is an integer or real
             # representation (blob and NULL do not get converted) but no string
             # representation.
 
             if not (flags & CConfig.MEM_Str) and flags & (CConfig.MEM_Real|CConfig.MEM_Int):
-                flags = self.get_flags()
-            flags = flags & ~(CConfig.MEM_Real|CConfig.MEM_Int)
-            self.set_flags(flags)
-        elif affinity != CConfig.SQLITE_AFF_NONE:
-            assert affinity in (CConfig.SQLITE_AFF_INTEGER,
-                                CConfig.SQLITE_AFF_REAL,
-                                CConfig.SQLITE_AFF_NUMERIC)
-            self.applyNumericAffinity()
-            if self.get_flags() & CConfig.MEM_Real:
-                self.sqlite3VdbeIntegerAffinity()
+                self.sqlite3VdbeMemStringify(enc, 1)
 
-    def sqlite3VdbeMemStringify(self, enc):
+    def sqlite3VdbeMemStringify(self, enc, bForce):
+        """
+        Add MEM_Str to the set of representations for the given Mem.  Numbers
+        are converted using sqlite3_snprintf().  Converting a BLOB to a string
+        is a no-op.
+
+        Existing representations MEM_Int and MEM_Real are invalidated if
+        bForce is true but are retained if bForce is false.
+
+        A MEM_Null value will never be passed to this function. This function is
+        used for converting values to text for returning to the user (i.e. via
+        sqlite3_value_text()), or for ensuring that values to be used as btree
+        keys are strings. In the former case a NULL pointer is returned the
+        user and the latter is an internal programming error.
+        """
         self.invalidate_cache()
-        capi.sqlite3_sqlite3VdbeMemStringify(self.pMem, enc)
+        return capi.sqlite3_sqlite3VdbeMemStringify(self.pMem, enc, bForce)
 
     def sqlite3VdbeMemNulTerminate(self):
         if self.get_flags() & CConfig.MEM_Term:
@@ -199,22 +214,30 @@ class Mem(object):
         self.invalidate_cache()
         return capi.sqlite3_sqlite3VdbeMemIntegerify(self)
 
-    def applyNumericAffinity(self):
+
+    def sqlite3VdbeMemRealify(self):
+        self.set_u_r(self.sqlite3VdbeRealValue())
+        self.MemSetTypeFlag(CConfig.MEM_Real)
+
+    def applyNumericAffinity(self, bTryForInt):
         """
         Try to convert a value into a numeric representation if we can
         do so without loss of information.  In other words, if the string
         looks like a number, convert it into a number.  If it does not
         look like a number, leave it alone.
+
+        If the bTryForInt flag is true, then extra effort is made to give
+        an integer representation.  Strings that look like floating point
+        values but which have no fractional component (example: '48.00')
+        will have a MEM_Int representation when bTryForInt is true.
+
+        If bTryForInt is false, then if the input string contains a decimal
+        point or exponential notation, the result is only MEM_Real, even
+        if there is an exact integer representation of the quantity.
         """
-        flags = self.get_flags()
-        if flags & (CConfig.MEM_Real|CConfig.MEM_Int):
-            return flags
-        if not flags & CConfig.MEM_Str:
-            return flags
-        # use the C function as a slow path for now
+        # use the C function for now
         self.invalidate_cache()
-        capi.sqlite3_applyNumericAffinity(self.pMem)
-        return self.get_flags()
+        capi.sqlite3_applyNumericAffinity(self.pMem, bTryForInt)
 
     def numericType(self):
         flags = self.get_flags()
@@ -535,7 +558,7 @@ class Mem(object):
         """
         eType = self.sqlite3_value_type()
         if eType == CConfig.SQLITE_TEXT:
-            self.applyNumericAffinity()
+            self.applyNumericAffinity(0)
             eType = self.sqlite3_value_type()
         return eType
 
@@ -543,24 +566,40 @@ class Mem(object):
     sqlite3_value_double = sqlite3VdbeRealValue
 
     def sqlite3_value_text(self):
+        return self.sqlite3ValueText(CConfig.SQLITE_UTF8)
+
+
+    def sqlite3ValueText(self, enc):
+        """
+        This function is only available internally, it is not part of the
+        external API. It works in a similar way to sqlite3_value_text(),
+        except the data returned is in the encoding specified by the second
+        parameter, which must be one of SQLITE_UTF16BE, SQLITE_UTF16LE or
+        SQLITE_UTF8.
+
+         (2006-02-16:)  The enc value can be or-ed with SQLITE_UTF16_ALIGNED.
+         If that is the case, then the result must be aligned on an even byte
+         boundary.
+        """
         flags = self.get_flags()
-        # this is sqlite3ValueText
+        assert (flags & CConfig.MEM_RowSet) == 0
+        if ((flags & (CConfig.MEM_Str|CConfig.MEM_Term)) ==
+                (CConfig.MEM_Str|CConfig.MEM_Term) and
+                self.get_enc() == enc):
+            return self.get_z()
         if flags & CConfig.MEM_Null:
             return lltype.nullptr(rffi.CCHARP.TO)
+        return self.valueToText(enc)
 
-        assert (CConfig.MEM_Blob>>3) == CConfig.MEM_Str
-        flags |= (flags & CConfig.MEM_Blob) >> 3
-        self.set_flags(flags)
 
-        self.ExpandBlob()
-        flags = self.get_flags()
-        if flags & CConfig.MEM_Str:
-            self.sqlite3VdbeChangeEncoding(CConfig.SQLITE_UTF8)
-            self.sqlite3VdbeMemNulTerminate() # /* IMP: R-31275-44060 */
-        else:
-            assert flags & CConfig.MEM_Blob
-            self.sqlite3VdbeMemStringify(CConfig.SQLITE_UTF8)
-        return self.get_z()
+    def valueToText(self, enc):
+        """
+        The pVal argument is known to be a value other than NULL.
+        Convert it into a string with encoding enc and return a pointer
+        to a zero-terminated version of that string.
+        """
+        self.invalidate_cache()
+        return capi.valueToText(self.pMem, enc)
 
     sqlite3_result_int64 = sqlite3VdbeMemSetInt64
     sqlite3_result_double = sqlite3VdbeMemSetDouble
