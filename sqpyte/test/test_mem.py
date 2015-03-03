@@ -39,7 +39,7 @@ def test_caching():
     with lltype.scoped_alloc(capi.MEM) as pMem:
         rffi.setintfield(pMem, 'flags', CConfig.MEM_Int)
         pMem.u.i = 17
-        pMem.r = 2.3
+        pMem.u.r = 2.3
         mem = Mem(FakeHLQuery(), pMem, 0)
         assert mem.get_flags() == CConfig.MEM_Int
         assert mem.get_u_i() == 17
@@ -56,7 +56,7 @@ def test_caching():
         mem.invalidate_cache()
         rffi.setintfield(pMem, 'flags', CConfig.MEM_Real)
         pMem.u.i = 0
-        pMem.r = 4.5
+        pMem.u.r = 4.5
         assert mem.get_flags() == CConfig.MEM_Real
         assert mem.get_u_i() == 0
         assert mem.get_u_r() == 4.5
@@ -80,7 +80,7 @@ def test_dont_do_superfluous_flag_writes():
     with lltype.scoped_alloc(capi.MEM) as pMem:
         rffi.setintfield(pMem, 'flags', CConfig.MEM_Int)
         pMem.u.i = 17
-        pMem.r = 2.3
+        pMem.u.r = 2.3
         mem = Mem(FakeHLQuery(), pMem, 0)
         assert mem.get_flags() == CConfig.MEM_Int
         mem.pMem = None
