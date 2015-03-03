@@ -78,6 +78,20 @@ def python_OP_Init_translated(hlquery, pc, op):
 
     return pc
 
+
+# Opcode:  Goto * P2 * * *
+#
+# An unconditional jump to address P2.
+# The next instruction executed will be
+# the one at index P2 from the beginning of
+# the program.
+#
+# The P1 parameter is not actually used by this opcode.  However, it
+# is sometimes set to 1 instead of 0 as a hint to the command-line shell
+# that this Goto is the bottom of a loop and that the lines from P2 down
+# to the current line should be indented for EXPLAIN output.
+#
+
 def python_OP_Goto_translated(hlquery, pc, rc, op):
     db = hlquery.db
     pc = op.p2as_pc()
@@ -227,7 +241,7 @@ def python_OP_Next_translated(hlquery, pc, op):
     assert rffi.cast(lltype.Unsigned, pC.deferredMoveto) == 0
     assert pC.pCursor
     #assert res == 0 or (res == 1 and rffi.cast(lltype.Signed, pC.isTable) == 0)
-    
+
     # testcase() is used for SQLite3 coverage testing and logically
     # should not be used in production.
     # See sqliteInt.h lines 269-288
@@ -237,7 +251,7 @@ def python_OP_Next_translated(hlquery, pc, op):
     # assert( pOp->opcode!=OP_Prev || pOp->p4.xAdvance==sqlite3BtreePrevious );
     # assert( pOp->opcode!=OP_NextIfOpen || pOp->p4.xAdvance==sqlite3BtreeNext );
     # assert( pOp->opcode!=OP_PrevIfOpen || pOp->p4.xAdvance==sqlite3BtreePrevious);
-    
+
     # /* The Next opcode is only used after SeekGT, SeekGE, and Rewind.
     # ** The Prev opcode is only used after SeekLT, SeekLE, and Last. */
     # assert( pOp->opcode!=OP_Next || pOp->opcode!=OP_NextIfOpen
@@ -257,7 +271,7 @@ def python_OP_Next_translated(hlquery, pc, op):
     # next_tail:
     pC.cacheStatus = rffi.cast(rffi.UINT, CConfig.CACHE_STALE)
 
-    # VdbeBranchTaken() is used for test suite validation only and 
+    # VdbeBranchTaken() is used for test suite validation only and
     # does not appear an production builds.
     # See vdbe.c lines 110-136.
     # VdbeBranchTaken(res==0, 2)
@@ -426,10 +440,9 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, op):
     if (flags1 | flags3) & CConfig.MEM_Null:
         # /* One or both operands are NULL */
         if p5 & CConfig.SQLITE_NULLEQ:
-            # /* If SQLITE_NULLEQ is set (which will only happen if the operator is
-            #  ** OP_Eq or OP_Ne) then take the jump or not depending on whether
-            #  ** or not both operands are null.
-            #  */
+            # If SQLITE_NULLEQ is set (which will only happen if the operator is
+            # OP_Eq or OP_Ne) then take the jump or not depending on whether
+            # or not both operands are null.
             assert opcode == CConfig.OP_Eq or opcode == CConfig.OP_Ne
             assert flags1 & CConfig.MEM_Cleared == 0
             assert p5 & CConfig.SQLITE_JUMPIFNULL == 0
@@ -440,23 +453,16 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, op):
             else:
                 res = 1     # /* Results are not equal */
         else:
-            # /* SQLITE_NULLEQ is clear and at least one operand is NULL,
-            #  ** then the result is always NULL.
-            #  ** The jump is taken if the SQLITE_JUMPIFNULL bit is set.
-            #  */
+            # SQLITE_NULLEQ is clear and at least one operand is NULL,
+            # then the result is always NULL.
+            # The jump is taken if the SQLITE_JUMPIFNULL bit is set.
             if p5 & CConfig.SQLITE_STOREP2:
                 pOut = op.mem_of_p(2)
 
                 pOut.MemSetTypeFlag(CConfig.MEM_Null)
-
-                # Used only for debugging, i.e., not in production.
-                # See vdbe.c lines 451-455.
                 # REGISTER_TRACE(pOp->p2, pOut);
 
             else:
-                # VdbeBranchTaken() is used for test suite validation only and
-                # does not appear an production builds.
-                # See vdbe.c lines 110-136.
                 # VdbeBranchTaken(2,3);
                 if p5 & CConfig.SQLITE_JUMPIFNULL:
                     pc = op.p2as_pc()
@@ -530,7 +536,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, op):
         # See vdbe.c lines 451-455.
         # REGISTER_TRACE(pOp->p2, pOut);
     else:
-        # VdbeBranchTaken() is used for test suite validation only and 
+        # VdbeBranchTaken() is used for test suite validation only and
         # does not appear an production builds.
         # See vdbe.c lines 110-136.
         # VdbeBranchTaken(res!=0, (pOp->p5 & SQLITE_NULLEQ)?2:3);
@@ -569,7 +575,7 @@ def python_OP_IsNull(hlquery, pc, op):
 # Opcode: NotNull P1 P2 * * *
 # Synopsis: if r[P1]!=NULL goto P2
 #
-# Jump to P2 if the value in register P1 is not NULL.  
+# Jump to P2 if the value in register P1 is not NULL.
 
 def python_OP_NotNull(hlquery, pc, op):
     pIn1, flags1 = op.mem_and_flags_of_p(1)
@@ -676,7 +682,7 @@ def python_OP_If_IfNot(hlquery, pc, op):
         # #endif
         if opcode == CConfig.OP_IfNot:
             c = not c
-    # VdbeBranchTaken() is used for test suite validation only and 
+    # VdbeBranchTaken() is used for test suite validation only and
     # does not appear an production builds.
     # See vdbe.c lines 110-136.
     # VdbeBranchTaken(c!=0, 2);
@@ -714,15 +720,15 @@ def python_OP_If_IfNot(hlquery, pc, op):
 # Synopsis:  r[P3]=r[P2]/r[P1]
 #
 # Divide the value in register P1 by the value in register P2
-# and store the result in register P3 (P3=P2/P1). If the value in 
-# register P1 is zero, then the result is NULL. If either input is 
+# and store the result in register P3 (P3=P2/P1). If the value in
+# register P1 is zero, then the result is NULL. If either input is
 # NULL, the result is NULL.
 #
 # Opcode: Remainder P1 P2 P3 * *
 # Synopsis:  r[P3]=r[P2]%r[P1]
 #
-# Compute the remainder after integer register P2 is divided by 
-# register P1 and store the result in register P3. 
+# Compute the remainder after integer register P2 is divided by
+# register P1 and store the result in register P3.
 # If the value in register P1 is zero the result is NULL.
 # If either operand is NULL, the result is NULL.
 
@@ -1132,9 +1138,9 @@ def python_OP_AggFinal(hlquery, pc, rc, op):
 # Opcode: IdxGE P1 P2 P3 P4 P5
 # Synopsis: key=r[P3@P4]
 #
-# The P4 register values beginning with P3 form an unpacked index 
-# key that omits the PRIMARY KEY.  Compare this key value against the index 
-# that P1 is currently pointing to, ignoring the PRIMARY KEY or ROWID 
+# The P4 register values beginning with P3 form an unpacked index
+# key that omits the PRIMARY KEY.  Compare this key value against the index
+# that P1 is currently pointing to, ignoring the PRIMARY KEY or ROWID
 # fields at the end.
 #
 # If the P1 index entry is greater than or equal to the key value
@@ -1143,9 +1149,9 @@ def python_OP_AggFinal(hlquery, pc, rc, op):
 # Opcode: IdxGT P1 P2 P3 P4 P5
 # Synopsis: key=r[P3@P4]
 #
-# The P4 register values beginning with P3 form an unpacked index 
-# key that omits the PRIMARY KEY.  Compare this key value against the index 
-# that P1 is currently pointing to, ignoring the PRIMARY KEY or ROWID 
+# The P4 register values beginning with P3 form an unpacked index
+# key that omits the PRIMARY KEY.  Compare this key value against the index
+# that P1 is currently pointing to, ignoring the PRIMARY KEY or ROWID
 # fields at the end.
 #
 # If the P1 index entry is greater than the key value
@@ -1154,7 +1160,7 @@ def python_OP_AggFinal(hlquery, pc, rc, op):
 # Opcode: IdxLT P1 P2 P3 P4 P5
 # Synopsis: key=r[P3@P4]
 #
-# The P4 register values beginning with P3 form an unpacked index 
+# The P4 register values beginning with P3 form an unpacked index
 # key that omits the PRIMARY KEY or ROWID.  Compare this key value against
 # the index that P1 is currently pointing to, ignoring the PRIMARY KEY or
 # ROWID on the P1 index.
@@ -1165,7 +1171,7 @@ def python_OP_AggFinal(hlquery, pc, rc, op):
 # Opcode: IdxLE P1 P2 P3 P4 P5
 # Synopsis: key=r[P3@P4]
 #
-# The P4 register values beginning with P3 form an unpacked index 
+# The P4 register values beginning with P3 form an unpacked index
 # key that omits the PRIMARY KEY or ROWID.  Compare this key value against
 # the index that P1 is currently pointing to, ignoring the PRIMARY KEY or
 # ROWID on the P1 index.
@@ -1214,7 +1220,7 @@ def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(hlquery, pc, op):
         assert op.get_opcode() == CConfig.OP_IdxGE or op.get_opcode() == CConfig.OP_IdxGT
         res += 1
 
-    # VdbeBranchTaken() is used for test suite validation only and 
+    # VdbeBranchTaken() is used for test suite validation only and
     # does not appear an production builds.
     # See vdbe.c lines 110-136.
     # VdbeBranchTaken(res>0,2);
@@ -1311,7 +1317,7 @@ def python_OP_Compare(hlquery, op):
 
 def python_OP_Jump(hlquery, op):
 
-    # VdbeBranchTaken() is used for test suite validation only and 
+    # VdbeBranchTaken() is used for test suite validation only and
     # does not appear an production builds.
     # See vdbe.c lines 110-136.
 
@@ -1417,7 +1423,6 @@ def _decode_combined_flags_rc_for_p3(result, op):
 # the jump, register P1 becomes undefined.
 
 def python_OP_Return(hlquery, op):
-    p = hlquery.p
     pIn1, flags1 = op.mem_and_flags_of_p(1)    # 1st input operand
     assert flags1 == CConfig.MEM_Int
     pc = pIn1.get_u_i()
@@ -1435,21 +1440,13 @@ def python_OP_Gosub(hlquery, pc, op):
     assert p1 > 0 and p1 <= (rffi.getintfield(p, 'nMem') - rffi.getintfield(p, 'nCursor'))
     pIn1 = op.mem_of_p(1)
     assert pIn1.VdbeMemDynamic() == 0
-    
-    # Used only for debugging, i.e., not in production.
-    # See vdbe.c lines 24-37.
+
     # memAboutToChange(p, pIn1);
-    
     pIn1.set_flags(CConfig.MEM_Int)
     pIn1.set_u_i(pc, constant=True)
-
-    # Used only for debugging, i.e., not in production.
-    # See vdbe.c lines 451-455.
     # REGISTER_TRACE(pOp->p1, pIn1);
 
-    pc = op.p2as_pc()
-
-    return pc
+    return op.p2as_pc()
 
 # Opcode: Move P1 P2 P3 * *
 # Synopsis:  r[P2@P3]=r[P1@P3]
@@ -1554,13 +1551,13 @@ def python_OP_MakeRecord(hlquery, pc, rc, op):
     # like this:
     #
     # ------------------------------------------------------------------------
-    # | hdr-size | type 0 | type 1 | ... | type N-1 | data0 | ... | data N-1 | 
+    # | hdr-size | type 0 | type 1 | ... | type N-1 | data0 | ... | data N-1 |
     # ------------------------------------------------------------------------
     #
     # Data(0) is taken from register P1.  Data(1) comes from register P1+1
     # and so froth.
     #
-    # Each type field is a varint representing the serial type of the 
+    # Each type field is a varint representing the serial type of the
     # corresponding data element (see sqlite3VdbeSerialType()). The
     # hdr-size field is also a varint which is the offset from the beginning
     # of the record to data0.
@@ -1693,7 +1690,7 @@ def putVarint32(buf, val, index=0):
 # successors.  The result of the function is stored in register P3.
 # Register P3 must not be one of the function inputs.
 #
-# P1 is a 32-bit bitmask indicating whether or not each argument to the 
+# P1 is a 32-bit bitmask indicating whether or not each argument to the
 # function was determined to be constant at compile time. If the first
 # argument was constant then bit 0 of P1 is set. This is used to determine
 # whether meta data associated with a user function argument using the
@@ -1735,7 +1732,7 @@ def incomplete_python_OP_Function(hlquery, pc, rc, op):
         #   // goto no_mem;
         #   printf("In impl_OP_Function():1: no_mem.\n");
         #   rc = (long)gotoNoMem(p, db, (int)pc);
-        #   return rc;            
+        #   return rc;
         # }
 
         # Used only for debugging, i.e., not in production.
@@ -1799,7 +1796,7 @@ def incomplete_python_OP_Function(hlquery, pc, rc, op):
         #     // goto too_big;
         #     printf("In impl_OP_Function():2: too_big.\n");
         #     rc = (long)gotoTooBig(p, db, (int)pc);
-        #     return rc;    
+        #     return rc;
         # }
 
         # Used only for debugging, i.e., not in production.
@@ -1816,13 +1813,13 @@ def incomplete_python_OP_Function(hlquery, pc, rc, op):
 # Opcode: SeekGe P1 P2 P3 P4 *
 # Synopsis: key=r[P3@P4]
 #
-# If cursor P1 refers to an SQL table (B-Tree that uses integer keys), 
-# use the value in register P3 as the key.  If cursor P1 refers 
-# to an SQL index, then P3 is the first in an array of P4 registers 
-# that are used as an unpacked index key. 
+# If cursor P1 refers to an SQL table (B-Tree that uses integer keys),
+# use the value in register P3 as the key.  If cursor P1 refers
+# to an SQL index, then P3 is the first in an array of P4 registers
+# that are used as an unpacked index key.
 #
-# Reposition cursor P1 so that  it points to the smallest entry that 
-# is greater than or equal to the key value. If there are no records 
+# Reposition cursor P1 so that  it points to the smallest entry that
+# is greater than or equal to the key value. If there are no records
 # greater than or equal to the key and P2 is not zero, then jump to P2.
 #
 # See also: Found, NotFound, Distinct, SeekLt, SeekGt, SeekLe
@@ -1830,27 +1827,27 @@ def incomplete_python_OP_Function(hlquery, pc, rc, op):
 # Opcode: SeekGt P1 P2 P3 P4 *
 # Synopsis: key=r[P3@P4]
 #
-# If cursor P1 refers to an SQL table (B-Tree that uses integer keys), 
-# use the value in register P3 as a key. If cursor P1 refers 
-# to an SQL index, then P3 is the first in an array of P4 registers 
-# that are used as an unpacked index key. 
+# If cursor P1 refers to an SQL table (B-Tree that uses integer keys),
+# use the value in register P3 as a key. If cursor P1 refers
+# to an SQL index, then P3 is the first in an array of P4 registers
+# that are used as an unpacked index key.
 #
-# Reposition cursor P1 so that  it points to the smallest entry that 
-# is greater than the key value. If there are no records greater than 
+# Reposition cursor P1 so that  it points to the smallest entry that
+# is greater than the key value. If there are no records greater than
 # the key and P2 is not zero, then jump to P2.
 #
 # See also: Found, NotFound, Distinct, SeekLt, SeekGe, SeekLe
 #
-# Opcode: SeekLt P1 P2 P3 P4 * 
+# Opcode: SeekLt P1 P2 P3 P4 *
 # Synopsis: key=r[P3@P4]
 #
-# If cursor P1 refers to an SQL table (B-Tree that uses integer keys), 
-# use the value in register P3 as a key. If cursor P1 refers 
-# to an SQL index, then P3 is the first in an array of P4 registers 
-# that are used as an unpacked index key. 
+# If cursor P1 refers to an SQL table (B-Tree that uses integer keys),
+# use the value in register P3 as a key. If cursor P1 refers
+# to an SQL index, then P3 is the first in an array of P4 registers
+# that are used as an unpacked index key.
 #
-# Reposition cursor P1 so that  it points to the largest entry that 
-# is less than the key value. If there are no records less than 
+# Reposition cursor P1 so that  it points to the largest entry that
+# is less than the key value. If there are no records less than
 # the key and P2 is not zero, then jump to P2.
 #
 # See also: Found, NotFound, Distinct, SeekGt, SeekGe, SeekLe
@@ -1858,13 +1855,13 @@ def incomplete_python_OP_Function(hlquery, pc, rc, op):
 # Opcode: SeekLe P1 P2 P3 P4 *
 # Synopsis: key=r[P3@P4]
 #
-# If cursor P1 refers to an SQL table (B-Tree that uses integer keys), 
-# use the value in register P3 as a key. If cursor P1 refers 
-# to an SQL index, then P3 is the first in an array of P4 registers 
-# that are used as an unpacked index key. 
+# If cursor P1 refers to an SQL table (B-Tree that uses integer keys),
+# use the value in register P3 as a key. If cursor P1 refers
+# to an SQL index, then P3 is the first in an array of P4 registers
+# that are used as an unpacked index key.
 #
-# Reposition cursor P1 so that it points to the largest entry that 
-# is less than or equal to the key value. If there are no records 
+# Reposition cursor P1 so that it points to the largest entry that
+# is less than or equal to the key value. If there are no records
 # less than or equal to the key and P2 is not zero, then jump to P2.
 #
 # See also: Found, NotFound, Distinct, SeekGt, SeekGe, SeekLt
@@ -1904,7 +1901,7 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
                 # then the seek is not possible, so jump to P2
                 pc = op.p2as_pc()
 
-                # VdbeBranchTaken() is used for test suite validation only and 
+                # VdbeBranchTaken() is used for test suite validation only and
                 # does not appear an production builds.
                 # See vdbe.c lines 110-136.
                 # VdbeBranchTaken(1,2);
@@ -2006,7 +2003,7 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
 
     assert op.p_Signed(2) > 0
 
-    # VdbeBranchTaken() is used for test suite validation only and 
+    # VdbeBranchTaken() is used for test suite validation only and
     # does not appear an production builds.
     # See vdbe.c lines 110-136.
     # VdbeBranchTaken(res!=0,2);
