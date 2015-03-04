@@ -1024,43 +1024,8 @@ def python_OP_AggStep(hlquery, rc, pc, op):
     if func.exists_in_python():
         return func.aggstep_in_python(hlquery, op, index, n)
     hlquery.invalidate_caches()
-    apVal = p.apArg
-    assert apVal or n == 0
-    for i in range(n):
-        apVal[i] = hlquery.mem_with_index(index + i).pMem
-    pFunc = func.pfunc
-    mem = op.mem_of_p(3)
-    with lltype.scoped_alloc(capi.CONTEXT) as ctx:
-        mems = Mem(hlquery, ctx.s)
-        ctx.pFunc = pFunc
-        assert op.p_Signed(3) > 0 and op.p_Signed(3) <= (rffi.getintfield(p, 'nMem') - rffi.getintfield(p, 'nCursor'))
-        ctx.pMem = mem.pMem
-        mem.set_n(mem.get_n() + 1)
-        mems.set_flags(CConfig.MEM_Null)
-        mems.set_z_null()
-        mems.set_zMalloc_null()
-        mems.set_xDel_null()
-        mems.set_db(db)
-        rffi.setintfield(ctx, 'isError', 0)
-        ctx.pColl = lltype.nullptr(lltype.typeOf(ctx).TO.pColl.TO)
-        rffi.setintfield(ctx, 'skipFlag', 0)
-        if rffi.getintfield(ctx.pFunc, 'funcFlags') & CConfig.SQLITE_FUNC_NEEDCOLL:
-            prevop = hlquery._hlops[pc - 1]
-            ctx.pColl = prevop.p4_pColl()
-        xStep = rffi.cast(capi.FUNCTYPESTEPP, pFunc.xStep)
-        xStep(ctx, rffi.cast(rffi.INT, n), apVal)  # /* IMP: R-24505-23230 */
-        if rffi.getintfield(ctx, 'isError'):
-            assert 0
-            # XXX fix error handling: sqlite3SetString(&p->zErrMsg, db, "%s", sqlite3_value_text(&ctx.s));
-            rc = rffi.cast(lltype.Signed, ctx.isError)
-        if rffi.getintfield(ctx, 'skipFlag'):
-            prevop = hlquery._hlops[pc - 1]
-            assert prevop.get_opcode() == CConfig.OP_CollSeq
-            i = prevop.p_Signed(1)
-            if i:
-                hlquery.mem_with_index(i).sqlite3VdbeMemSetInt64(1)
-        mems.sqlite3VdbeMemRelease()
-        return rc
+    return capi.impl_OP_AggStep(hlquery.p, hlquery.db, pc, rc, op.pOp)
+
 
 # Opcode: AggFinal P1 P2 * P4 *
 # Synopsis: accum=r[P1] N=P2
@@ -1077,8 +1042,8 @@ def python_OP_AggStep(hlquery, rc, pc, op):
 
 def python_OP_AggFinal(hlquery, pc, rc, op):
     func = op.p4_pFunc()
-    mem = op.mem_of_p(1)
     if func.exists_in_python():
+        mem = op.mem_of_p(1)
         return func.aggfinal_in_python(hlquery, op, mem)
     hlquery.invalidate_caches()
     return capi.impl_OP_AggFinal(hlquery.p, hlquery.db, pc, rc, op.pOp)

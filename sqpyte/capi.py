@@ -595,10 +595,9 @@ VDBECURSOR.become(lltype.Struct("VdbeCursor",   # src/vdbeInt.h: 63
 # (Mem) which are only defined there.
 
 CONTEXT.become(lltype.Struct("CONTEXT",
-    ("pFunc", FUNCDEFP),           # Pointer to function information.  MUST BE FIRST
-    ("s", MEM),                    # The return value is stored here
+    ("pOut", MEMP),                # The return value is stored here
+    ("pFunc", FUNCDEFP),           # Pointer to function information
     ("pMem", MEMP),                # Memory cell used to store aggregate context
-    ("pColl", COLLSEQP),           # Collating sequence
     ("pVdbe", VDBEP),              # The VM that owns this context
     ("iOp", rffi.INT),             # Instruction number of OP_Function
     ("isError", rffi.INT),         # Error code returned by the function.
