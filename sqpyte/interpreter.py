@@ -494,8 +494,10 @@ class Sqlite3Query(object):
 
     @cache_safe()
     def python_OP_SCopy(self, op):
-        # capi.impl_OP_SCopy(self.p, op.pOp)
-        translated.python_OP_SCopy(self, op)
+        if not objectmodel.we_are_translated():
+            capi.impl_OP_SCopy(self.p, op.pOp)
+        else:
+            translated.python_OP_SCopy(self, op)
 
     @cache_safe()
     def python_OP_Affinity(self, op):
@@ -548,7 +550,7 @@ class Sqlite3Query(object):
         # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         # rc = capi.impl_OP_NextIfOpen(self.p, self.db, self.internalPc, rc, op.pOp)
         # retPc = self.internalPc[0]
-        # return retPc, rc        
+        # return retPc, rc
 
         return translated.python_OP_NextIfOpen_translated(self, pc, rc, op)
 
