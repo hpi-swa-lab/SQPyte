@@ -4375,3 +4375,14 @@ long impl_OP_RowKey_RowData(Vdbe* p, sqlite3 *db, long pc, long rc, Op *pOp) {
   REGISTER_TRACE(pOp->p2, pOut);
   return rc;
 }
+
+void impl_OP_Blob(Vdbe *p, sqlite3 *db, Op *pOp) {
+  /* out2-prerelease */
+  Mem *aMem = p->aMem;
+  Mem *pOut = &aMem[pOp->p2];                 /* Output operand */
+  u8 encoding = ENC(db);     /* The database encoding */
+  assert( pOp->p1 <= SQLITE_MAX_LENGTH );
+  sqlite3VdbeMemSetStr(pOut, pOp->p4.z, pOp->p1, 0, 0);
+  pOut->enc = encoding;
+  UPDATE_MAX_BLOBSIZE(pOut);
+}

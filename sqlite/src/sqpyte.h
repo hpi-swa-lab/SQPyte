@@ -5,6 +5,7 @@
 
 long impl_OP_AggFinal(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp);
 long impl_OP_AggStep(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp);
+void impl_OP_Blob(Vdbe *p, sqlite3 *db, Op *pOp);
 long impl_OP_Column(Vdbe *p, sqlite3 *db, long pc, Op *pOp);
 long impl_OP_Copy(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp);
 long impl_OP_Delete(Vdbe *p, sqlite3 *db, long pc, Op *pOp);

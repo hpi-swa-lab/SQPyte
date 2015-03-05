@@ -654,6 +654,9 @@ class Sqlite3Query(object):
         rc = capi.impl_OP_RowKey_RowData(self.p, self.db, pc, rc, op.pOp)
         return rc
 
+    def python_OP_Blob(self, op):
+        capi.impl_OP_Blob(self.p, self.db, op.pOp)
+
     def debug_print(self, s):
         return
         if not jit.we_are_jitted():
@@ -881,6 +884,8 @@ class Sqlite3Query(object):
                 self.python_OP_DropTable(op)
             elif opcode == CConfig.OP_RowKey or opcode == CConfig.OP_RowData:
                 rc = self.python_OP_RowKey_RowData(pc, rc, op)
+            elif opcode == CConfig.OP_Blob:
+                self.python_OP_Blob(op)
             else:
                 raise SQPyteException("SQPyteException: Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))
