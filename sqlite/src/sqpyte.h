@@ -39,6 +39,7 @@ long impl_OP_ParseSchema(Vdbe *p, sqlite3 *db, long pc, long rcIn, Op *pOp);
 long impl_OP_ResultRow(Vdbe *p, sqlite3 *db, long pc, Op *pOp);
 long impl_OP_Return(Vdbe *p, long pc, Op *pOp);
 long impl_OP_Rewind(Vdbe *p, sqlite3 *db, long *pc, Op *pOp);
+long impl_OP_RowKey_RowData(Vdbe* p, sqlite3 *db, long pc, long rc, Op *pOp);
 long impl_OP_RowSetAdd(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp);
 long impl_OP_RowSetRead(Vdbe *p, sqlite3 *db, long *pc, long rc, Op *pOp);
 long impl_OP_RowSetTest(Vdbe *p, sqlite3 *db, long *pc, long rc, Op *pOp);

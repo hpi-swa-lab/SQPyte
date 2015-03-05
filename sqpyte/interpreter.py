@@ -650,6 +650,9 @@ class Sqlite3Query(object):
     def python_OP_DropTable(self, op):
         return capi.impl_OP_DropTable(self.db, op.pOp)
 
+    def python_OP_RowKey_RowData(self, pc, rc, op):
+        rc = capi.impl_OP_RowKey_RowData(self.p, self.db, pc, rc, op.pOp)
+        return rc
 
     def debug_print(self, s):
         return
@@ -876,6 +879,8 @@ class Sqlite3Query(object):
                 rc = self.python_OP_Delete(pc, op)
             elif opcode == CConfig.OP_DropTable:
                 self.python_OP_DropTable(op)
+            elif opcode == CConfig.OP_RowKey or opcode == CConfig.OP_RowData:
+                rc = self.python_OP_RowKey_RowData(pc, rc, op)
             else:
                 raise SQPyteException("SQPyteException: Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))

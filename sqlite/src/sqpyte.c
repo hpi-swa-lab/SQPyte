@@ -4274,3 +4274,104 @@ void impl_OP_DropTable(sqlite3 *db, Op *pOp) {
   sqlite3UnlinkAndDeleteTable(db, pOp->p1, pOp->p4.z);
   // break;
 }
+
+
+
+/* Opcode: RowData P1 P2 * * *
+** Synopsis: r[P2]=data
+**
+** Write into register P2 the complete row data for cursor P1.
+** There is no interpretation of the data.
+** It is just copied onto the P2 register exactly as
+** it is found in the database file.
+**
+** If the P1 cursor must be pointing to a valid row (not a NULL row)
+** of a real table, not a pseudo-table.
+*/
+/* Opcode: RowKey P1 P2 * * *
+** Synopsis: r[P2]=key
+**
+** Write into register P2 the complete row key for cursor P1.
+** There is no interpretation of the data.
+** The key is copied onto the P2 register exactly as
+** it is found in the database file.
+**
+** If the P1 cursor must be pointing to a valid row (not a NULL row)
+** of a real table, not a pseudo-table.
+*/
+
+long impl_OP_RowKey_RowData(Vdbe* p, sqlite3 *db, long pc, long rc, Op *pOp) {
+  Mem *pOut;                 /* Output operand */
+  Mem *aMem = p->aMem;
+
+  VdbeCursor *pC;
+  BtCursor *pCrsr;
+  u32 n;
+  i64 n64;
+
+  pOut = &aMem[pOp->p2];
+  memAboutToChange(p, pOut);
+
+  /* Note that RowKey and RowData are really exactly the same instruction */
+  assert( pOp->p1>=0 && pOp->p1<p->nCursor );
+  pC = p->apCsr[pOp->p1];
+  assert( isSorter(pC)==0 );
+  assert( pC->isTable || pOp->opcode!=OP_RowData );
+  assert( pC->isTable==0 || pOp->opcode==OP_RowData );
+  assert( pC!=0 );
+  assert( pC->nullRow==0 );
+  assert( pC->pseudoTableReg==0 );
+  assert( pC->pCursor!=0 );
+  pCrsr = pC->pCursor;
+
+  /* The OP_RowKey and OP_RowData opcodes always follow OP_NotExists or
+  ** OP_Rewind/Op_Next with no intervening instructions that might invalidate
+  ** the cursor.  If this where not the case, on of the following assert()s
+  ** would fail.  Should this ever change (because of changes in the code
+  ** generator) then the fix would be to insert a call to
+  ** sqlite3VdbeCursorMoveto().
+  */
+  assert( pC->deferredMoveto==0 );
+  assert( sqlite3BtreeCursorIsValid(pCrsr) );
+#if 0  /* Not required due to the previous to assert() statements */
+  rc = sqlite3VdbeCursorMoveto(pC);
+  if( rc!=SQLITE_OK ) goto abort_due_to_error;
+#endif
+
+  if( pC->isTable==0 ){
+    assert( !pC->isTable );
+    VVA_ONLY(rc =) sqlite3BtreeKeySize(pCrsr, &n64);
+    assert( rc==SQLITE_OK );    /* True because of CursorMoveto() call above */
+    if( n64>db->aLimit[SQLITE_LIMIT_LENGTH] ){
+      printf("In impl_OP_RowKey_RowData(): too_big.\n");
+      rc = gotoTooBig(p, db, (int)pc);
+      return (long)rc;
+    }
+    n = (u32)n64;
+  }else{
+    VVA_ONLY(rc =) sqlite3BtreeDataSize(pCrsr, &n);
+    assert( rc==SQLITE_OK );    /* DataSize() cannot fail */
+    if( n>(u32)db->aLimit[SQLITE_LIMIT_LENGTH] ){
+      printf("In impl_OP_RowKey_RowData(): too_big.\n");
+      rc = gotoTooBig(p, db, (int)pc);
+      return (long)rc;
+    }
+  }
+  testcase( n==0 );
+  if( sqlite3VdbeMemClearAndResize(pOut, MAX(n,32)) ){
+    printf("In impl_OP_RowKey_RowData(): no_mem.\n");
+    rc = gotoNoMem(p, db, (int)pc);
+    return (long)rc;
+  }
+  pOut->n = n;
+  MemSetTypeFlag(pOut, MEM_Blob);
+  if( pC->isTable==0 ){
+    rc = sqlite3BtreeKey(pCrsr, 0, n, pOut->z);
+  }else{
+    rc = sqlite3BtreeData(pCrsr, 0, n, pOut->z);
+  }
+  pOut->enc = SQLITE_UTF8;  /* In case the blob is ever cast to text */
+  UPDATE_MAX_BLOBSIZE(pOut);
+  REGISTER_TRACE(pOp->p2, pOut);
+  return rc;
+}
