@@ -127,6 +127,52 @@ class Mem(object):
     # _______________________________________________________________
     # methods induced by sqlite3 functions below
 
+    def _atoi(self):
+        val2 = lltype.malloc(rffi.LONGLONGP.TO, 1, flavor='raw')
+        val2[0] = 0
+        rc = capi.sqlite3Atoi64(self.get_z(), val2, self.get_n(), self.get_enc())
+        value = val2[0]
+        lltype.free(val2, flavor='raw')
+        return rc, value
+
+    def sqlite3VdbeMemCast(self, aff, encoding):
+        """
+        Cast the datatype of the value in pMem according to the affinity
+        "aff".  Casting is different from applying affinity in that a cast
+        is forced.  In other words, the value is converted into the desired
+        affinity even if that results in loss of data.  This routine is
+        used (for example) to implement the SQL "cast()" operator.
+        """
+        flags = self.get_flags()
+        if flags & CConfig.MEM_Null:
+            return
+        if aff == CConfig.SQLITE_AFF_NONE:
+            assert 0, "implement me!"
+            #if( (flags & CConfig.MEM_Blob)==0 ){
+            #  sqlite3ValueApplyAffinity(pMem, SQLITE_AFF_TEXT, encoding);
+            #  assert( flags & CConfig.MEM_Str || pMem->db->mallocFailed );
+            #  MemSetTypeFlag(pMem, CConfig.MEM_Blob);
+            #}else{
+            #  flags &= ~(CConfig.MEM_TypeMask&~CConfig.MEM_Blob);
+            #}
+            #break;
+        elif aff == CConfig.SQLITE_AFF_NUMERIC:
+            self.sqlite3VdbeMemNumerify()
+        elif aff == CConfig.SQLITE_AFF_INTEGER:
+            self.sqlite3VdbeMemIntegerify()
+        elif aff == CConfig.SQLITE_AFF_REAL:
+            self.sqlite3VdbeMemRealify()
+        elif aff == CConfig.SQLITE_AFF_TEXT:
+            assert 0, "implement me!"
+            #assert( CConfig.MEM_Str==(CConfig.MEM_Blob>>3) );
+            #flags |= (flags&CConfig.MEM_Blob)>>3;
+            #sqlite3ValueApplyAffinity(pMem, SQLITE_AFF_TEXT, encoding);
+            #assert( flags & CConfig.MEM_Str || pMem->db->mallocFailed );
+            #flags &= ~(CConfig.MEM_Int|CConfig.MEM_Real|CConfig.MEM_Blob|CConfig.MEM_Zero);
+            #break;
+        else:
+            assert 0, "unknown affinity"
+
     def sqlite3VdbeIntegerAffinity(self):
         """
         The MEM structure is already a MEM_Real.  Try to also make it a
@@ -217,13 +263,43 @@ class Mem(object):
             lltype.Signed, capi.sqlite3_sqlite3VdbeMemNulTerminate(self.pMem))
 
     def sqlite3VdbeMemIntegerify(self):
-        self.invalidate_cache()
-        return capi.sqlite3_sqlite3VdbeMemIntegerify(self)
-
+        """
+        Convert pMem to type integer.  Invalidate any prior representations.
+        """
+        flags = self.get_flags()
+        if not flags & CConfig.MEM_Int:
+            # only set u.i if not already an Int
+            self.set_u_i(self.sqlite3VdbeIntValue())
+        self.MemSetTypeFlag(CConfig.MEM_Int)
+        return CConfig.SQLITE_OK
 
     def sqlite3VdbeMemRealify(self):
         self.set_u_r(self.sqlite3VdbeRealValue())
         self.MemSetTypeFlag(CConfig.MEM_Real)
+
+    def sqlite3VdbeMemNumerify(self):
+        """
+        Convert pMem so that it has types MEM_Real or MEM_Int or both.
+        Invalidate any prior representations.
+
+        Every effort is made to force the conversion, even if the input
+        is a string that does not look completely like a number.  Convert
+        as much of the string as we can and ignore the rest.
+        """
+        flags = self.get_flags()
+        if not flags & (CConfig.MEM_Int|CConfig.MEM_Real|CConfig.MEM_Null):
+            assert flags & (CConfig.MEM_Blob|CConfig.MEM_Str)
+            rc, value = self._atoi()
+            if rc == 0:
+                self.set_u_i(value)
+                self.MemSetTypeFlag(CConfig.MEM_Int)
+            else:
+                self.set_u_r(self.sqlite3VdbeRealValue())
+                self.MemSetTypeFlag(CConfig.MEM_Real)
+                self.sqlite3VdbeIntegerAffinity()
+        assert flags & (CConfig.MEM_Int|CConfig.MEM_Real|CConfig.MEM_Null)
+        self.set_flags(flags & ~(CConfig.MEM_Str|CConfig.MEM_Blob))
+        return CConfig.SQLITE_OK
 
     def applyNumericAffinity(self, bTryForInt):
         """
@@ -246,6 +322,13 @@ class Mem(object):
         capi.sqlite3_applyNumericAffinity(self.pMem, bTryForInt)
 
     def numericType(self):
+        """
+        Return the numeric type for pMem, either MEM_Int or MEM_Real or both or
+        none.
+
+        Unlike applyNumericAffinity(), this routine does not modify pMem->flags.
+        But it does set pMem->u.r and pMem->u.i appropriately.
+        """
         flags = self.get_flags()
         if flags & (CConfig.MEM_Int | CConfig.MEM_Real):
             return flags & (CConfig.MEM_Int | CConfig.MEM_Real)
@@ -258,12 +341,8 @@ class Mem(object):
 
             if atof == 0:
                 return 0
-
-            val2 = lltype.malloc(rffi.LONGLONGP.TO, 1, flavor='raw')
-            val2[0] = 0
-            atoi64 = capi.sqlite3Atoi64(self.get_z(), val2, self.get_n(), self.get_enc())
-            self.set_u_i(val2[0])
-            lltype.free(val2, flavor='raw')
+            atoi64, value = self._atoi()
+            self.set_u_i(value)
 
             if atoi64 == CConfig.SQLITE_OK:
                 return CConfig.MEM_Int
@@ -356,11 +435,7 @@ class Mem(object):
         elif flags & CConfig.MEM_Real:
             return int(self.get_u_r())
         elif flags & (CConfig.MEM_Str|CConfig.MEM_Blob):
-            val2 = lltype.malloc(rffi.LONGLONGP.TO, 1, flavor='raw')
-            val2[0] = 0
-            capi.sqlite3Atoi64(self.get_z(), val2, self.get_n(), self.get_enc())
-            value = val2[0]
-            lltype.free(val2, flavor='raw')
+            _, value = self._atoi()
             return value
         else:
             return 0

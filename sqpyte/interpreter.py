@@ -657,6 +657,9 @@ class Sqlite3Query(object):
     def python_OP_Blob(self, op):
         capi.impl_OP_Blob(self.p, self.db, op.pOp)
 
+    def python_OP_Cast(self, rc, op):
+        return translated.python_OP_Cast(self, rc, op)
+
     def debug_print(self, s):
         return
         if not jit.we_are_jitted():
@@ -886,6 +889,8 @@ class Sqlite3Query(object):
                 rc = self.python_OP_RowKey_RowData(pc, rc, op)
             elif opcode == CConfig.OP_Blob:
                 self.python_OP_Blob(op)
+            elif opcode == CConfig.OP_Cast:
+                rc = self.python_OP_Cast(rc, op)
             else:
                 raise SQPyteException("SQPyteException: Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))

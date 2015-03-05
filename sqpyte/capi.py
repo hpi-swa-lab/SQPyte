@@ -56,7 +56,8 @@ opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite', 'OP_Rewind',
            'OP_InitCoroutine', 'OP_Yield', 'OP_NullRow', 'OP_EndCoroutine',
            'OP_ReadCookie', 'OP_NewRowid', 'OP_Insert', 'OP_InsertInt',
            'OP_SetCookie', 'OP_ParseSchema', 'OP_RowSetAdd', 'OP_RowSetRead',
-           'OP_Delete', 'OP_DropTable', 'OP_RowKey', 'OP_RowData', 'OP_Blob']
+           'OP_Delete', 'OP_DropTable', 'OP_RowKey', 'OP_RowData', 'OP_Blob',
+           'OP_Cast']
 p4names = ['P4_INT32', 'P4_KEYINFO', 'P4_COLLSEQ', 'P4_FUNCDEF']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR', 'OPFLAG_CLEARCACHE', 'OPFLAG_LENGTHARG', 'OPFLAG_TYPEOFARG', 'OPFLG_OUT2_PRERELEASE', 'OPFLAG_PERMUTE']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW', 'SQLITE_BUSY', 'SQLITE_CORRUPT_BKPT', 'SQLITE_NOMEM']

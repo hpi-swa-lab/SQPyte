@@ -1992,3 +1992,28 @@ def python_OP_IfZero(hlquery, pc, op):
         pc = op.p2as_pc()
     return pc
 
+
+
+# Opcode: Cast P1 P2 * * *
+# Synopsis: affinity(r[P1])
+#
+# Force the value in register P1 to be the type defined by P2.
+#
+# <ul>
+# <li value="97"> TEXT
+# <li value="98"> BLOB
+# <li value="99"> NUMERIC
+# <li value="100"> INTEGER
+# <li value="101"> REAL
+# </ul>
+#
+# A NULL value is not changed by this routine.  It remains NULL.
+
+def python_OP_Cast(hlquery, rc, op):
+    aff = op.p_Signed(2)
+    assert aff >= CConfig.SQLITE_AFF_NONE and aff <= CConfig.SQLITE_AFF_REAL
+    pIn1 = op.mem_of_p(1)
+    rc = pIn1.ExpandBlob()
+    encoding = hlquery.enc()
+    pIn1.sqlite3VdbeMemCast(aff, encoding)
+    return rc
