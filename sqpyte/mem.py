@@ -76,6 +76,9 @@ class Mem(object):
     def get_enc(self):
         return self.pMem.enc
 
+    def get_enc_signed(self):
+        return rffi.getintfield(self.pMem, 'enc')
+
     def set_enc(self, val):
         self.pMem.enc = val
 
@@ -680,7 +683,7 @@ class Mem(object):
         assert (flags & CConfig.MEM_RowSet) == 0
         if ((flags & (CConfig.MEM_Str|CConfig.MEM_Term)) ==
                 (CConfig.MEM_Str|CConfig.MEM_Term) and
-                self.get_enc() == enc):
+                self.get_enc_signed() == rffi.cast(lltype.Signed, enc)):
             return self.get_z()
         if flags & CConfig.MEM_Null:
             return lltype.nullptr(rffi.CCHARP.TO)
