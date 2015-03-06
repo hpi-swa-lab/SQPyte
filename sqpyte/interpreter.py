@@ -382,6 +382,7 @@ class Sqlite3Query(object):
     def python_OP_Copy(self, pc, rc, op):
         if objectmodel.we_are_translated():
             return translated.python_OP_Copy(self, pc, rc, op)
+        self.invalidate_caches()
         return capi.impl_OP_Copy(self.p, self.db, pc, rc, op.pOp)
 
     @cache_safe()
@@ -497,6 +498,7 @@ class Sqlite3Query(object):
     @cache_safe()
     def python_OP_SCopy(self, op):
         if not objectmodel.we_are_translated():
+            self.invalidate_caches()
             capi.impl_OP_SCopy(self.p, op.pOp)
         else:
             translated.python_OP_SCopy(self, op)
