@@ -2021,3 +2021,41 @@ def python_OP_CollSeq(hlquery, op):
     assert op.pOp.p4type == CConfig.P4_COLLSEQ
     if op.p_Signed(1):
         op.mem_of_p(1).sqlite3VdbeMemSetInt64(0, constant=True)
+
+
+# Opcode: InitCoroutine P1 P2 P3 * *
+# 
+# Set up register P1 so that it will Yield to the coroutine
+# located at address P3.
+# 
+# If P2!=0 then the coroutine implementation immediately follows
+# this opcode.  So jump over the coroutine implementation to
+# address P2.
+# 
+# See also: EndCoroutine
+
+def python_OP_InitCoroutine(hlquery, pc, op):
+    pOut = op.mem_of_p(1)
+    assert not pOut.VdbeMemDynamic()
+    pOut.set_u_i(op.p_Signed(3) - 1, constant=True)
+    pOut.set_flags(CConfig.MEM_Int)
+    if op.p_Signed(2):
+        pc = op.p2as_pc()
+    return pc
+
+
+# Opcode:  EndCoroutine P1 * * * *
+#
+# The instruction at the address in register P1 is a Yield.
+# Jump to the P2 parameter of that Yield.
+# After the jump, register P1 becomes undefined.
+#
+# See also: InitCoroutine
+
+def python_OP_EndCoroutine(hlquery, op):
+    pIn1 = op.mem_of_p(1)
+    pCaller = hlquery._hlops[jit.promote(pIn1.get_u_i())]
+    assert pCaller.get_opcode() == CConfig.OP_Yield
+    pc = pCaller.p2as_pc()
+    pIn1.set_flags(CConfig.MEM_Undefined)
+    return pc

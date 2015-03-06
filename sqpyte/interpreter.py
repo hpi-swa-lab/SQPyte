@@ -613,7 +613,9 @@ class Sqlite3Query(object):
         # return capi.impl_OP_NotNull(self.p, pc, op.pOp)
         return translated.python_OP_NotNull(self, pc, op)
 
+    @cache_safe()
     def python_OP_InitCoroutine(self, pc, op):
+        return translated.python_OP_InitCoroutine(self, pc, op)
         return capi.impl_OP_InitCoroutine(self.p, pc, op.pOp)
 
     @cache_safe(mutates="p1")
@@ -625,7 +627,9 @@ class Sqlite3Query(object):
     def python_OP_NullRow(self, op):
         capi.impl_OP_NullRow(self.p, op.pOp)
 
+    @cache_safe()
     def python_OP_EndCoroutine(self, op):
+        return translated.python_OP_EndCoroutine(self, op)
         return capi.impl_OP_EndCoroutine(self.p, op.pOp)
 
     def python_OP_ReadCookie(self, op):
