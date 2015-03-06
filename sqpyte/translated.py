@@ -2000,3 +2000,24 @@ def python_OP_Real(hlquery, op):
     pOut.set_flags(CConfig.MEM_Real)
     val = op.p4_Real()
     pOut.set_u_r(val, constant=True)
+
+
+# Opcode: CollSeq P1 * * P4
+# 
+# P4 is a pointer to a CollSeq struct. If the next call to a user function
+# or aggregate calls sqlite3GetFuncCollSeq(), this collation sequence will
+# be returned. This is used by the built-in min(), max() and nullif()
+# functions.
+# 
+# If P1 is not zero, then it is a register that a subsequent min() or
+# max() aggregate will set to 1 if the current row is not the minimum or
+# maximum.  The P1 register is initialized to 0 by this instruction.
+# 
+# The interface used by the implementation of the aforementioned functions
+# to retrieve the collation sequence set by this opcode is not available
+# publicly, only to user functions defined in func.c.
+
+def python_OP_CollSeq(hlquery, op):
+    assert op.pOp.p4type == CConfig.P4_COLLSEQ
+    if op.p_Signed(1):
+        op.mem_of_p(1).sqlite3VdbeMemSetInt64(0, constant=True)

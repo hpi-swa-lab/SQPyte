@@ -602,7 +602,8 @@ class Sqlite3Query(object):
         return translated.python_OP_IfPos(self, pc, op)
 
     def python_OP_CollSeq(self, op):
-        capi.impl_OP_CollSeq(self.p, op.pOp)
+        translated.python_OP_CollSeq(self, op)
+        #capi.impl_OP_CollSeq(self.p, op.pOp)
 
     @cache_safe()
     def python_OP_NotNull(self, pc, op):
