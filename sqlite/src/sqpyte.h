@@ -81,4 +81,6 @@ int gotoNoMem(Vdbe *p, sqlite3 *db, int pc);
 int gotoTooBig(Vdbe *p, sqlite3 *db, int pc);
 int gotoVdbeErrorHalt(Vdbe *p, sqlite3 *db, int pc, int rc);
 
+const void *valueToText(sqlite3_value* pVal, u8 enc);
+
 #endif
