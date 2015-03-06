@@ -200,6 +200,7 @@ class Mem(object):
         # the second condition under the assumption that addition overflow causes
         # values to wrap around.
         if floatval == float(intval) and intval < sys.maxint and intval > (-sys.maxint - 1):
+            self.set_u_i(intval)
             flags = flags | CConfig.MEM_Int
             self.set_flags(flags)
         return flags
