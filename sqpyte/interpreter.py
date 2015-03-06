@@ -603,6 +603,7 @@ class Sqlite3Query(object):
     def python_OP_IfPos(self, pc, op):
         return translated.python_OP_IfPos(self, pc, op)
 
+    @cache_safe()
     def python_OP_CollSeq(self, op):
         translated.python_OP_CollSeq(self, op)
         #capi.impl_OP_CollSeq(self.p, op.pOp)
@@ -669,9 +670,11 @@ class Sqlite3Query(object):
     def python_OP_Blob(self, op):
         capi.impl_OP_Blob(self.p, self.db, op.pOp)
 
+    @cache_safe()
     def python_OP_Cast(self, rc, op):
         return translated.python_OP_Cast(self, rc, op)
 
+    @cache_safe(mutates=["p1", "p2", "p3"])
     def python_OP_Concat(self, pc, rc, op):
         return capi.impl_OP_Concat(self.p, self.db, pc, rc, op.pOp)
 
