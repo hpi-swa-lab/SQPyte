@@ -1912,7 +1912,7 @@ def python_OP_Yield(hlquery, pc, op):
     assert pIn1.VdbeMemDynamic() == 0
     pIn1.set_flags(CConfig.MEM_Int)
     pcDest = pIn1.get_u_i()
-    pIn1.set_u_i(pc) # XXX constant
+    pIn1.set_u_i(pc, constant=True)
     return pcDest
 
 
