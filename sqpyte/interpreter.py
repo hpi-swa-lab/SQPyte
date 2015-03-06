@@ -397,9 +397,11 @@ class Sqlite3Query(object):
         #retPc = self.internalPc[0]
         #return retPc, rc
 
+    @cache_safe(mutates="p2")
     def python_OP_String(self, op):
         capi.impl_OP_String(self.p, self.db, op.pOp)
 
+    @cache_safe(mutates="p2")
     def python_OP_String8(self, pc, rc, op):
         return capi.impl_OP_String8(self.p, self.db, pc, rc, op.pOp)
 
