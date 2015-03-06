@@ -684,7 +684,7 @@ class Mem(object):
             return self.get_z()
         if flags & CConfig.MEM_Null:
             return lltype.nullptr(rffi.CCHARP.TO)
-        return self.valueToText(enc)
+        return rffi.cast(rffi.CCHARP, self.valueToText(enc))
 
 
     def valueToText(self, enc):
@@ -900,10 +900,10 @@ class CacheHolder(object):
             return
         state = self.cache_state()
         if not constant:
+            status = (state.cache_states[i] & ~STATE_CONSTANT) & ~STATE_INT_KNOWN
+            self.set_cache_state(state.change_cache_state(i, status))
             return
             self.integers[i] = u_i
-            status = (state.cache_states[i] & ~STATE_CONSTANT) | STATE_INT_KNOWN
-            self.set_cache_state(state.change_cache_state(i, status))
         else:
             self.set_cache_state(state.set_u_i_constant(i, u_i))
 

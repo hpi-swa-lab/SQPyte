@@ -116,3 +116,6 @@ def test_track_constants():
     assert pMem.u.i == 14
     hlquery.integers = None
     assert mem.get_u_i() == 14 # does not crash
+    mem.set_u_i(17)
+    assert not mem.is_constant_u_i()
+    assert mem.get_u_i() == 17
