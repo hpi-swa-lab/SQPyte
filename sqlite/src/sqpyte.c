@@ -3769,7 +3769,6 @@ long impl_OP_NewRowid(Vdbe *p, sqlite3 *db, long pc, long rcIn, Op *pOp) {
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
   Mem *pOut;                 /* Output operand */
   pOut = &aMem[pOp->p2];
-  pOut->flags = MEM_Int;
   int rc = (int)rcIn;
 
   v = 0;
@@ -4386,3 +4385,80 @@ void impl_OP_Blob(Vdbe *p, sqlite3 *db, Op *pOp) {
   pOut->enc = encoding;
   UPDATE_MAX_BLOBSIZE(pOut);
 }
+
+
+/* Opcode: Concat P1 P2 P3 * *
+** Synopsis: r[P3]=r[P2]+r[P1]
+**
+** Add the text in register P1 onto the end of the text in
+** register P2 and store the result in register P3.
+** If either the P1 or P2 text are NULL then store NULL in P3.
+**
+**   P3 = P2 || P1
+**
+** It is illegal for P1 and P3 to be the same register. Sometimes,
+** if P3 is the same register as P2, the implementation is able
+** to avoid a memcpy().
+*/
+long impl_OP_Concat(Vdbe* p, sqlite3 *db, long pc, long rc, Op *pOp) {
+  u8 encoding = ENC(db);     /* The database encoding */
+  Mem *pOut;                 /* Output operand */
+  Mem *pIn1;
+  Mem *pIn2;
+  Mem *aMem = p->aMem;
+  i64 nByte;
+
+  pIn1 = &aMem[pOp->p1];
+  pIn2 = &aMem[pOp->p2];
+  pOut = &aMem[pOp->p3];
+  assert( pIn1!=pOut );
+  if( (pIn1->flags | pIn2->flags) & MEM_Null ){
+    sqlite3VdbeMemSetNull(pOut);
+    return rc;
+  }
+  if( ExpandBlob(pIn1) || ExpandBlob(pIn2) ){
+    printf("In impl_OP_Concat(): no_mem.\n");
+    rc = gotoNoMem(p, db, (int)pc);
+    return (long)rc;
+  }
+  // Stringify(pIn1, encoding);
+  if(((pIn1)->flags&(MEM_Str|MEM_Blob))==0 && sqlite3VdbeMemStringify(pIn1,encoding,0)){
+    // goto no_mem;
+    printf("In impl_OP_Concat(): no_mem.\n");
+    rc = gotoNoMem(p, db, (int)pc);
+    return (long)rc;
+  }
+  //Stringify(pIn2, encoding);
+  if(((pIn2)->flags&(MEM_Str|MEM_Blob))==0 && sqlite3VdbeMemStringify(pIn2,encoding,0)){
+    // goto no_mem;
+    printf("In impl_OP_Concat(): no_mem.\n");
+    rc = gotoNoMem(p, db, (int)pc);
+    return (long)rc;
+  }
+  nByte = pIn1->n + pIn2->n;
+  if( nByte>db->aLimit[SQLITE_LIMIT_LENGTH] ){
+    // goto too_big;
+    printf("In impl_OP_Concat(): too_big.\n");
+    rc = gotoTooBig(p, db, (int)pc);
+    return (long)rc;
+  }
+  if( sqlite3VdbeMemGrow(pOut, (int)nByte+2, pOut==pIn2) ){
+    // goto no_mem;
+    printf("In impl_OP_Concat(): no_mem.\n");
+    rc = gotoNoMem(p, db, (int)pc);
+    return (long)rc;
+  }
+  MemSetTypeFlag(pOut, MEM_Str);
+  if( pOut!=pIn2 ){
+    memcpy(pOut->z, pIn2->z, pIn2->n);
+  }
+  memcpy(&pOut->z[pIn2->n], pIn1->z, pIn1->n);
+  pOut->z[nByte]=0;
+  pOut->z[nByte+1] = 0;
+  pOut->flags |= MEM_Term;
+  pOut->n = (int)nByte;
+  pOut->enc = encoding;
+  UPDATE_MAX_BLOBSIZE(pOut);
+  return rc;
+}
+
