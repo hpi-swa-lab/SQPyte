@@ -969,6 +969,13 @@ class Op(object):
         return None
 
     @jit.elidable
+    def p4_Real(self):
+        # XXX I'm only 99% certain that this is safe
+        val = self.pOp.p4.pReal[0]
+        assert not math.isnan(val)
+        return val
+
+    @jit.elidable
     def p4_pFunc(self):
         return self.hlquery.hldb.funcregistry.get_func(self.pOp.p4.pFunc)
 

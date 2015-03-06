@@ -1998,6 +1998,5 @@ def python_OP_Real(hlquery, op):
 # case OP_Real: {            /* same as TK_FLOAT, out2-prerelease */
     pOut = op.mem_of_p(2)
     pOut.set_flags(CConfig.MEM_Real)
-    val = op.pOp.p4.pReal[0]
-    assert not math.isnan(val)
+    val = op.p4_Real()
     pOut.set_u_r(val, constant=True)
