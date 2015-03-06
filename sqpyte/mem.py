@@ -379,11 +379,11 @@ class Mem(object):
         capi.vdbeMemClearExternAndSetNull(self.pMem)
         self.invalidate_cache()
 
-    def sqlite3VdbeMemSetInt64(self, val):
+    def sqlite3VdbeMemSetInt64(self, val, constant=False):
         if self.get_flags() != CConfig.MEM_Int:
             self.sqlite3VdbeMemRelease()
             self.set_flags(CConfig.MEM_Int)
-        self.set_u_i(val)
+        self.set_u_i(val, constant=constant)
 
     def sqlite3VdbeMemSetDouble(self, val):
         """
