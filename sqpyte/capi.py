@@ -444,7 +444,7 @@ VDBEOP = lltype.Struct("VdbeOp",                # src/vdbe.h: 41
         ("p", rffi.VOIDP),                      # Generic pointer
         ("z", rffi.CCHARP),                     # Pointer to data for string (char array) types
         ("pI64", CConfig.i64),                  # Used when p4type is P4_INT64
-        ("pReal", rffi.DOUBLE),                 # Used when p4type is P4_REAL
+        ("pReal", rffi.DOUBLEP),                # Used when p4type is P4_REAL
         ("pFunc", FUNCDEFP),                    # Used when p4type is P4_FUNCDEF
         ("pColl", COLLSEQP),                    # Used when p4type is P4_COLLSEQ
         ("pMem", MEMP),                         # Used when p4type is P4_MEM

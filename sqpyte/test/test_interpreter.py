@@ -216,6 +216,12 @@ def test_translated_sqlite3BtreeCursorHints():
 #     rc = sqlite3VdbeSorterRewind(db, pC, res)
 #     assert(rc == CConfig.SQLITE_OK)
 
+def test_real():
+    db = Sqlite3DB(':memory:')
+    query = db.execute('select 2.3 + 4.5;')
+    rc = query.mainloop()
+    res = query.python_sqlite3_column_double(0)
+    assert res == 2.3 + 4.5
 
 def test_mandelbrot():
     s = """

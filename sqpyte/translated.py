@@ -2017,3 +2017,18 @@ def python_OP_Cast(hlquery, rc, op):
     encoding = hlquery.enc()
     pIn1.sqlite3VdbeMemCast(aff, encoding)
     return rc
+
+
+# Opcode: Real * P2 * P4 *
+# Synopsis: r[P2]=P4
+#
+# P4 is a pointer to a 64-bit floating point value.
+# Write that value into register P2.
+
+def python_OP_Real(hlquery, op):
+# case OP_Real: {            /* same as TK_FLOAT, out2-prerelease */
+    pOut = op.mem_of_p(2)
+    pOut.set_flags(CConfig.MEM_Real)
+    val = op.pOp.p4.pReal[0]
+    assert not math.isnan(val)
+    pOut.set_u_r(val)

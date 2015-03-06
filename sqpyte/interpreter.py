@@ -407,12 +407,14 @@ class Sqlite3Query(object):
         # return capi.impl_OP_Function(self.p, self.db, pc, rc, op.pOp)
         return translated.python_OP_Function(self, pc, rc, op)
 
+    @cache_safe()
     def python_OP_Real(self, op):
         # aMem = self.p.aMem
         # pOut = aMem[pOp.p2]
         # pOut.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Real)
         # assert not math.isnan(pOp.p4.pReal)
         # pOut.r = pOp.p4.pReal
+        return translated.python_OP_Real(self, op)
 
         capi.impl_OP_Real(self.p, op.pOp)
 

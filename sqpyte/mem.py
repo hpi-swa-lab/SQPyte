@@ -25,7 +25,7 @@ class Mem(object):
         if state.is_flag_known(self._cache_index):
             assert rffi.cast(lltype.Unsigned, self.pMem.flags) == self.get_flags()
         if state.is_u_r_known(self._cache_index):
-            assert self.pMem.r == self.get_u_r()
+            assert self.pMem.u.r == self.get_u_r()
         if state.is_u_i_known(self._cache_index):
             assert self.pMem.u.i == self.get_u_i()
 
