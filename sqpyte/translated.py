@@ -760,103 +760,72 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
         return
 
     bIntint = False
-    constant = pIn1.is_constant_u_i() and pIn2.is_constant_u_i()
-    if opcode == CConfig.OP_Add:
-        if (type1 & type2 & CConfig.MEM_Int) != 0:
-            iA = pIn1.get_u_i()
-            iB = pIn2.get_u_i()
+    if (type1 & type2 & CConfig.MEM_Int) != 0:
+        iA = pIn1.get_u_i()
+        iB = pIn2.get_u_i()
+        constant = pIn1.is_constant_u_i() and pIn2.is_constant_u_i()
+        ovf = False
+        iR = -1
+        if opcode == CConfig.OP_Add:
             try:
-                iB = rarithmetic.ovfcheck(iA + iB)
+                iR = rarithmetic.ovfcheck(iA + iB)
             except OverflowError:
-                pass
-            else:
-                pOut.set_u_i(iB, constant=constant)
-                pOut.MemSetTypeFlag(CConfig.MEM_Int)
-                return
-            bIntint = True
-        rA = pIn1.sqlite3VdbeRealValue()
-        rB = pIn2.sqlite3VdbeRealValue()
-        rB += rA
-    elif opcode == CConfig.OP_Subtract:
-        if (type1 & type2 & CConfig.MEM_Int) != 0:
-            iA = pIn1.get_u_i()
-            iB = pIn2.get_u_i()
+                ovf = True
+        elif opcode == CConfig.OP_Subtract:
             try:
-                iB = rarithmetic.ovfcheck(iB - iA)
+                iR = rarithmetic.ovfcheck(iB - iA)
             except OverflowError:
-                pass
-            else:
-                pOut.set_u_i(iB, constant=constant)
-                pOut.MemSetTypeFlag(CConfig.MEM_Int)
-                return
-            bIntint = True
-        rA = pIn1.sqlite3VdbeRealValue()
-        rB = pIn2.sqlite3VdbeRealValue()
-        rB -= rA
-    elif opcode == CConfig.OP_Multiply:
-        if (type1 & type2 & CConfig.MEM_Int) != 0:
-            iA = pIn1.get_u_i()
-            iB = pIn2.get_u_i()
+                ovf = True
+        elif opcode == CConfig.OP_Multiply:
             try:
-                iB = rarithmetic.ovfcheck(iA * iB)
+                iR = rarithmetic.ovfcheck(iA * iB)
             except OverflowError:
-                pass
-            else:
-                pOut.set_u_i(iB, constant=constant)
-                pOut.MemSetTypeFlag(CConfig.MEM_Int)
-                return
-            bIntint = True
-        rA = pIn1.sqlite3VdbeRealValue()
-        rB = pIn2.sqlite3VdbeRealValue()
-        rB *= rA
-    elif opcode == CConfig.OP_Divide:
-        if (type1 & type2 & CConfig.MEM_Int) != 0:
-            iA = pIn1.get_u_i()
-            iB = pIn2.get_u_i()
+                ovf = True
+        elif opcode == CConfig.OP_Divide:
             if iA == 0:
                 pOut.sqlite3VdbeMemSetNull()
                 return
             try:
-                iB = rarithmetic.ovfcheck(iB / iA) # XXX how's the rounding behaviour?
+                iR = rarithmetic.ovfcheck(iB / iA) # XXX how's the rounding behaviour?
             except OverflowError:
-                pass
-            else:
-                pOut.set_u_i(iB, constant=constant)
-                pOut.MemSetTypeFlag(CConfig.MEM_Int)
-                return
-            bIntint = True
-        rA = pIn1.sqlite3VdbeRealValue()
-        rB = pIn2.sqlite3VdbeRealValue()
+                ovf = True
+        else:
+            assert opcode == CConfig.OP_Remainder
+            if (type1 & type2 & CConfig.MEM_Int) != 0:
+                if iA == 0:
+                    pOut.sqlite3VdbeMemSetNull()
+                    return
+                if iA == -1:
+                    iA = 1
+                iR = iB % iA
+        if not ovf:
+            pOut.set_u_i(iR, constant=constant)
+            pOut.MemSetTypeFlag(CConfig.MEM_Int)
+            return
+        bIntint = True
+    rA = pIn1.sqlite3VdbeRealValue()
+    rB = pIn2.sqlite3VdbeRealValue()
+    if opcode == CConfig.OP_Add:
+        rB += rA
+    elif opcode == CConfig.OP_Subtract:
+        rB -= rA
+    elif opcode == CConfig.OP_Multiply:
+        rB *= rA
+    elif opcode == CConfig.OP_Divide:
         # /* (double)0 In case of SQLITE_OMIT_FLOATING_POINT... */
         if rA == 0.0:
             pOut.sqlite3VdbeMemSetNull()
             return
         rB /= rA
     elif opcode == CConfig.OP_Remainder:
-        if (type1 & type2 & CConfig.MEM_Int) != 0:
-            iA = pIn1.get_u_i()
-            iB = pIn2.get_u_i()
-            if iA == 0:
-                pOut.sqlite3VdbeMemSetNull()
-                return
-            if iA == -1:
-                iA = 1
-            iB %= iA
-            pOut.set_u_i(iB)
-            pOut.MemSetTypeFlag(CConfig.MEM_Int)
+        iA = int(rA)
+        iB = int(rB)
+        if iA == 0:
+            pOut.sqlite3VdbeMemSetNull()
             return
-        else:
-            bIntint = False
-            rA = pIn1.sqlite3VdbeRealValue()
-            rB = pIn2.sqlite3VdbeRealValue()
-            iA = int(rA)
-            iB = int(rB)
-            if iA == 0:
-                pOut.sqlite3VdbeMemSetNull()
-                return
-            if iA == -1:
-                iA = 1
-            rB = iB % iA
+        if iA == -1:
+            iA = 1
+        rB = iB % iA
     else:
         print "Error: Unknown opcode %s in python_OP_Add_Subtract_Multiply_Divide_Remainder()." % opcode
         assert 0
