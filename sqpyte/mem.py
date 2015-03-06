@@ -39,6 +39,8 @@ class Mem(object):
         self.hlquery.mem_cache.set_flags(self, newflags)
 
     def assure_flags(self, newflags):
+        if not objectmodel.we_are_translated():
+            assert self.pMem.flags == newflags
         self.hlquery.mem_cache.assure_flags(self, newflags)
 
 
