@@ -71,12 +71,13 @@ def entry_point(argv):
         print "Error: Not enough arguments.%s" % usageMsg
         return 1
 
-    try:
-        fp = os.open(testdb, os.O_RDONLY, 0777)
-        os.close(fp)
-    except OSError:
-        print "Error: Can't open '%s' file provided for db_file argument.%s" % (testdb, usageMsg)
-        return 1
+    if testdb != ':memory:':
+        try:
+            fp = os.open(testdb, os.O_RDONLY, 0777)
+            os.close(fp)
+        except OSError:
+            print "Error: Can't open '%s' file provided for db_file argument.%s" % (testdb, usageMsg)
+            return 1
 
     try:
         fp = os.open(queryPath, os.O_RDONLY, 0777)
