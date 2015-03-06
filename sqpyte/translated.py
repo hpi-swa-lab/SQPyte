@@ -2031,4 +2031,4 @@ def python_OP_Real(hlquery, op):
     pOut.set_flags(CConfig.MEM_Real)
     val = op.pOp.p4.pReal[0]
     assert not math.isnan(val)
-    pOut.set_u_r(val)
+    pOut.set_u_r(val, constant=True)
