@@ -623,9 +623,11 @@ class Sqlite3Query(object):
     def python_OP_ReadCookie(self, op):
         capi.impl_OP_ReadCookie(self.p, self.db, op.pOp)
 
+    @cache_safe()
     def python_OP_NewRowid(self, pc, rc, op):
         return capi.impl_OP_NewRowid(self.p, self.db, pc, rc, op.pOp)
 
+    @cache_safe(opcodes=[CConfig.OP_Insert, CConfig.OP_InsertInt])
     def python_OP_Insert_InsertInt(self, op):
         return capi.impl_OP_Insert_InsertInt(self.p, self.db, op.pOp)
 
@@ -644,12 +646,15 @@ class Sqlite3Query(object):
         retPc = self.internalPc[0]
         return retPc, retRc   
 
+    @cache_safe()
     def python_OP_Delete(self, pc, op):
         return capi.impl_OP_Delete(self.p, self.db, pc, op.pOp)
 
     def python_OP_DropTable(self, op):
         return capi.impl_OP_DropTable(self.db, op.pOp)
 
+    @cache_safe(opcodes=[CConfig.OP_RowKey, CConfig.OP_RowData],
+                mutates="p2")
     def python_OP_RowKey_RowData(self, pc, rc, op):
         rc = capi.impl_OP_RowKey_RowData(self.p, self.db, pc, rc, op.pOp)
         return rc
