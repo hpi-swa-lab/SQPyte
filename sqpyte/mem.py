@@ -917,10 +917,10 @@ class CacheHolder(object):
             return
         state = self.cache_state()
         if not constant:
+            status = (state.cache_states[i] & ~STATE_CONSTANT) & ~STATE_FLOAT_KNOWN
+            self.set_cache_state(state.change_cache_state(i, status))
             return
             self.floats[i] = u_r
-            status = (state.cache_states[i] & ~STATE_CONSTANT) | STATE_FLOAT_KNOWN
-            self.set_cache_state(state.change_cache_state(i, status))
         else:
             self.set_cache_state(state.set_u_r_constant(i, u_r))
 
