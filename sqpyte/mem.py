@@ -201,8 +201,7 @@ class Mem(object):
         # values to wrap around.
         if floatval == float(intval) and intval < sys.maxint and intval > (-sys.maxint - 1):
             self.set_u_i(intval)
-            flags = flags | CConfig.MEM_Int
-            self.set_flags(flags)
+            self.MemSetTypeFlag(CConfig.MEM_Int)
         return flags
 
     def applyAffinity(self, affinity, enc):
