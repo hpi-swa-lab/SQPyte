@@ -45,6 +45,10 @@ def entry_point(argv):
     """
     try:
         flag = argv[1]
+        if flag == '--jit':
+            jit.set_user_param(None, argv[2])
+            flag = argv[3]
+            argv = [argv[0]] + argv[3:]
         if flag == '-t':
             testingFlag = True
             warmup = 0
