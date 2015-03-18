@@ -168,13 +168,13 @@ class Mem(object):
         elif aff == CConfig.SQLITE_AFF_REAL:
             self.sqlite3VdbeMemRealify()
         elif aff == CConfig.SQLITE_AFF_TEXT:
-            assert 0, "implement me!"
-            #assert( CConfig.MEM_Str==(CConfig.MEM_Blob>>3) );
-            #flags |= (flags&CConfig.MEM_Blob)>>3;
-            #sqlite3ValueApplyAffinity(pMem, SQLITE_AFF_TEXT, encoding);
-            #assert( flags & CConfig.MEM_Str || pMem->db->mallocFailed );
-            #flags &= ~(CConfig.MEM_Int|CConfig.MEM_Real|CConfig.MEM_Blob|CConfig.MEM_Zero);
-            #break;
+            assert CConfig.MEM_Str == (CConfig.MEM_Blob>>3)
+            flags |= (flags & CConfig.MEM_Blob)>>3;
+            self.set_flags(flags)
+            self.applyAffinity(CConfig.SQLITE_AFF_TEXT, encoding);
+            assert self.get_flags() & CConfig.MEM_Str or rffi.getintfield(self.pMem.db, 'mallocFailed')
+            flags &= ~(CConfig.MEM_Int|CConfig.MEM_Real|CConfig.MEM_Blob|CConfig.MEM_Zero)
+            self.set_flags(flags)
         else:
             assert 0, "unknown affinity"
 
