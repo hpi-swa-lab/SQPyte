@@ -195,11 +195,22 @@ class Sqlite3Query(object):
     def python_sqlite3_bind_parameter_count(self):
         return rffi.cast(lltype.Signed, capi.sqlite3_bind_parameter_count(self.p))
 
-    def python_sqlite3_bind_parameter_int64(self, i, val):
+    def python_sqlite3_bind_int64(self, i, val):
         return rffi.cast(lltype.Signed, capi.sqlite3_bind_int64(self.p, i, val))
 
-    def python_sqlite3_bind_parameter_double(self, i, val):
+    def python_sqlite3_bind_double(self, i, val):
         return rffi.cast(lltype.Signed, capi.sqlite3_bind_double(self.p, i, val))
+
+    def python_sqlite3_bind_null(self, i, val):
+        return rffi.cast(lltype.Signed, capi.sqlite3_bind_null(self.p, i, val))
+
+    def python_sqlite3_bind_text(self, i, s):
+        with rffi.scoped_str2charp(s) as charp:
+            return rffi.cast(
+                lltype.Signed,
+                capi.sqlite3_bind_text(
+                    self.p, i, charp, len(s),
+                    rffi.cast(rffi.VOIDP, CConfig.SQLITE_TRANSIENT)))
 
 
     # _______________________________________________________________
@@ -695,7 +706,8 @@ class Sqlite3Query(object):
         return capi.impl_OP_Concat(self.p, self.db, pc, rc, op.pOp)
 
     def python_OP_Variable(self, pc, rc, op):
-        #return translated.python_OP_Variable(self, pc, rc, op)
+        if objectmodel.we_are_translated():
+            return translated.python_OP_Variable(self, pc, rc, op)
         return capi.impl_OP_Variable(self.p, self.db, pc, rc, op.pOp)
 
     def debug_print(self, s):

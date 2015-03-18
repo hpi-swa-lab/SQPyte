@@ -298,11 +298,17 @@ def test_argument():
         return count
     db = Sqlite3DB(testdb)
     query = db.execute('select name from contacts where age > ?;')
-    query.python_sqlite3_bind_parameter_int64(1, 50)
+    query.python_sqlite3_bind_int64(1, 50)
     count = c()
     assert count == 48
 
     query.reset_query()
-    query.python_sqlite3_bind_parameter_double(1, 75.5)
+    query.python_sqlite3_bind_double(1, 75.5)
     count = c()
     assert count == 22
+
+    query = db.execute('select age from contacts where name = ?;')
+    query.python_sqlite3_bind_text(1, 'Dean Shepherd')
+    rc = query.mainloop()
+    assert rc == CConfig.SQLITE_ROW
+    assert query.python_sqlite3_column_int64(0) == 31

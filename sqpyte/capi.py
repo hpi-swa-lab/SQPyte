@@ -875,6 +875,8 @@ sqlite3VdbeMemSetStr = llexternal('sqlite3VdbeMemSetStr', [MEMP, rffi.CCHARP, rf
 sqlite3_bind_parameter_count = llexternal('sqlite3_bind_parameter_count', [VDBEP], rffi.INT)
 sqlite3_bind_int64 = llexternal('sqlite3_bind_int64', [VDBEP, rffi.INT, lltype.Signed], rffi.INT)
 sqlite3_bind_double = llexternal('sqlite3_bind_double', [VDBEP, rffi.INT, rffi.DOUBLE], rffi.INT)
+sqlite3_bind_text = llexternal('sqlite3_bind_text', [VDBEP, rffi.INT, rffi.CCHARP, rffi.INT, rffi.VOIDP], rffi.INT)
+sqlite3_bind_null = llexternal('sqlite3_bind_null', [VDBEP, rffi.INT], rffi.INT)
 
 
 valueToText = llexternal('valueToText', [MEMP, CConfig.u8], rffi.VOIDP)
