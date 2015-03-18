@@ -74,6 +74,7 @@ void impl_OP_SCopy(Vdbe *p, Op *pOp);
 void impl_OP_Seek(Vdbe *p, Op *pOp);
 void impl_OP_Sequence(Vdbe *p, Op *pOp);
 void impl_OP_String(Vdbe *p, sqlite3 *db, Op *pOp);
+long impl_OP_Variable(Vdbe* p, sqlite3 *db, long pc, long rc, Op *pOp);
 
 int gotoAbortDueToError(Vdbe *p, sqlite3 *db, int pc, int rc);
 int gotoAbortDueToInterrupt(Vdbe *p, sqlite3 *db, int pc, int rc);

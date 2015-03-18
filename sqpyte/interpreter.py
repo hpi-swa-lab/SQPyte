@@ -109,8 +109,10 @@ def mutate_func(func, mutates):
 
 class Sqlite3Query(object):
 
-    _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]', '_llmem_as_python_list[*]', 'intp', 'longp', 'unpackedrecordp',
-                          '_hlops[*]', 'mem_cache']
+    _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]',
+                          '_var_as_python_list[*]',
+                          '_llmem_as_python_list[*]', 'intp', 'longp',
+                          'unpackedrecordp', '_hlops[*]', 'mem_cache']
 
     def __init__(self, hldb, query):
         self.hldb = hldb
@@ -149,12 +151,16 @@ class Sqlite3Query(object):
         self._llmem_as_python_list = [self.p.aMem[i] for i in range(nMem + 1)]
         self._mem_as_python_list = [Mem(self, self.p.aMem[i], i)
                 for i in range(nMem + 1)]
+        nVar = rffi.getintfield(self.p, 'nVar')
+        self._var_as_python_list = [Mem(self, self.p.aVar[i], i + nMem + 1)
+                for i in range(nVar)]
         self._hlops = [Op(self, self.p.aOp[i]) for i in range(self.p.nOp)]
         self.init_mem_cache()
 
     def init_mem_cache(self):
         from sqpyte.mem import CacheHolder
-        self.mem_cache = CacheHolder(len(self._mem_as_python_list))
+        self.mem_cache = CacheHolder(len(self._mem_as_python_list) +
+                len(self._var_as_python_list))
 
     def check_cache_consistency(self):
         if objectmodel.we_are_translated():
@@ -188,6 +194,12 @@ class Sqlite3Query(object):
 
     def python_sqlite3_bind_parameter_count(self):
         return rffi.cast(lltype.Signed, capi.sqlite3_bind_parameter_count(self.p))
+
+    def python_sqlite3_bind_parameter_int64(self, i, val):
+        return rffi.cast(lltype.Signed, capi.sqlite3_bind_int64(self.p, i, val))
+
+    def python_sqlite3_bind_parameter_double(self, i, val):
+        return rffi.cast(lltype.Signed, capi.sqlite3_bind_double(self.p, i, val))
 
 
     # _______________________________________________________________
@@ -682,6 +694,10 @@ class Sqlite3Query(object):
     def python_OP_Concat(self, pc, rc, op):
         return capi.impl_OP_Concat(self.p, self.db, pc, rc, op.pOp)
 
+    def python_OP_Variable(self, pc, rc, op):
+        #return translated.python_OP_Variable(self, pc, rc, op)
+        return capi.impl_OP_Variable(self.p, self.db, pc, rc, op.pOp)
+
     def debug_print(self, s):
         return
         if not jit.we_are_jitted():
@@ -702,6 +718,9 @@ class Sqlite3Query(object):
 
     def mem_with_index(self, i):
         return self._mem_as_python_list[i]
+
+    def var_with_index(self, i):
+        return self._var_as_python_list[i]
 
     def gotoNoMem(self, pc):
         return rffi.cast(lltype.Signed, capi.gotoNoMem(self.p, self.db, rffi.cast(rffi.INT, pc)))
@@ -915,6 +934,8 @@ class Sqlite3Query(object):
                 rc = self.python_OP_Cast(rc, op)
             elif opcode == CConfig.OP_Concat:
                 rc = self.python_OP_Concat(pc, rc, op)
+            elif opcode == CConfig.OP_Variable:
+                rc = self.python_OP_Variable(pc, rc, op)
             else:
                 raise SQPyteException("SQPyteException: Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))

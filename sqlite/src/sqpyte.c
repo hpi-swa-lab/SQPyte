@@ -4462,3 +4462,29 @@ long impl_OP_Concat(Vdbe* p, sqlite3 *db, long pc, long rc, Op *pOp) {
   return rc;
 }
 
+/* Opcode: Variable P1 P2 * P4 *
+** Synopsis: r[P2]=parameter(P1,P4)
+**
+** Transfer the values of bound parameter P1 into register P2
+**
+** If the parameter is named, then its name appears in P4.
+** The P4 value is used by sqlite3_bind_parameter_name().
+*/
+long impl_OP_Variable(Vdbe* p, sqlite3 *db, long pc, long rc, Op *pOp) {
+  Mem *pVar;       /* Value being transferred */
+  Mem *pOut;                 /* Output operand */
+  Mem *aMem = p->aMem;
+  pOut = &aMem[pOp->p2];
+
+  assert( pOp->p1>0 && pOp->p1<=p->nVar );
+  assert( pOp->p4.z==0 || pOp->p4.z==p->azVar[pOp->p1-1] );
+  pVar = &p->aVar[pOp->p1 - 1];
+  if( sqlite3VdbeMemTooBig(pVar) ){
+    printf("In impl_OP_Variable(): too_big.\n");
+    rc = gotoTooBig(p, db, (int)pc);
+    return (long)rc;
+  }
+  sqlite3VdbeMemShallowCopy(pOut, pVar, MEM_Static);
+  UPDATE_MAX_BLOBSIZE(pOut);
+  return (long)rc;
+}

@@ -2059,3 +2059,24 @@ def python_OP_EndCoroutine(hlquery, op):
     pc = pCaller.p2as_pc()
     pIn1.set_flags(CConfig.MEM_Undefined)
     return pc
+
+
+# Opcode: Variable P1 P2 * P4 *
+# Synopsis: r[P2]=parameter(P1,P4)
+#
+# Transfer the values of bound parameter P1 into register P2
+#
+# If the parameter is named, then its name appears in P4.
+# The P4 value is used by sqlite3_bind_parameter_name().
+
+def python_OP_Variable(hlquery, pc, rc, op):
+    # out2-prerelease
+    i = op.p_Signed(1) - 1
+    pVar = hlquery.var_with_index(i)
+    if pVar.sqlite3VdbeMemTooBig():
+        # goto too_big;
+        print "In python_OP_Variable(): too_big."
+        return hlquery.gotoTooBig(pc)
+    pOut = op.mem_of_p(2)
+    pOut.sqlite3VdbeMemShallowCopy(pVar, CConfig.MEM_Static)
+    return rc

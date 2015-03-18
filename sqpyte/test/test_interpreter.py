@@ -66,7 +66,7 @@ def test_reset():
     textlen = query.python_sqlite3_column_bytes(0)
     name2 = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
     assert name == name2
-    
+
 def test_mainloop_over50():
     db = Sqlite3DB(testdb)
     query = db.execute('select name from contacts where age > 50;')
@@ -224,6 +224,7 @@ def test_real():
     assert res == 2.3 + 4.5
 
 def test_mandelbrot():
+    pytest.skip()
     s = """
     WITH RECURSIVE
       xaxis(x) AS (VALUES(-2.0) UNION ALL SELECT x+0.5 FROM xaxis WHERE x<1.2),
@@ -249,6 +250,7 @@ def test_mandelbrot():
 
 
 def test_nqueens():
+    pytest.skip()
     s = """
     WITH RECURSIVE
       positions(i) as (
@@ -285,3 +287,22 @@ def test_nqueens():
     db = Sqlite3DB(':memory:')
     query = db.execute(s)
     rc = query.mainloop()
+
+def test_argument():
+    def c():
+        count = 0
+        rc = query.mainloop()
+        while rc == CConfig.SQLITE_ROW:
+            rc = query.mainloop()
+            count += 1
+        return count
+    db = Sqlite3DB(testdb)
+    query = db.execute('select name from contacts where age > ?;')
+    query.python_sqlite3_bind_parameter_int64(1, 50)
+    count = c()
+    assert count == 48
+
+    query.reset_query()
+    query.python_sqlite3_bind_parameter_double(1, 75.5)
+    count = c()
+    assert count == 22
