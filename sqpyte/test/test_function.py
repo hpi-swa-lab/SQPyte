@@ -38,6 +38,14 @@ def test_sum():
     assert res == 4832
 
 
+def test_sum_none():
+    db = Sqlite3DB(testdb)
+    query = db.execute('select sum(age) from contacts where age < 0;')
+    rc = query.mainloop()
+    assert rc == CConfig.SQLITE_ROW
+    res = query.python_sqlite3_column_int64(0)
+    assert res == 0
+
 def test_avg():
     db = Sqlite3DB(testdb)
     query = db.execute('select avg(age) from contacts where age > 18;')
