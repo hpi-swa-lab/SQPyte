@@ -204,6 +204,7 @@ class Sqlite3Query(object):
     def python_sqlite3_bind_null(self, i):
         return rffi.cast(lltype.Signed, capi.sqlite3_bind_null(self.p, i))
 
+    @jit.dont_look_inside
     def python_sqlite3_bind_text(self, i, s):
         with rffi.scoped_str2charp(s) as charp:
             return rffi.cast(
