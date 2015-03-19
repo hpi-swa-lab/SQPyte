@@ -755,7 +755,7 @@ class Sqlite3Query(object):
             op = self._hlops[pc]
             opcode = op.get_opcode()
             oldpc = pc
-            self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
+            self.debug_print('>>> %s: %s <<<' % (pc, self.get_opcode_str(opcode)))
 
             opflags = op.opflags()
             if opflags & CConfig.OPFLG_OUT2_PRERELEASE:
