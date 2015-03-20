@@ -54,6 +54,10 @@ class Sqlite3DB(object):
     def execute(self, sql):
         return Sqlite3Query(self, sql)
 
+    def close(self):
+        if self.db:
+            capi.sqlite3_close(self.db)
+            self.db = lltype.nullptr(lltype.typeOf(self.db).TO)
 
     @jit.dont_look_inside
     def create_aggregate(self, name, nargs, contextcls):
