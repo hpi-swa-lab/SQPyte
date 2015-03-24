@@ -45,6 +45,10 @@ def entry_point(argv):
     """
     try:
         flag = argv[1]
+        if flag == '--jit':
+            jit.set_user_param(None, argv[2])
+            flag = argv[3]
+            argv = [argv[0]] + argv[3:]
         if flag == '-t':
             testingFlag = True
             warmup = 0
@@ -71,12 +75,13 @@ def entry_point(argv):
         print "Error: Not enough arguments.%s" % usageMsg
         return 1
 
-    try:
-        fp = os.open(testdb, os.O_RDONLY, 0777)
-        os.close(fp)
-    except OSError:
-        print "Error: Can't open '%s' file provided for db_file argument.%s" % (testdb, usageMsg)
-        return 1
+    if testdb != ':memory:':
+        try:
+            fp = os.open(testdb, os.O_RDONLY, 0777)
+            os.close(fp)
+        except OSError:
+            print "Error: Can't open '%s' file provided for db_file argument.%s" % (testdb, usageMsg)
+            return 1
 
     try:
         fp = os.open(queryPath, os.O_RDONLY, 0777)

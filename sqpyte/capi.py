@@ -17,7 +17,7 @@ else:
 class CConfig:
     _compilation_info_ = ExternalCompilationInfo(
         includes = ['sqlite3.h', 'stdint.h', 'sqliteInt.h', 'btreeInt.h', 'sqpyte.h'],
-        libraries = ['sqlite3'],
+        libraries = ['sqlite3', 'dl'],
         library_dirs = [os.path.join(sqlite_inst_dir, "lib")],
         include_dirs = [sqlite_src_dir, os.path.join(sqlite_src_dir, "src")],
         link_files = [os.path.join(sqlite_src_dir, "sqlite3.o")]
@@ -56,7 +56,8 @@ opnames = ['OP_Init', 'OP_OpenRead', 'OP_OpenWrite', 'OP_Rewind',
            'OP_InitCoroutine', 'OP_Yield', 'OP_NullRow', 'OP_EndCoroutine',
            'OP_ReadCookie', 'OP_NewRowid', 'OP_Insert', 'OP_InsertInt',
            'OP_SetCookie', 'OP_ParseSchema', 'OP_RowSetAdd', 'OP_RowSetRead',
-           'OP_Delete', 'OP_DropTable']
+           'OP_Delete', 'OP_DropTable', 'OP_RowKey', 'OP_RowData', 'OP_Blob',
+           'OP_Cast', 'OP_Concat', 'OP_Variable']
 p4names = ['P4_INT32', 'P4_KEYINFO', 'P4_COLLSEQ', 'P4_FUNCDEF']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR', 'OPFLAG_CLEARCACHE', 'OPFLAG_LENGTHARG', 'OPFLAG_TYPEOFARG', 'OPFLG_OUT2_PRERELEASE', 'OPFLAG_PERMUTE']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW', 'SQLITE_BUSY', 'SQLITE_CORRUPT_BKPT', 'SQLITE_NOMEM']
@@ -64,7 +65,8 @@ sqlite_codes = ['SQLITE_NULLEQ', 'SQLITE_JUMPIFNULL', 'SQLITE_STOREP2', 'SQLITE_
 mem_codes = ['SQLITE_STATIC', 'SQLITE_TRANSIENT']
 affinity_codes = ['SQLITE_AFF_TEXT', 'SQLITE_AFF_NONE', 'SQLITE_AFF_INTEGER', 'SQLITE_AFF_REAL', 'SQLITE_AFF_NUMERIC']
 btree_values = ['BTCURSOR_MAX_DEPTH', 'BTREE_BULKLOAD']
-other_constants = ['SQLITE_MAX_VARIABLE_NUMBER', 'CACHE_STALE', 'SQLITE_LIMIT_LENGTH', 'CURSOR_VALID']
+other_constants = ['SQLITE_MAX_VARIABLE_NUMBER', 'CACHE_STALE', 'SQLITE_LIMIT_LENGTH', 'CURSOR_VALID', 'SAVEPOINT_RELEASE',
+                   'SQLITE_STMTSTATUS_VM_STEP']
 encodings = ['SQLITE_UTF8']
 memValues = ['MEM_Null', 'MEM_Real', 'MEM_Cleared', 'MEM_TypeMask', 'MEM_Zero',
              'MEM_Int', 'MEM_Str', 'MEM_RowSet', 'MEM_Blob', 'MEM_Agg',
@@ -241,6 +243,7 @@ SQLITE3.become(lltype.Struct("sqlite3",         # src/sqliteInt.h: 960
     ("errCode", rffi.INT),                      # Most recent error code (SQLITE_*)
     ("errMask", rffi.INT),                      # & result codes with this before returning
     ("dbOptFlags", CConfig.u16),                # Flags to enable/disable optimizations
+    ("enc", CConfig.u8),                        # Text encoding.
     ("autoCommit", CConfig.u8),                 # The auto-commit flag.
     ("temp_store", CConfig.u8),                 # 1: file 2: memory 0: default
     ("mallocFailed", CConfig.u8),               # True if we have seen a malloc failure
@@ -255,6 +258,7 @@ SQLITE3.become(lltype.Struct("sqlite3",         # src/sqliteInt.h: 960
     ("nTotalChange", rffi.INT),                 # Value returned by sqlite3_total_changes()
     ("aLimit", lltype.FixedSizeArray(rffi.INT,  # Limits
         CConfig.SQLITE_N_LIMIT)),
+    ("nMaxSorterMmap", rffi.INT),               # Maximum size of regions mapped by sorter
     ("init", lltype.Struct("sqlite3InitInfo",   # Information used during initialization
         ("newTnum", rffi.INT),                  # Rootpage of table being initialized
         ("iDb", CConfig.u8),                    # Which db file is being initialized
@@ -290,8 +294,7 @@ SQLITE3.become(lltype.Struct("sqlite3",         # src/sqliteInt.h: 960
         hints={"union": True}))
     #   Lookaside lookaside;          /* Lookaside malloc configuration */
     # #ifndef SQLITE_OMIT_AUTHORIZATION
-    #   int (*xAuth)(void*,int,const char*,const char*,const char*,const char*);
-    #                                 /* Access authorization function */
+    #   sqlite3_xauth xAuth;          /* Access authorization function */
     #   void *pAuthArg;               /* 1st argument to the access auth function */
     # #endif
     # #ifndef SQLITE_OMIT_PROGRESS_CALLBACK
@@ -385,26 +388,28 @@ BTCURSOR.become(lltype.Struct("BtCursor",           # src/btreeInt.h: 494
     ))
 
 
-MEM = lltype.Struct("Mem",          # src/vdbeInt.h: 159
-    ("db", SQLITE3P),               # The associated database connection
-    ("z", rffi.CCHARP),             # String or BLOB value
-    ("r", rffi.DOUBLE),             # Real value
-    ("u", lltype.Struct("u",
+MEM = lltype.Struct("Mem",          # src/vdbeInt.h: 164
+    ("u", lltype.Struct("MemValue",
+        ("r", rffi.DOUBLE),         # Real value used when MEM_Real is set in flags
         ("i", CConfig.i64),         # Integer value used when MEM_Int is set in flags
         ("nZero", rffi.INT),        # Used when bit MEM_Zero is set in flags
         ("pDef", FUNCDEFP),         # Used only when flags==MEM_Agg
         ("pRowSet", rffi.VOIDP),    #     RowSet *pRowSet;    /* Used only when flags==MEM_RowSet */
         ("pFrame", rffi.VOIDP),     #     VdbeFrame *pFrame;  /* Used when flags==MEM_Frame */
         hints={"union": True})),
-    ("n", rffi.INT),                # Number of characters in string value, excluding '\0'
     ("flags", CConfig.u16),         # Some combination of MEM_Null, MEM_Str, MEM_Dyn, etc.
     ("enc", CConfig.u8),            # SQLITE_UTF8, SQLITE_UTF16BE, SQLITE_UTF16LE
+    ("n", rffi.INT),                # Number of characters in string value, excluding '\0'
+    ("z", rffi.CCHARP),             # String or BLOB value    
+    ("zMalloc", rffi.CCHARP),       # Dynamic buffer allocated by sqlite3_malloc()
+    ("szMalloc", rffi.INT),         # Size of the zMalloc allocation
+    ("uTemp", CConfig.u32),         # Transient storage for serial_type in OP_MakeRecord
+    ("db", SQLITE3P),               # The associated database connection
+    ("xDel", rffi.VOIDP)            #   void (*xDel)(void *);  /* If not null, call this function to delete Mem.z */
     # #ifdef SQLITE_DEBUG
     #   Mem *pScopyFrom;    /* This Mem is a shallow copy of pScopyFrom */
     #   void *pFiller;      /* So that sizeof(Mem) is a multiple of 8 */
     # #endif
-    ("xDel", rffi.VOIDP),           #   void (*xDel)(void *);  /* If not null, call this function to delete Mem.z */
-    ("zMalloc", rffi.CCHARP)        # Dynamic buffer allocated by sqlite3_malloc()
     )
 MEMP = lltype.Ptr(MEM)
 MEMPP = rffi.CArrayPtr(MEMP)
@@ -440,7 +445,7 @@ VDBEOP = lltype.Struct("VdbeOp",                # src/vdbe.h: 41
         ("p", rffi.VOIDP),                      # Generic pointer
         ("z", rffi.CCHARP),                     # Pointer to data for string (char array) types
         ("pI64", CConfig.i64),                  # Used when p4type is P4_INT64
-        ("pReal", rffi.DOUBLE),                 # Used when p4type is P4_REAL
+        ("pReal", rffi.DOUBLEP),                # Used when p4type is P4_REAL
         ("pFunc", FUNCDEFP),                    # Used when p4type is P4_FUNCDEF
         ("pColl", COLLSEQP),                    # Used when p4type is P4_COLLSEQ
         ("pMem", MEMP),                         # Used when p4type is P4_MEM
@@ -464,7 +469,7 @@ VDBEOP = lltype.Struct("VdbeOp",                # src/vdbe.h: 41
 VDBEOPP = lltype.Ptr(VDBEOP)
 
 
-VDBE.become(lltype.Struct("Vdbe",               # src/vdbeInt.h: 308
+VDBE.become(lltype.Struct("Vdbe",               # src/vdbeInt.h: 325
     ("db", SQLITE3P),                           # The database connection that owns this statement
     ("aOp", lltype.Ptr(lltype.Array(VDBEOP,     # Space to hold the virtual machine's program
         hints={'nolength': True}))),
@@ -515,10 +520,6 @@ VDBE.become(lltype.Struct("Vdbe",               # src/vdbeInt.h: 308
     ("nStmtDefImmCons", CConfig.i64),           # Number of def. imm constraints when stmt started
     ("zSql", rffi.CCHARP),                      # Text of the SQL statement that generated this
     ("pFree", rffi.VOIDP),                      # Free this when deleting the vdbe
-    # #ifdef SQLITE_ENABLE_TREE_EXPLAIN
-    #   Explain *pExplain;      /* The explainer */
-    #   char *zExplain;         /* Explanation of data structures */
-    # #endif
     ("pFrame", rffi.VOIDP),                             #   VdbeFrame *pFrame;      /* Parent frame */
     ("pDelFrame", rffi.VOIDP),                          #   VdbeFrame *pDelFrame;   /* List of frame objects to free on VM reset */
     ("nFrame", rffi.INT),                               # Number of frames in pFrame list
@@ -527,6 +528,11 @@ VDBE.become(lltype.Struct("Vdbe",               # src/vdbeInt.h: 308
     ("nOnceFlag", rffi.INT),                            # Size of array aOnceFlag[]
     ("aOnceFlag", U8P),                                 # Flags for OP_Once
     ("pAuxData", rffi.VOIDP)                            #   AuxData *pAuxData;      /* Linked list of auxdata allocations */
+    # #ifdef SQLITE_ENABLE_STMT_SCANSTATUS
+    #   i64 *anExec;            /* Number of times each op has been executed */
+    #   int nScan;              /* Entries in aScan[] */
+    #   ScanStatus *aScan;      /* Scan definitions for sqlite3_stmt_scanstatus() */
+    # #endif    
     ))
 
 
@@ -538,19 +544,21 @@ VDBECURSOR.become(lltype.Struct("VdbeCursor",   # src/vdbeInt.h: 63
     ("pseudoTableReg", rffi.INT),               # Register holding pseudotable content.
     ("nField", CConfig.i16),                    # Number of fields in the header
     ("nHdrParsed", CConfig.i16),                # Number of header fields parsed so far
+    # #ifdef SQLITE_DEBUG
+    #   u8 seekOp;            /* Most recent seek operation on this cursor */
+    # #endif
     ("iDb", CConfig.i8),                        # Index of cursor database in db->aDb[] (or -1)
     ("nullRow", CConfig.u8),                    # True if pointing to a row with no data
-    ("rowidIsValid", CConfig.u8),               # True if lastRowid is valid
     ("deferredMoveto", CConfig.u8),             # A call to sqlite3BtreeMoveto() is needed
-    ("scary_bitfield", lltype.Unsigned),          #
+    ("scary_bitfield", CConfig.u8),              #
     #("isEphemeral", lltype.Bool),               #   Bool isEphemeral:1;   /* True for an ephemeral table */
     #("useRandomRowid", lltype.Bool),            #   Bool useRandomRowid:1;/* Generate new record numbers semi-randomly */
     #("isTable", lltype.Bool),                   #   Bool isTable:1;       /* True if a table requiring integer keys */
     #("isOrdered", lltype.Bool),                 #   Bool isOrdered:1;     /* True if the underlying table is BTREE_UNORDERED */
+    ("pgnoRoot", CConfig.u32),                  # Pgno pgnoRoot;        /* Root page of the open btree cursor */
     ("pVtabCursor", rffi.VOIDP),                #   sqlite3_vtab_cursor *pVtabCursor;  /* The cursor for a virtual table */
     ("seqCount", CConfig.i64),                  # Sequence counter
     ("movetoTarget", CConfig.i64),              # Argument to the deferred sqlite3BtreeMoveto()
-    ("lastRowid", CConfig.i64),                 # Rowid being deleted by OP_Delete
     ("pSorter", rffi.VOIDP),                    #   VdbeSorter *pSorter;  /* Sorter object for OP_SorterOpen cursors */
     #   /* Cached information about the header for the data record that the
     #   ** cursor is currently pointing to.  Only valid if cacheStatus matches
@@ -568,6 +576,7 @@ VDBECURSOR.become(lltype.Struct("VdbeCursor",   # src/vdbeInt.h: 63
     ("aRow", rffi.UCHARP),                          #   const u8 *aRow;       /* Data for the current row, if all on one page */
     # ("aType", lltype.Ptr(lltype.Array(CConfig.u32,  # Type values for all entries in the record
     #     hints={'nolength': True})))
+    ("aOffset", rffi.UINTP),                        # u32 *aOffset;         /* Pointer to aType[nField] */
     ("aType", lltype.FixedSizeArray(CConfig.u32, 1)) # Type values for all entries in the record
     #   /* 2*nField extra array elements allocated for aType[], beyond the one
     #   ** static element declared in the structure.  nField total array slots for
@@ -588,10 +597,9 @@ VDBECURSOR.become(lltype.Struct("VdbeCursor",   # src/vdbeInt.h: 63
 # (Mem) which are only defined there.
 
 CONTEXT.become(lltype.Struct("CONTEXT",
-    ("pFunc", FUNCDEFP),           # Pointer to function information.  MUST BE FIRST
-    ("s", MEM),                    # The return value is stored here
+    ("pOut", MEMP),                # The return value is stored here
+    ("pFunc", FUNCDEFP),           # Pointer to function information
     ("pMem", MEMP),                # Memory cell used to store aggregate context
-    ("pColl", COLLSEQP),           # Collating sequence
     ("pVdbe", VDBEP),              # The VM that owns this context
     ("iOp", rffi.INT),             # Instruction number of OP_Function
     ("isError", rffi.INT),         # Error code returned by the function.
@@ -603,7 +611,7 @@ UNPACKEDRECORD = lltype.Struct("UnpackedRecord",    # src/sqliteInt.h: 1643
     ("pKeyInfo", KEYINFOP),                         # Collation and sort-order information
     ("nField", CConfig.u16),                        # Number of entries in apMem[]
     ("default_rc", CConfig.i8),                     # Comparison result if keys are equal
-    ("isCorrupt", CConfig.u8),                      # Corruption detected by xRecordCompare()
+    ("errCode", CConfig.u8),                        # Error detected by xRecordCompare (CORRUPT or NOMEM)
     ("aMem", MEMP),                                 # Values
     ("r1", rffi.INT),                               # Value to return if (lhs > rhs)
     ("r2", rffi.INT),                               # Value to return if (rhs < lhs)
@@ -618,6 +626,7 @@ def llexternal(name, args, result, **kwargs):
 
 sqlite3_open = llexternal('sqlite3_open', [rffi.CCHARP, SQLITE3PP],
                                rffi.INT)
+sqlite3_close = llexternal('sqlite3_close', [SQLITE3P], rffi.INT)
 sqlite3_prepare_v2 = llexternal('sqlite3_prepare_v2', [rffi.VOIDP, rffi.CCHARP, rffi.INT, rffi.VOIDPP, rffi.CCHARPP],
                                 rffi.INT)
 sqlite3_allocateCursor = llexternal('allocateCursor', [lltype.Ptr(VDBE), rffi.INT, rffi.INT, rffi.INT, rffi.INT],
@@ -628,7 +637,7 @@ sqlite3_sqlite3BtreeCursor = llexternal('sqlite3BtreeCursor', [rffi.VOIDP, rffi.
     rffi.INT)
 sqlite3_sqlite3BtreeCursorHints = llexternal('sqlite3BtreeCursorHints', [BTCURSORP, rffi.UINT],
     lltype.Void)
-sqlite3VdbeCursorMoveto = llexternal('sqlite3VdbeCursorMoveto', [VDBECURSORP],
+sqlite3VdbeCursorRestore = llexternal('sqlite3VdbeCursorRestore', [VDBECURSORP],
     rffi.INT)
 sqlite3_sqlite3VdbeSorterRewind = llexternal('sqlite3VdbeSorterRewind', [SQLITE3P, VDBECURSORP, rffi.INTP],
     rffi.INT)
@@ -659,7 +668,7 @@ impl_OP_Integer = llexternal('impl_OP_Integer', [VDBEP, VDBEOPP],
     lltype.Void)
 impl_OP_Null = llexternal('impl_OP_Null', [VDBEP, VDBEOPP],
     lltype.Void)
-impl_OP_AggStep = llexternal('impl_OP_AggStep', [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP],
+impl_OP_AggStep = llexternal('impl_OP_AggStep', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
     rffi.LONG)
 impl_OP_AggFinal = llexternal('impl_OP_AggFinal', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
     rffi.LONG)
@@ -693,9 +702,9 @@ impl_OP_Move = llexternal('impl_OP_Move', [VDBEP, VDBEOPP],
     lltype.Void)
 impl_OP_IfZero = llexternal('impl_OP_IfZero', [VDBEP, rffi.LONG, VDBEOPP],
     rffi.LONG)
-impl_OP_IdxRowid = llexternal('impl_OP_IdxRowid', [DBP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
+impl_OP_IdxRowid = llexternal('impl_OP_IdxRowid', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP],
     rffi.LONG)
-impl_OP_IdxLE_IdxGT_IdxLT_IdxGE = llexternal('impl_OP_IdxLE_IdxGT_IdxLT_IdxGE', [VDBEP, rffi.LONGP, VDBEOPP],
+impl_OP_IdxLE_IdxGT_IdxLT_IdxGE = llexternal('impl_OP_IdxLE_IdxGT_IdxLT_IdxGE', [VDBEP, SQLITE3P, rffi.LONGP, VDBEOPP],
     rffi.LONG)
 impl_OP_Seek = llexternal('impl_OP_Seek', [VDBEP, VDBEOPP],
     lltype.Void)
@@ -769,7 +778,11 @@ impl_OP_Delete = llexternal('impl_OP_Delete', [VDBEP, SQLITE3P, rffi.LONG, VDBEO
     rffi.LONG)
 impl_OP_DropTable = llexternal('impl_OP_DropTable', [SQLITE3P, VDBEOPP],
     lltype.Void)
-
+impl_OP_RowKey_RowData = llexternal(
+    'impl_OP_RowKey_RowData', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP], rffi.LONG)
+impl_OP_Blob = llexternal('impl_OP_Blob', [VDBEP, SQLITE3P, VDBEOPP], lltype.Void)
+impl_OP_Concat = llexternal('impl_OP_Concat', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP], rffi.LONG)
+impl_OP_Variable = llexternal('impl_OP_Variable', [VDBEP, SQLITE3P, rffi.LONG, rffi.LONG, VDBEOPP], rffi.LONG)
 
 sqlite3_reset = llexternal('sqlite3_reset', [VDBEP],
     rffi.INT)
@@ -797,7 +810,7 @@ if sys.argv[0].endswith("rpython"): # we're translating
     kwargs = dict(macro=True)
 else:
     kwargs = {}
-sqlite3_applyNumericAffinity = llexternal('applyNumericAffinity', [MEMP],
+sqlite3_applyNumericAffinity = llexternal('applyNumericAffinity', [MEMP, rffi.INT],
     lltype.Void, **kwargs)
 
 sqlite3AtoF = llexternal('sqlite3AtoF', [rffi.CCHARP, rffi.DOUBLEP, rffi.INT, CConfig.u8],
@@ -806,7 +819,7 @@ sqlite3Atoi64 = llexternal('sqlite3Atoi64', [rffi.CCHARP, rffi.LONGLONGP, rffi.I
     rffi.INT)
 sqlite3VdbeMemSetNull = llexternal('sqlite3VdbeMemSetNull', [MEMP],
     lltype.Void)
-sqlite3VdbeMemReleaseExternal = llexternal('sqlite3VdbeMemReleaseExternal', [MEMP],
+vdbeMemClearExternAndSetNull = llexternal('vdbeMemClearExternAndSetNull', [MEMP],
     lltype.Void)
 sqlite3VdbeIdxRowid = llexternal('sqlite3VdbeIdxRowid', [SQLITE3P, BTCURSORP, rffi.LONGP],
     rffi.INT)
@@ -814,7 +827,7 @@ sqlite3DbFree = llexternal('sqlite3DbFree', [SQLITE3P, rffi.VOIDP],
     lltype.Void)
 sqlite3ValueText = llexternal('sqlite3ValueText', [MEMP, CConfig.u8],
     rffi.VOIDP)
-sqlite3VdbeIdxKeyCompare = llexternal('sqlite3VdbeIdxKeyCompare', [VDBECURSORP, UNPACKEDRECORDP, rffi.INTP],
+sqlite3VdbeIdxKeyCompare = llexternal('sqlite3VdbeIdxKeyCompare', [SQLITE3P, VDBECURSORP, UNPACKEDRECORDP, rffi.INTP],
     rffi.INT)
 sqlite3VdbeMemFinalize = llexternal('sqlite3VdbeMemFinalize', [MEMP, FUNCDEFP],
     rffi.INT)
@@ -823,6 +836,8 @@ sqlite3VdbeChangeEncoding = llexternal('sqlite3VdbeChangeEncoding', [MEMP, rffi.
     rffi.INT)
 sqlite3VdbeMemTooBig = llexternal('sqlite3VdbeMemTooBig', [MEMP],
     rffi.INT)
+sqlite3VdbeCheckFk = llexternal('sqlite3VdbeCheckFk', [VDBEP, rffi.INT], rffi.INT)
+sqlite3VdbeCloseStatement = llexternal('sqlite3VdbeCloseStatement', [VDBEP, rffi.INT], rffi.INT)
 
 # (char **, sqlite3*, const char*, ...);
 sqlite3SetString1 = llexternal('sqlite3SetString', [rffi.CCHARPP, SQLITE3P, rffi.CCHARP, rffi.VOIDP],
@@ -832,7 +847,7 @@ sqlite3_sqlite3MemCompare = llexternal('sqlite3MemCompare', [MEMP, MEMP, COLLSEQ
     rffi.INT)
 sqlite3_sqlite3VdbeMemShallowCopy = llexternal('sqlite3VdbeMemShallowCopy', [MEMP, MEMP, rffi.INT],
     lltype.Void)
-sqlite3_sqlite3VdbeMemStringify = llexternal('sqlite3VdbeMemStringify', [MEMP, rffi.INT],
+sqlite3_sqlite3VdbeMemStringify = llexternal('sqlite3VdbeMemStringify', [MEMP, CConfig.u8, CConfig.u8],
     rffi.INT)
 sqlite3_sqlite3VdbeMemNulTerminate = llexternal('sqlite3VdbeMemNulTerminate', [MEMP],
     rffi.INT)
@@ -846,7 +861,7 @@ gotoNoMem = llexternal('gotoNoMem', [VDBEP, SQLITE3P, rffi.INT],
 gotoTooBig = llexternal('gotoTooBig', [VDBEP, SQLITE3P, rffi.INT],
     rffi.INT)
 
-sqlite3PutVarint32 = llexternal('sqlite3PutVarint32', [rffi.UCHARP, CConfig.u32], rffi.INT)
+sqlite3PutVarint = llexternal('sqlite3PutVarint', [rffi.UCHARP, CConfig.u64], rffi.INT)
 sqlite3VdbeMemExpandBlob = llexternal('sqlite3VdbeMemExpandBlob', [MEMP], rffi.INT)
 
 
@@ -862,3 +877,12 @@ sqlite3_errmsg = llexternal('sqlite3_errmsg', [SQLITE3P], rffi.CCHARP)
 sqlite3VdbeMemSetStr = llexternal('sqlite3VdbeMemSetStr', [MEMP, rffi.CCHARP, rffi.INT, CConfig.u8, rffi.VOIDP], rffi.INT)
 
 sqlite3_bind_parameter_count = llexternal('sqlite3_bind_parameter_count', [VDBEP], rffi.INT)
+sqlite3_bind_int64 = llexternal('sqlite3_bind_int64', [VDBEP, rffi.INT, lltype.Signed], rffi.INT)
+sqlite3_bind_double = llexternal('sqlite3_bind_double', [VDBEP, rffi.INT, rffi.DOUBLE], rffi.INT)
+sqlite3_bind_text = llexternal('sqlite3_bind_text', [VDBEP, rffi.INT, rffi.CCHARP, rffi.INT, rffi.VOIDP], rffi.INT)
+sqlite3_bind_null = llexternal('sqlite3_bind_null', [VDBEP, rffi.INT], rffi.INT)
+
+
+valueToText = llexternal('valueToText', [MEMP, CConfig.u8], rffi.VOIDP)
+_sqpyte_get_lastRowid = llexternal('_sqpyte_get_lastRowid', [], CConfig.i64)
+sqlite3VdbeLeave = llexternal('sqlite3VdbeLeave', [VDBEP], lltype.Void)

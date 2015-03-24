@@ -190,7 +190,7 @@ static int getNextToken(
   /* Set variable i to the maximum number of bytes of input to tokenize. */
   for(i=0; i<n; i++){
     if( sqlite3_fts3_enable_parentheses && (z[i]=='(' || z[i]==')') ) break;
-    if( z[i]=='*' || z[i]=='"' ) break;
+    if( z[i]=='"' ) break;
   }
 
   *pnConsumed = i;
@@ -502,7 +502,7 @@ static int getNextNode(
       return rc;
     }else if( *zInput==')' ){
       pParse->nNest--;
-      *pnConsumed = (zInput - z) + 1;
+      *pnConsumed = (int)((zInput - z) + 1);
       *ppExpr = 0;
       return SQLITE_DONE;
     }

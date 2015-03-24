@@ -21,17 +21,17 @@ def test_prepare():
     assert query.p.db == query.db
     assert query.p.nOp == 17
 
-    assert query.p.aOp[0].opcode == 155
+    assert query.p.aOp[0].opcode == CConfig.OP_Init
     assert query.p.aOp[0].p1 == 0
     assert query.p.aOp[0].p2 == 14
     assert query.p.aOp[0].p3 == 0
 
-    assert query.p.aOp[1].opcode == 52
+    assert query.p.aOp[1].opcode == CConfig.OP_OpenRead
     assert query.p.aOp[1].p1 == 0
     assert query.p.aOp[1].p2 == 2
     assert query.p.aOp[1].p3 == 0
 
-    assert query.p.aOp[2].opcode == 105
+    assert query.p.aOp[2].opcode == CConfig.OP_Rewind
     assert query.p.aOp[2].p1 == 0
     assert query.p.aOp[2].p2 == 12
     assert query.p.aOp[2].p3 == 0
@@ -66,7 +66,7 @@ def test_reset():
     textlen = query.python_sqlite3_column_bytes(0)
     name2 = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
     assert name == name2
-    
+
 def test_mainloop_over50():
     db = Sqlite3DB(testdb)
     query = db.execute('select name from contacts where age > 50;')
@@ -216,3 +216,99 @@ def test_translated_sqlite3BtreeCursorHints():
 #     rc = sqlite3VdbeSorterRewind(db, pC, res)
 #     assert(rc == CConfig.SQLITE_OK)
 
+def test_real():
+    db = Sqlite3DB(':memory:')
+    query = db.execute('select 2.3 + 4.5;')
+    rc = query.mainloop()
+    res = query.python_sqlite3_column_double(0)
+    assert res == 2.3 + 4.5
+
+def test_mandelbrot():
+    pytest.skip()
+    s = """
+    WITH RECURSIVE
+      xaxis(x) AS (VALUES(-2.0) UNION ALL SELECT x+0.5 FROM xaxis WHERE x<1.2),
+      yaxis(y) AS (VALUES(-1.0) UNION ALL SELECT y+0.6 FROM yaxis WHERE y<1.0),
+      m(iter, cx, cy, x, y) AS (
+        SELECT 0, x, y, 0.0, 0.0 FROM xaxis, yaxis
+        UNION ALL
+        SELECT iter+1, cx, cy, x*x-y*y + cx, 2.0*x*y + cy FROM m
+         WHERE (x*x + y*y) < 4.0 AND iter<28
+      ),
+      m2(iter, cx, cy) AS (
+        SELECT max(iter), cx, cy FROM m GROUP BY cx, cy
+      ),
+      a(t) AS (
+        SELECT group_concat( substr(' .+*#', 1+min(iter/7,4), 1), '')
+        FROM m2 GROUP BY cy
+      )
+    SELECT group_concat(rtrim(t),x'0a') FROM a;
+    """
+    db = Sqlite3DB(":memory:")
+    query = db.execute(s)
+    rc = query.mainloop()
+
+
+def test_nqueens():
+    pytest.skip()
+    s = """
+    WITH RECURSIVE
+      positions(i) as (
+        VALUES(0)
+        UNION SELECT ALL
+        i+1 FROM positions WHERE i < 63
+        ),
+      solutions(board, n_queens) AS (
+        SELECT '----------------------------------------------------------------', cast(0 AS bigint)
+          FROM positions
+        UNION
+        SELECT
+          substr(board, 1, i) || '*' || substr(board, i+2),n_queens + 1 as n_queens
+          FROM positions AS ps, solutions
+        WHERE n_queens < 8
+          AND substr(board,1,i) != '*'
+          AND NOT EXISTS (
+            SELECT 1 FROM positions WHERE
+              substr(board,i+1,1) = '*' AND
+                (
+                    i % 8 = ps.i %8 OR
+                    cast(i / 8 AS INT) = cast(ps.i / 8 AS INT) OR
+                    cast(i / 8 AS INT) + (i % 8) = cast(ps.i / 8 AS INT) + (ps.i % 8) OR
+                    cast(i / 8 AS INT) - (i % 8) = cast(ps.i / 8 AS INT) - (ps.i % 8)
+                )
+            LIMIT 1
+            )
+       ORDER BY n_queens DESC --remove this for PostgreSQL
+      )
+
+    -- Perform a selector over the CTE to extract the solutions with 8 queens
+    SELECT board,n_queens FROM solutions WHERE n_queens = 8;
+    """
+    db = Sqlite3DB(':memory:')
+    query = db.execute(s)
+    rc = query.mainloop()
+
+def test_argument():
+    def c():
+        count = 0
+        rc = query.mainloop()
+        while rc == CConfig.SQLITE_ROW:
+            rc = query.mainloop()
+            count += 1
+        return count
+    db = Sqlite3DB(testdb)
+    query = db.execute('select name from contacts where age > ?;')
+    query.python_sqlite3_bind_int64(1, 50)
+    count = c()
+    assert count == 48
+
+    query.reset_query()
+    query.python_sqlite3_bind_double(1, 75.5)
+    count = c()
+    assert count == 22
+
+    query = db.execute('select age from contacts where name = ?;')
+    query.python_sqlite3_bind_text(1, 'Dean Shepherd')
+    rc = query.mainloop()
+    assert rc == CConfig.SQLITE_ROW
+    assert query.python_sqlite3_column_int64(0) == 31

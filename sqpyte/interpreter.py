@@ -54,6 +54,10 @@ class Sqlite3DB(object):
     def execute(self, sql):
         return Sqlite3Query(self, sql)
 
+    def close(self):
+        if self.db:
+            capi.sqlite3_close(self.db)
+            self.db = lltype.nullptr(lltype.typeOf(self.db).TO)
 
     @jit.dont_look_inside
     def create_aggregate(self, name, nargs, contextcls):
@@ -109,8 +113,10 @@ def mutate_func(func, mutates):
 
 class Sqlite3Query(object):
 
-    _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]', '_llmem_as_python_list[*]', 'intp', 'longp', 'unpackedrecordp',
-                          '_hlops[*]', 'mem_cache']
+    _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]',
+                          '_var_as_python_list[*]',
+                          '_llmem_as_python_list[*]', 'intp', 'longp',
+                          'unpackedrecordp', '_hlops[*]', 'mem_cache']
 
     def __init__(self, hldb, query):
         self.hldb = hldb
@@ -149,12 +155,16 @@ class Sqlite3Query(object):
         self._llmem_as_python_list = [self.p.aMem[i] for i in range(nMem + 1)]
         self._mem_as_python_list = [Mem(self, self.p.aMem[i], i)
                 for i in range(nMem + 1)]
+        nVar = rffi.getintfield(self.p, 'nVar')
+        self._var_as_python_list = [Mem(self, self.p.aVar[i], i + nMem + 1)
+                for i in range(nVar)]
         self._hlops = [Op(self, self.p.aOp[i]) for i in range(self.p.nOp)]
         self.init_mem_cache()
 
     def init_mem_cache(self):
         from sqpyte.mem import CacheHolder
-        self.mem_cache = CacheHolder(len(self._mem_as_python_list))
+        self.mem_cache = CacheHolder(len(self._mem_as_python_list) +
+                len(self._var_as_python_list))
 
     def check_cache_consistency(self):
         if objectmodel.we_are_translated():
@@ -168,6 +178,10 @@ class Sqlite3Query(object):
     def python_sqlite3_data_count(self):
         if rffi.getintfield(self.p, 'pResultSet') == 0:
             return 0
+        return self._nres_column()
+
+    @jit.elidable
+    def _nres_column(self):
         return rffi.getintfield(self.p, 'nResColumn')
 
     def python_sqlite3_column_type(self, iCol):
@@ -175,26 +189,52 @@ class Sqlite3Query(object):
         return capi.sqlite3_column_type(self.p, iCol)
 
     def python_sqlite3_column_text(self, iCol):
+        self.invalidate_caches_outside()
         return capi.sqlite3_column_text(self.p, iCol)
 
     def python_sqlite3_column_bytes(self, iCol):
         return capi.sqlite3_column_bytes(self.p, iCol)
 
     def python_sqlite3_column_int64(self, iCol):
+        self.invalidate_caches_outside()
         return capi.sqlite3_column_int64(self.p, iCol)
 
     def python_sqlite3_column_double(self, iCol):
+        self.invalidate_caches_outside()
         return capi.sqlite3_column_double(self.p, iCol)
 
     def python_sqlite3_bind_parameter_count(self):
         return rffi.cast(lltype.Signed, capi.sqlite3_bind_parameter_count(self.p))
 
+    def python_sqlite3_bind_int64(self, i, val):
+        self.invalidate_caches_outside()
+        return rffi.cast(lltype.Signed, capi.sqlite3_bind_int64(self.p, i, val))
+
+    def python_sqlite3_bind_double(self, i, val):
+        self.invalidate_caches_outside()
+        return rffi.cast(lltype.Signed, capi.sqlite3_bind_double(self.p, i, val))
+
+    def python_sqlite3_bind_null(self, i):
+        self.invalidate_caches_outside()
+        return rffi.cast(lltype.Signed, capi.sqlite3_bind_null(self.p, i))
+
+    @jit.dont_look_inside
+    def python_bind_str(self, i, s):
+        self.invalidate_caches_outside()
+        with rffi.scoped_str2charp(s) as charp:
+            return rffi.cast(
+                lltype.Signed,
+                capi.sqlite3_bind_text(
+                    self.p, i, charp, len(s),
+                    rffi.cast(rffi.VOIDP, CConfig.SQLITE_TRANSIENT)))
 
     # _______________________________________________________________
     # cache invalidation
-    @jit.unroll_safe
     def invalidate_caches(self):
         self.mem_cache.invalidate_all()
+
+    def invalidate_caches_outside(self):
+        self.mem_cache.invalidate_all_outside()
 
     def p1_mutation(self, op):
         i = op.p_Signed(1)
@@ -286,6 +326,7 @@ class Sqlite3Query(object):
         return _cache_safe_opcodes[opcode]
 
     def reset_query(self):
+        self.invalidate_caches_outside()
         capi.sqlite3_reset(self.p)
 
     def python_OP_Init(self, pc, op):
@@ -324,8 +365,9 @@ class Sqlite3Query(object):
     def python_OP_Column(self, pc, op):
         return translated.python_OP_Column(self, pc, op)
 
-    @cache_safe(mutates="p1@p2")
+    @cache_safe()
     def python_OP_ResultRow(self, pc, op):
+        return translated.python_OP_ResultRow(self, pc, op)
         return capi.impl_OP_ResultRow(self.p, self.db, pc, op.pOp)
 
     @cache_safe()
@@ -382,6 +424,7 @@ class Sqlite3Query(object):
     def python_OP_Copy(self, pc, rc, op):
         if objectmodel.we_are_translated():
             return translated.python_OP_Copy(self, pc, rc, op)
+        self.invalidate_caches()
         return capi.impl_OP_Copy(self.p, self.db, pc, rc, op.pOp)
 
     @cache_safe()
@@ -396,9 +439,11 @@ class Sqlite3Query(object):
         #retPc = self.internalPc[0]
         #return retPc, rc
 
+    @cache_safe(mutates="p2")
     def python_OP_String(self, op):
         capi.impl_OP_String(self.p, self.db, op.pOp)
 
+    @cache_safe(mutates="p2")
     def python_OP_String8(self, pc, rc, op):
         return capi.impl_OP_String8(self.p, self.db, pc, rc, op.pOp)
 
@@ -407,12 +452,14 @@ class Sqlite3Query(object):
         # return capi.impl_OP_Function(self.p, self.db, pc, rc, op.pOp)
         return translated.python_OP_Function(self, pc, rc, op)
 
+    @cache_safe()
     def python_OP_Real(self, op):
         # aMem = self.p.aMem
         # pOut = aMem[pOp.p2]
         # pOut.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Real)
         # assert not math.isnan(pOp.p4.pReal)
         # pOut.r = pOp.p4.pReal
+        return translated.python_OP_Real(self, op)
 
         capi.impl_OP_Real(self.p, op.pOp)
 
@@ -476,7 +523,7 @@ class Sqlite3Query(object):
         mutates="p3@p4")
     def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(self, pc, op):
         # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        # rc = capi.impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(self.p, self.internalPc, op.pOp)
+        # rc = capi.impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(self.p, self.db, self.internalPc, op.pOp)
         # retPc = self.internalPc[0]
         # return retPc, rc
 
@@ -494,8 +541,11 @@ class Sqlite3Query(object):
 
     @cache_safe()
     def python_OP_SCopy(self, op):
-        # capi.impl_OP_SCopy(self.p, op.pOp)
-        translated.python_OP_SCopy(self, op)
+        if not objectmodel.we_are_translated():
+            self.invalidate_caches()
+            capi.impl_OP_SCopy(self.p, op.pOp)
+        else:
+            translated.python_OP_SCopy(self, op)
 
     @cache_safe()
     def python_OP_Affinity(self, op):
@@ -548,7 +598,7 @@ class Sqlite3Query(object):
         # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         # rc = capi.impl_OP_NextIfOpen(self.p, self.db, self.internalPc, rc, op.pOp)
         # retPc = self.internalPc[0]
-        # return retPc, rc        
+        # return retPc, rc
 
         return translated.python_OP_NextIfOpen_translated(self, pc, rc, op)
 
@@ -595,15 +645,19 @@ class Sqlite3Query(object):
     def python_OP_IfPos(self, pc, op):
         return translated.python_OP_IfPos(self, pc, op)
 
+    @cache_safe()
     def python_OP_CollSeq(self, op):
-        capi.impl_OP_CollSeq(self.p, op.pOp)
+        translated.python_OP_CollSeq(self, op)
+        #capi.impl_OP_CollSeq(self.p, op.pOp)
 
     @cache_safe()
     def python_OP_NotNull(self, pc, op):
         # return capi.impl_OP_NotNull(self.p, pc, op.pOp)
         return translated.python_OP_NotNull(self, pc, op)
 
+    @cache_safe()
     def python_OP_InitCoroutine(self, pc, op):
+        return translated.python_OP_InitCoroutine(self, pc, op)
         return capi.impl_OP_InitCoroutine(self.p, pc, op.pOp)
 
     @cache_safe(mutates="p1")
@@ -615,15 +669,19 @@ class Sqlite3Query(object):
     def python_OP_NullRow(self, op):
         capi.impl_OP_NullRow(self.p, op.pOp)
 
+    @cache_safe()
     def python_OP_EndCoroutine(self, op):
+        return translated.python_OP_EndCoroutine(self, op)
         return capi.impl_OP_EndCoroutine(self.p, op.pOp)
 
     def python_OP_ReadCookie(self, op):
         capi.impl_OP_ReadCookie(self.p, self.db, op.pOp)
 
+    @cache_safe()
     def python_OP_NewRowid(self, pc, rc, op):
         return capi.impl_OP_NewRowid(self.p, self.db, pc, rc, op.pOp)
 
+    @cache_safe(opcodes=[CConfig.OP_Insert, CConfig.OP_InsertInt])
     def python_OP_Insert_InsertInt(self, op):
         return capi.impl_OP_Insert_InsertInt(self.p, self.db, op.pOp)
 
@@ -642,12 +700,34 @@ class Sqlite3Query(object):
         retPc = self.internalPc[0]
         return retPc, retRc   
 
+    @cache_safe()
     def python_OP_Delete(self, pc, op):
         return capi.impl_OP_Delete(self.p, self.db, pc, op.pOp)
 
     def python_OP_DropTable(self, op):
         return capi.impl_OP_DropTable(self.db, op.pOp)
 
+    @cache_safe(opcodes=[CConfig.OP_RowKey, CConfig.OP_RowData],
+                mutates="p2")
+    def python_OP_RowKey_RowData(self, pc, rc, op):
+        rc = capi.impl_OP_RowKey_RowData(self.p, self.db, pc, rc, op.pOp)
+        return rc
+
+    def python_OP_Blob(self, op):
+        capi.impl_OP_Blob(self.p, self.db, op.pOp)
+
+    @cache_safe()
+    def python_OP_Cast(self, rc, op):
+        return translated.python_OP_Cast(self, rc, op)
+
+    @cache_safe(mutates=["p1", "p2", "p3"])
+    def python_OP_Concat(self, pc, rc, op):
+        return capi.impl_OP_Concat(self.p, self.db, pc, rc, op.pOp)
+
+    def python_OP_Variable(self, pc, rc, op):
+        if objectmodel.we_are_translated():
+            return translated.python_OP_Variable(self, pc, rc, op)
+        return capi.impl_OP_Variable(self.p, self.db, pc, rc, op.pOp)
 
     def debug_print(self, s):
         if objectmodel.we_are_translated():
@@ -666,10 +746,13 @@ class Sqlite3Query(object):
 
     @jit.elidable
     def enc(self):
-        return self.db.aDb[0].pSchema.enc
+        return self.db.enc
 
     def mem_with_index(self, i):
         return self._mem_as_python_list[i]
+
+    def var_with_index(self, i):
+        return self._var_as_python_list[i]
 
     def gotoNoMem(self, pc):
         return rffi.cast(lltype.Signed, capi.gotoNoMem(self.p, self.db, rffi.cast(rffi.INT, pc)))
@@ -692,7 +775,7 @@ class Sqlite3Query(object):
             op = self._hlops[pc]
             opcode = op.get_opcode()
             oldpc = pc
-            self.debug_print('>>> %s <<<' % self.get_opcode_str(opcode))
+            self.debug_print('>>> %s: %s <<<' % (pc, self.get_opcode_str(opcode)))
 
             opflags = op.opflags()
             if opflags & CConfig.OPFLG_OUT2_PRERELEASE:
@@ -714,6 +797,7 @@ class Sqlite3Query(object):
                 pc, rc = self.python_OP_Rewind(pc, op)
             elif opcode == CConfig.OP_Transaction:
                 rc = self.python_OP_Transaction(pc, op)
+                jit.promote(rc)
                 if rc == CConfig.SQLITE_BUSY:
                     print 'ERROR: in OP_Transaction SQLITE_BUSY'
                     break
@@ -875,6 +959,16 @@ class Sqlite3Query(object):
                 rc = self.python_OP_Delete(pc, op)
             elif opcode == CConfig.OP_DropTable:
                 self.python_OP_DropTable(op)
+            elif opcode == CConfig.OP_RowKey or opcode == CConfig.OP_RowData:
+                rc = self.python_OP_RowKey_RowData(pc, rc, op)
+            elif opcode == CConfig.OP_Blob:
+                self.python_OP_Blob(op)
+            elif opcode == CConfig.OP_Cast:
+                rc = self.python_OP_Cast(rc, op)
+            elif opcode == CConfig.OP_Concat:
+                rc = self.python_OP_Concat(pc, rc, op)
+            elif opcode == CConfig.OP_Variable:
+                rc = self.python_OP_Variable(pc, rc, op)
             else:
                 raise SQPyteException("SQPyteException: Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))
@@ -937,6 +1031,13 @@ class Op(object):
         if self.pOp.p4.z:
             return rffi.charp2str(self.pOp.p4.z)
         return None
+
+    @jit.elidable
+    def p4_Real(self):
+        # XXX I'm only 99% certain that this is safe
+        val = self.pOp.p4.pReal[0]
+        assert not math.isnan(val)
+        return val
 
     @jit.elidable
     def p4_pFunc(self):

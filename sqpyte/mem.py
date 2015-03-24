@@ -24,8 +24,8 @@ class Mem(object):
         state = self.hlquery.mem_cache.cache_state()
         if state.is_flag_known(self._cache_index):
             assert rffi.cast(lltype.Unsigned, self.pMem.flags) == self.get_flags()
-        if state.is_r_known(self._cache_index):
-            assert self.pMem.r == self.get_r()
+        if state.is_u_r_known(self._cache_index):
+            assert self.pMem.u.r == self.get_u_r()
         if state.is_u_i_known(self._cache_index):
             assert self.pMem.u.i == self.get_u_i()
 
@@ -39,13 +39,9 @@ class Mem(object):
         self.hlquery.mem_cache.set_flags(self, newflags)
 
     def assure_flags(self, newflags):
+        if not jit.we_are_jitted():
+            assert self.pMem.flags == newflags
         self.hlquery.mem_cache.assure_flags(self, newflags)
-
-    def get_r(self):
-        return self.hlquery.mem_cache.get_r(self)
-
-    def set_r(self, val):
-        return self.hlquery.mem_cache.set_r(self, val)
 
 
     def get_u_i(self):
@@ -54,8 +50,17 @@ class Mem(object):
     def set_u_i(self, val, constant=False):
         return self.hlquery.mem_cache.set_u_i(self, val, constant)
 
+    def get_u_r(self):
+        return self.hlquery.mem_cache.get_u_r(self)
+
+    def set_u_r(self, val, constant=False):
+        return self.hlquery.mem_cache.set_u_r(self, val, constant)
+
     def is_constant_u_i(self):
         return self.hlquery.mem_cache.is_constant_u_i(self)
+
+    def is_constant_u_r(self):
+        return self.hlquery.mem_cache.is_constant_u_r(self)
 
 
     def get_u_nZero(self):
@@ -72,6 +77,9 @@ class Mem(object):
 
     def get_enc(self):
         return self.pMem.enc
+
+    def get_enc_signed(self):
+        return rffi.getintfield(self.pMem, 'enc')
 
     def set_enc(self, val):
         self.pMem.enc = val
@@ -98,6 +106,12 @@ class Mem(object):
     def set_zMalloc_null(self):
         self.set_zMalloc(lltype.nullptr(lltype.typeOf(self.pMem).TO.zMalloc.TO))
 
+    def get_szMalloc(self):
+        return rffi.cast(lltype.Signed, self.pMem.szMalloc)
+
+    def set_szMalloc(self, val):
+        rffi.setintfield(self.pMem, 'szMalloc', val)
+
 
     def get_db(self):
         return self.pMem.db
@@ -118,6 +132,52 @@ class Mem(object):
     # _______________________________________________________________
     # methods induced by sqlite3 functions below
 
+    def _atoi(self):
+        val2 = lltype.malloc(rffi.LONGLONGP.TO, 1, flavor='raw')
+        val2[0] = 0
+        rc = capi.sqlite3Atoi64(self.get_z(), val2, self.get_n(), self.get_enc())
+        value = val2[0]
+        lltype.free(val2, flavor='raw')
+        return rc, value
+
+    def sqlite3VdbeMemCast(self, aff, encoding):
+        """
+        Cast the datatype of the value in pMem according to the affinity
+        "aff".  Casting is different from applying affinity in that a cast
+        is forced.  In other words, the value is converted into the desired
+        affinity even if that results in loss of data.  This routine is
+        used (for example) to implement the SQL "cast()" operator.
+        """
+        flags = self.get_flags()
+        if flags & CConfig.MEM_Null:
+            return
+        if aff == CConfig.SQLITE_AFF_NONE:
+            assert 0, "implement me!"
+            #if( (flags & CConfig.MEM_Blob)==0 ){
+            #  sqlite3ValueApplyAffinity(pMem, SQLITE_AFF_TEXT, encoding);
+            #  assert( flags & CConfig.MEM_Str || pMem->db->mallocFailed );
+            #  MemSetTypeFlag(pMem, CConfig.MEM_Blob);
+            #}else{
+            #  flags &= ~(CConfig.MEM_TypeMask&~CConfig.MEM_Blob);
+            #}
+            #break;
+        elif aff == CConfig.SQLITE_AFF_NUMERIC:
+            self.sqlite3VdbeMemNumerify()
+        elif aff == CConfig.SQLITE_AFF_INTEGER:
+            self.sqlite3VdbeMemIntegerify()
+        elif aff == CConfig.SQLITE_AFF_REAL:
+            self.sqlite3VdbeMemRealify()
+        elif aff == CConfig.SQLITE_AFF_TEXT:
+            assert CConfig.MEM_Str == (CConfig.MEM_Blob>>3)
+            flags |= (flags & CConfig.MEM_Blob)>>3;
+            self.set_flags(flags)
+            self.applyAffinity(CConfig.SQLITE_AFF_TEXT, encoding);
+            assert self.get_flags() & CConfig.MEM_Str or rffi.getintfield(self.pMem.db, 'mallocFailed')
+            flags &= ~(CConfig.MEM_Int|CConfig.MEM_Real|CConfig.MEM_Blob|CConfig.MEM_Zero)
+            self.set_flags(flags)
+        else:
+            assert 0, "unknown affinity"
+
     def sqlite3VdbeIntegerAffinity(self):
         """
         The MEM structure is already a MEM_Real.  Try to also make it a
@@ -128,7 +188,7 @@ class Mem(object):
         assert not flags & CConfig.MEM_RowSet
         # assert( mem->db==0 || sqlite3_mutex_held(mem->db->mutex) );
         # assert( EIGHT_BYTE_ALIGNMENT(mem) );
-        floatval = self.get_r()
+        floatval = self.get_u_r()
         intval = int(floatval)
         # Only mark the value as an integer if
         #
@@ -140,8 +200,8 @@ class Mem(object):
         # the second condition under the assumption that addition overflow causes
         # values to wrap around.
         if floatval == float(intval) and intval < sys.maxint and intval > (-sys.maxint - 1):
-            flags = flags | CConfig.MEM_Int
-            self.set_flags(flags)
+            self.set_u_i(intval)
+            self.MemSetTypeFlag(CConfig.MEM_Int)
         return flags
 
     def applyAffinity(self, affinity, enc):
@@ -165,55 +225,118 @@ class Mem(object):
         """
         flags = self.get_flags()
         assert isinstance(affinity, int)
-        if affinity == CConfig.SQLITE_AFF_TEXT:
+        if affinity >= CConfig.SQLITE_AFF_NUMERIC:
+            assert affinity in (CConfig.SQLITE_AFF_INTEGER,
+                                CConfig.SQLITE_AFF_REAL,
+                                CConfig.SQLITE_AFF_NUMERIC)
+            if flags & CConfig.MEM_Int == 0:
+                if flags & CConfig.MEM_Real == 0:
+                    if flags & CConfig.MEM_Str:
+                        self.applyNumericAffinity(1)
+                    else:
+                        self.sqlite3VdbeIntegerAffinity()
+        elif affinity == CConfig.SQLITE_AFF_TEXT:
             # Only attempt the conversion to TEXT if there is an integer or real
             # representation (blob and NULL do not get converted) but no string
             # representation.
 
             if not (flags & CConfig.MEM_Str) and flags & (CConfig.MEM_Real|CConfig.MEM_Int):
-                flags = self.get_flags()
-            flags = flags & ~(CConfig.MEM_Real|CConfig.MEM_Int)
-            self.set_flags(flags)
-        elif affinity != CConfig.SQLITE_AFF_NONE:
-            assert affinity in (CConfig.SQLITE_AFF_INTEGER,
-                                CConfig.SQLITE_AFF_REAL,
-                                CConfig.SQLITE_AFF_NUMERIC)
-            self.applyNumericAffinity()
-            if self.get_flags() & CConfig.MEM_Real:
-                self.sqlite3VdbeIntegerAffinity()
+                self.sqlite3VdbeMemStringify(enc, 1)
 
-    def sqlite3VdbeMemStringify(self, enc):
+    def sqlite3VdbeMemStringify(self, enc, bForce):
+        """
+        Add MEM_Str to the set of representations for the given Mem.  Numbers
+        are converted using sqlite3_snprintf().  Converting a BLOB to a string
+        is a no-op.
+
+        Existing representations MEM_Int and MEM_Real are invalidated if
+        bForce is true but are retained if bForce is false.
+
+        A MEM_Null value will never be passed to this function. This function is
+        used for converting values to text for returning to the user (i.e. via
+        sqlite3_value_text()), or for ensuring that values to be used as btree
+        keys are strings. In the former case a NULL pointer is returned the
+        user and the latter is an internal programming error.
+        """
         self.invalidate_cache()
-        capi.sqlite3_sqlite3VdbeMemStringify(self.pMem, enc)
+        return capi.sqlite3_sqlite3VdbeMemStringify(self.pMem, enc, bForce)
 
     def sqlite3VdbeMemNulTerminate(self):
+        """
+        Make sure the given Mem is \u0000 terminated.
+        """
         if self.get_flags() & CConfig.MEM_Term:
             return 0
         return rffi.cast(
             lltype.Signed, capi.sqlite3_sqlite3VdbeMemNulTerminate(self.pMem))
 
     def sqlite3VdbeMemIntegerify(self):
-        self.invalidate_cache()
-        return capi.sqlite3_sqlite3VdbeMemIntegerify(self)
+        """
+        Convert pMem to type integer.  Invalidate any prior representations.
+        """
+        flags = self.get_flags()
+        if not flags & CConfig.MEM_Int:
+            # only set u.i if not already an Int
+            self.set_u_i(self.sqlite3VdbeIntValue())
+        self.MemSetTypeFlag(CConfig.MEM_Int)
+        return CConfig.SQLITE_OK
 
-    def applyNumericAffinity(self):
+    def sqlite3VdbeMemRealify(self):
+        self.set_u_r(self.sqlite3VdbeRealValue())
+        self.MemSetTypeFlag(CConfig.MEM_Real)
+
+    def sqlite3VdbeMemNumerify(self):
+        """
+        Convert pMem so that it has types MEM_Real or MEM_Int or both.
+        Invalidate any prior representations.
+
+        Every effort is made to force the conversion, even if the input
+        is a string that does not look completely like a number.  Convert
+        as much of the string as we can and ignore the rest.
+        """
+        flags = self.get_flags()
+        if not flags & (CConfig.MEM_Int|CConfig.MEM_Real|CConfig.MEM_Null):
+            assert flags & (CConfig.MEM_Blob|CConfig.MEM_Str)
+            rc, value = self._atoi()
+            if rc == 0:
+                self.set_u_i(value)
+                self.MemSetTypeFlag(CConfig.MEM_Int)
+            else:
+                self.set_u_r(self.sqlite3VdbeRealValue())
+                self.MemSetTypeFlag(CConfig.MEM_Real)
+                self.sqlite3VdbeIntegerAffinity()
+        assert flags & (CConfig.MEM_Int|CConfig.MEM_Real|CConfig.MEM_Null)
+        self.set_flags(flags & ~(CConfig.MEM_Str|CConfig.MEM_Blob))
+        return CConfig.SQLITE_OK
+
+    def applyNumericAffinity(self, bTryForInt):
         """
         Try to convert a value into a numeric representation if we can
         do so without loss of information.  In other words, if the string
         looks like a number, convert it into a number.  If it does not
         look like a number, leave it alone.
+
+        If the bTryForInt flag is true, then extra effort is made to give
+        an integer representation.  Strings that look like floating point
+        values but which have no fractional component (example: '48.00')
+        will have a MEM_Int representation when bTryForInt is true.
+
+        If bTryForInt is false, then if the input string contains a decimal
+        point or exponential notation, the result is only MEM_Real, even
+        if there is an exact integer representation of the quantity.
         """
-        flags = self.get_flags()
-        if flags & (CConfig.MEM_Real|CConfig.MEM_Int):
-            return flags
-        if not flags & CConfig.MEM_Str:
-            return flags
-        # use the C function as a slow path for now
+        # use the C function for now
         self.invalidate_cache()
-        capi.sqlite3_applyNumericAffinity(self.pMem)
-        return self.get_flags()
+        capi.sqlite3_applyNumericAffinity(self.pMem, bTryForInt)
 
     def numericType(self):
+        """
+        Return the numeric type for pMem, either MEM_Int or MEM_Real or both or
+        none.
+
+        Unlike applyNumericAffinity(), this routine does not modify pMem->flags.
+        But it does set pMem->u.r and pMem->u.i appropriately.
+        """
         flags = self.get_flags()
         if flags & (CConfig.MEM_Int | CConfig.MEM_Real):
             return flags & (CConfig.MEM_Int | CConfig.MEM_Real)
@@ -221,17 +344,13 @@ class Mem(object):
             val1 = lltype.malloc(rffi.DOUBLEP.TO, 1, flavor='raw')
             val1[0] = 0.0
             atof = capi.sqlite3AtoF(self.get_z(), val1, self.get_n(), self.get_enc())
-            self.set_r(val1[0])
+            self.set_u_r(val1[0])
             lltype.free(val1, flavor='raw')
 
             if atof == 0:
                 return 0
-
-            val2 = lltype.malloc(rffi.LONGLONGP.TO, 1, flavor='raw')
-            val2[0] = 0
-            atoi64 = capi.sqlite3Atoi64(self.get_z(), val2, self.get_n(), self.get_enc())
-            self.set_u_i(val2[0])
-            lltype.free(val2, flavor='raw')
+            atoi64, value = self._atoi()
+            self.set_u_i(value)
 
             if atoi64 == CConfig.SQLITE_OK:
                 return CConfig.MEM_Int
@@ -248,16 +367,26 @@ class Mem(object):
 
     def sqlite3VdbeMemRelease(self):
         self.VdbeMemRelease()
-        if self.get_zMalloc():
+        if self.VdbeMemDynamic() or self.get_szMalloc():
+            self.vdbeMemClear()
+
+    def vdbeMemClear(self):
+        if self.VdbeMemDynamic():
+            self.vdbeMemClearExternAndSetNull()
+        if self.get_szMalloc():
             capi.sqlite3DbFree(self.hlquery.db, rffi.cast(rffi.VOIDP, self.get_zMalloc()))
-            self.set_zMalloc(lltype.nullptr(rffi.CCHARP.TO))
+            self.set_zMalloc_null()
         self.set_z_null()
 
-    def sqlite3VdbeMemSetInt64(self, val):
+    def vdbeMemClearExternAndSetNull(self):
+        capi.vdbeMemClearExternAndSetNull(self.pMem)
+        self.invalidate_cache()
+
+    def sqlite3VdbeMemSetInt64(self, val, constant=False):
         if self.get_flags() != CConfig.MEM_Int:
             self.sqlite3VdbeMemRelease()
             self.set_flags(CConfig.MEM_Int)
-        self.set_u_i(val)
+        self.set_u_i(val, constant=constant)
 
     def sqlite3VdbeMemSetDouble(self, val):
         """
@@ -270,7 +399,7 @@ class Mem(object):
             if self.get_flags() != CConfig.MEM_Real:
                 self.sqlite3VdbeMemRelease()
                 self.set_flags(CConfig.MEM_Real)
-            self.set_r(val)
+            self.set_u_r(val)
 
     def sqlite3VdbeMemSetNull(self):
         """ Delete any previous value and set the value stored in *pMem to NULL. """
@@ -290,8 +419,7 @@ class Mem(object):
 
     def VdbeMemRelease(self):
         if self.VdbeMemDynamic():
-            self.invalidate_cache()
-            capi.sqlite3VdbeMemReleaseExternal(self.pMem)
+            self.vdbeMemClearExternAndSetNull()
 
 
     def sqlite3VdbeIntValue(self):
@@ -313,13 +441,9 @@ class Mem(object):
         if flags & CConfig.MEM_Int:
             return self.get_u_i()
         elif flags & CConfig.MEM_Real:
-            return int(self.get_r())
+            return int(self.get_u_r())
         elif flags & (CConfig.MEM_Str|CConfig.MEM_Blob):
-            val2 = lltype.malloc(rffi.LONGLONGP.TO, 1, flavor='raw')
-            val2[0] = 0
-            capi.sqlite3Atoi64(self.get_z(), val2, self.get_n(), self.get_enc())
-            value = val2[0]
-            lltype.free(val2, flavor='raw')
+            _, value = self._atoi()
             return value
         else:
             return 0
@@ -335,7 +459,7 @@ class Mem(object):
         # assert( pMem->db==0 || sqlite3_mutex_held(pMem->db->mutex) );
         # assert( EIGHT_BYTE_ALIGNMENT(pMem) );
         if flags & CConfig.MEM_Real:
-            return self.get_r()
+            return self.get_u_r()
         elif flags & CConfig.MEM_Int:
             return self.get_u_i()
         elif flags & (CConfig.MEM_Str | CConfig.MEM_Blob):
@@ -372,11 +496,10 @@ class Mem(object):
         and flags gets srcType (either MEM_Ephem or MEM_Static).
         """
         assert not from_.get_flags() & CConfig.MEM_RowSet
-        self.VdbeMemRelease()
-        self.invalidate_cache()
+        if self.VdbeMemDynamic():
+            self.vdbeMemClearExternAndSetNull()
         self._memcpy_partial_hidden(from_)
         self.assure_flags(from_.get_flags())
-        self.set_xDel_null()
         if not from_.get_flags() & CConfig.MEM_Static:
             flags = self.get_flags()
             flags &= ~(CConfig.MEM_Dyn | CConfig.MEM_Static | CConfig.MEM_Ephem)
@@ -410,13 +533,13 @@ class Mem(object):
                 return 0
             else:
                 if flags1 & CConfig.MEM_Real:
-                    r1 = self.get_r()
+                    r1 = self.get_u_r()
                 elif flags1 & CConfig.MEM_Int:
                     r1 = float(self.get_u_i())
                 else:
                     return 1
                 if flags2 & CConfig.MEM_Real:
-                    r2 = other.get_r()
+                    r2 = other.get_u_r()
                 elif flags2 & CConfig.MEM_Int:
                     r2 = float(other.get_u_i())
                 else:
@@ -468,7 +591,7 @@ class Mem(object):
             if flags & CConfig.MEM_Int:
                 i = self.get_u_i()
             else:
-                i = longlong2float.float2longlong(self.get_r())
+                i = longlong2float.float2longlong(self.get_u_r())
             _write_int_to_buf(buf, i, length)
             return length
         else:
@@ -484,6 +607,12 @@ class Mem(object):
     def sqlite3VdbeMemTooBig(self):
         self.invalidate_cache()
         return capi.sqlite3VdbeMemTooBig(self.pMem)
+
+    def sqlite3VdbeMemMove(self, from_):
+        self.sqlite3VdbeMemRelease()
+        self.memcpy_full(from_)
+        from_.set_flags(CConfig.MEM_Null)
+        from_.set_szMalloc(0)
 
     def memcpy_full(self, from_):
         self.invalidate_cache()
@@ -532,7 +661,7 @@ class Mem(object):
         """
         eType = self.sqlite3_value_type()
         if eType == CConfig.SQLITE_TEXT:
-            self.applyNumericAffinity()
+            self.applyNumericAffinity(0)
             eType = self.sqlite3_value_type()
         return eType
 
@@ -540,24 +669,40 @@ class Mem(object):
     sqlite3_value_double = sqlite3VdbeRealValue
 
     def sqlite3_value_text(self):
+        return self.sqlite3ValueText(CConfig.SQLITE_UTF8)
+
+
+    def sqlite3ValueText(self, enc):
+        """
+        This function is only available internally, it is not part of the
+        external API. It works in a similar way to sqlite3_value_text(),
+        except the data returned is in the encoding specified by the second
+        parameter, which must be one of SQLITE_UTF16BE, SQLITE_UTF16LE or
+        SQLITE_UTF8.
+
+         (2006-02-16:)  The enc value can be or-ed with SQLITE_UTF16_ALIGNED.
+         If that is the case, then the result must be aligned on an even byte
+         boundary.
+        """
         flags = self.get_flags()
-        # this is sqlite3ValueText
+        assert (flags & CConfig.MEM_RowSet) == 0
+        if ((flags & (CConfig.MEM_Str|CConfig.MEM_Term)) ==
+                (CConfig.MEM_Str|CConfig.MEM_Term) and
+                self.get_enc_signed() == rffi.cast(lltype.Signed, enc)):
+            return self.get_z()
         if flags & CConfig.MEM_Null:
             return lltype.nullptr(rffi.CCHARP.TO)
+        return rffi.cast(rffi.CCHARP, self.valueToText(enc))
 
-        assert (CConfig.MEM_Blob>>3) == CConfig.MEM_Str
-        flags |= (flags & CConfig.MEM_Blob) >> 3
-        self.set_flags(flags)
 
-        self.ExpandBlob()
-        flags = self.get_flags()
-        if flags & CConfig.MEM_Str:
-            self.sqlite3VdbeChangeEncoding(CConfig.SQLITE_UTF8)
-            self.sqlite3VdbeMemNulTerminate() # /* IMP: R-31275-44060 */
-        else:
-            assert flags & CConfig.MEM_Blob
-            self.sqlite3VdbeMemStringify(CConfig.SQLITE_UTF8)
-        return self.get_z()
+    def valueToText(self, enc):
+        """
+        The pVal argument is known to be a value other than NULL.
+        Convert it into a string with encoding enc and return a pointer
+        to a zero-terminated version of that string.
+        """
+        self.invalidate_cache()
+        return capi.valueToText(self.pMem, enc)
 
     sqlite3_result_int64 = sqlite3VdbeMemSetInt64
     sqlite3_result_double = sqlite3VdbeMemSetDouble
@@ -656,26 +801,34 @@ class CacheHolder(object):
 
     def __init__(self, num_flags):
         self._invalid_cache_state = all_unknown(num_flags)
-        self.set_cache_state(self._invalid_cache_state)
         self._nonvirt_cache_state = None
+        self.set_cache_state(self._invalid_cache_state)
         self.integers = [0] * num_flags
         self.floats = [0.0] * num_flags
         self.prepare_return() # mainloop not running
 
     def cache_state(self):
+        if not jit.we_are_jitted():
+            assert self._nonvirt_cache_state is None
         return jit.promote(self._virt_cache_state.cs)
 
     def set_cache_state(self, cache_state):
+        if not jit.we_are_jitted():
+            assert self._nonvirt_cache_state is None
         self._virt_cache_state = Virt(cache_state)
 
     def prepare_return(self):
+        if not jit.we_are_jitted():
+            assert self._nonvirt_cache_state is None
         self._nonvirt_cache_state = self.cache_state()
         self._virt_cache_state = None
 
     def reenter(self):
+        if not jit.we_are_jitted():
+            assert self._virt_cache_state is None
         cache_state = self._nonvirt_cache_state
-        self.set_cache_state(cache_state)
         self._nonvirt_cache_state = None
+        self.set_cache_state(cache_state)
         return cache_state
 
     def hide(self):
@@ -691,13 +844,18 @@ class CacheHolder(object):
     def invalidate_all(self):
         self.set_cache_state(self._invalid_cache_state)
 
+    def invalidate_all_outside(self):
+        if not jit.we_are_jitted():
+            assert self._virt_cache_state is None
+        self._nonvirt_cache_state = self._invalid_cache_state
+
     def get_flags(self, mem):
         i = mem._cache_index
         if i == -1:
             return rffi.cast(lltype.Unsigned, mem.pMem.flags)
         state = self.cache_state()
         if state.is_flag_known(i):
-            if not objectmodel.we_are_translated() and mem.pMem:
+            if not jit.we_are_jitted() and mem.pMem:
                 assert state.get_flags(i) == rffi.cast(lltype.Unsigned, mem.pMem.flags)
             return state.get_flags(i)
         flags = rffi.cast(lltype.Unsigned, mem.pMem.flags)
@@ -722,34 +880,9 @@ class CacheHolder(object):
         if needs_write:
             rffi.setintfield(mem.pMem, 'flags', newflags)
         self.set_cache_state(state.change_flags(i, newflags))
-        if not objectmodel.we_are_translated() and mem.pMem:
+        if not jit.we_are_jitted() and mem.pMem:
             assert self.cache_state().get_flags(i) == rffi.cast(lltype.Unsigned, mem.pMem.flags) == newflags
 
-
-
-    def get_r(self, mem):
-        i = mem._cache_index
-        if i == -1:
-            return mem.pMem.r
-        state = self.cache_state()
-        if state.is_r_known(i):
-            if not objectmodel.we_are_translated() and mem.pMem:
-                assert self.floats[i] == mem.pMem.r
-            return self.floats[i]
-        r = mem.pMem.r
-        return r
-        self.floats[i] = r
-        self.set_cache_state(state.add_knowledge(i, STATE_FLOAT_KNOWN))
-        return r
-
-    def set_r(self, mem, r):
-        i = mem._cache_index
-        mem.pMem.r = r
-        if 1:#i == -1:
-            return
-        state = self.cache_state()
-        self.floats[i] = r
-        self.set_cache_state(state.add_knowledge(i, STATE_FLOAT_KNOWN))
 
     def get_u_i(self, mem):
         i = mem._cache_index
@@ -766,6 +899,21 @@ class CacheHolder(object):
         self.set_cache_state(state.add_knowledge(i, STATE_INT_KNOWN))
         return u_i
 
+    def get_u_r(self, mem):
+        i = mem._cache_index
+        if i == -1:
+            return mem.pMem.u.r
+        state = self.cache_state()
+        if state.is_constant_u_r(i):
+            return state.get_constant_u_r(i)
+        if state.is_u_r_known(i):
+            return self.floats[i]
+        u_r = mem.pMem.u.r
+        return u_r
+        self.floats[i] = u_r
+        self.set_cache_state(state.add_knowledge(i, STATE_FLOAT_KNOWN))
+        return u_r
+
     def set_u_i(self, mem, u_i, constant=False):
         i = mem._cache_index
         mem.pMem.u.i = u_i
@@ -773,18 +921,38 @@ class CacheHolder(object):
             return
         state = self.cache_state()
         if not constant:
+            status = (state.cache_states[i] & ~STATE_CONSTANT) & ~STATE_INT_KNOWN
+            self.set_cache_state(state.change_cache_state(i, status))
             return
             self.integers[i] = u_i
-            status = (state.cache_states[i] & ~STATE_CONSTANT) | STATE_INT_KNOWN
-            self.set_cache_state(state.change_cache_state(i, status))
         else:
             self.set_cache_state(state.set_u_i_constant(i, u_i))
+
+    def set_u_r(self, mem, u_r, constant=False):
+        i = mem._cache_index
+        mem.pMem.u.r = u_r
+        if i == -1:
+            return
+        state = self.cache_state()
+        if not constant:
+            status = (state.cache_states[i] & ~STATE_CONSTANT) & ~STATE_FLOAT_KNOWN
+            self.set_cache_state(state.change_cache_state(i, status))
+            return
+            self.floats[i] = u_r
+        else:
+            self.set_cache_state(state.set_u_r_constant(i, u_r))
 
     def is_constant_u_i(self, mem):
         i = mem._cache_index
         if i == -1:
             return False
         return self.cache_state().is_constant_u_i(i)
+
+    def is_constant_u_r(self, mem):
+        i = mem._cache_index
+        if i == -1:
+            return False
+        return self.cache_state().is_constant_u_r(i)
 
 
 STATE_UNKNOWN = 0
@@ -800,25 +968,27 @@ def state_hash(self):
     return self.hash()
 
 class CacheState(object):
-    _immutable_fields_ = ['all_flags[*]', 'cache_states[*]', 'u_i_constants[*]']
+    _immutable_fields_ = ['all_flags[*]', 'cache_states[*]', 'u_i_constants[*]', 'u_r_constants[*]']
     _cache = objectmodel.r_dict(state_eq, state_hash)
 
-    def __init__(self, all_flags, cache_states, u_i_constants):
+    def __init__(self, all_flags, cache_states, u_i_constants, u_r_constants):
         self.all_flags = all_flags
         self.cache_states = cache_states
         self.u_i_constants = u_i_constants
+        self.u_r_constants = u_r_constants
 
     def copy(self):
-        return CacheState(self.all_flags[:], self.cache_states[:], self.u_i_constants[:])
+        return CacheState(self.all_flags[:], self.cache_states[:], self.u_i_constants[:], self.u_r_constants[:])
 
     def repr(self):
-        return "CacheState(%s, %s, %s)" % (self.all_flags, self.cache_states, self.u_i_constants)
+        return "CacheState(%s, %s, %s, %s)" % (self.all_flags, self.cache_states, self.u_i_constants, self.u_r_constants)
     __repr__ = repr
 
     def eq(self, other):
         return (self.all_flags == other.all_flags and
                 self.cache_states == other.cache_states and
-                self.u_i_constants == other.u_i_constants
+                self.u_i_constants == other.u_i_constants and
+                self.u_r_constants == other.u_r_constants
                 )
 
 
@@ -834,6 +1004,9 @@ class CacheState(object):
         for item in self.u_i_constants:
             y = rffi.cast(lltype.Signed, item)
             x = intmask((1000003 * x) ^ y)
+        for item in self.u_r_constants:
+            y = rffi.cast(lltype.Signed, item)
+            x = intmask((1000003 * x) ^ y)
         return x
 
     def unique(self):
@@ -842,6 +1015,7 @@ class CacheState(object):
             assert newself.all_flags == self.all_flags
             assert newself.cache_states == self.cache_states
             assert newself.u_i_constants == self.u_i_constants
+            assert newself.u_r_constants == self.u_r_constants
             return newself
         self._cache[self] = self
         return self
@@ -874,6 +1048,13 @@ class CacheState(object):
         result.u_i_constants[i] = u_i
         return result.unique()
 
+    @jit.elidable_promote('all')
+    def set_u_r_constant(self, i, u_r):
+        self = self.add_knowledge(i, STATE_FLOAT_KNOWN | STATE_CONSTANT)
+        result = self.copy()
+        result.u_r_constants[i] = u_r
+        return result.unique()
+
     def set_unknown(self, i):
         if self.cache_states[i]:
             return self.change_flags(i, 0).change_cache_state(i, STATE_UNKNOWN)
@@ -882,14 +1063,17 @@ class CacheState(object):
     def is_flag_known(self, i):
         return bool(self.cache_states[i] & STATE_FLAG_KNOWN)
 
-    def is_r_known(self, i):
-        return bool(self.cache_states[i] & STATE_FLOAT_KNOWN)
-
     def is_u_i_known(self, i):
         return bool(self.cache_states[i] & STATE_INT_KNOWN)
 
+    def is_u_r_known(self, i):
+        return bool(self.cache_states[i] & STATE_FLOAT_KNOWN)
+
     def is_constant_u_i(self, i):
         return self.is_u_i_known(i) and bool(self.cache_states[i] & STATE_CONSTANT)
+
+    def is_constant_u_r(self, i):
+        return self.is_u_r_known(i) and bool(self.cache_states[i] & STATE_CONSTANT)
 
     def get_flags(self, i):
         assert self.is_flag_known(i)
@@ -899,5 +1083,9 @@ class CacheState(object):
         assert self.is_constant_u_i(i)
         return self.u_i_constants[i]
 
+    def get_constant_u_r(self, i):
+        assert self.is_constant_u_r(i)
+        return self.u_r_constants[i]
+
 def all_unknown(num_flags):
-    return CacheState([0] * num_flags, [0] * num_flags, [0] * num_flags)
+    return CacheState([0] * num_flags, [0] * num_flags, [0] * num_flags, [0] * num_flags)

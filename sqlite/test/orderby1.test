@@ -452,6 +452,48 @@ do_test 4.0 {
   }
 } {1 13 1 14 1 15 1 16}
 
+# No sorting of queries that omit the FROM clause.
+#
+do_execsql_test 5.0 {
+  EXPLAIN QUERY PLAN SELECT 5 ORDER BY 1
+} {}
+do_execsql_test 5.1 {
+  EXPLAIN QUERY PLAN SELECT 5 UNION ALL SELECT 3 ORDER BY 1
+} {~/B-TREE/}
+do_execsql_test 5.2 {
+  SELECT 5 UNION ALL SELECT 3 ORDER BY 1
+} {3 5}
+
+# The following test (originally derived from a single test within fuzz.test)
+# verifies that a PseudoTable cursor is not closed prematurely in a deeply
+# nested query.  This test caused a segfault on 3.8.5 beta.
+#
+do_execsql_test 6.0 {
+  CREATE TABLE abc(a, b, c);
+  INSERT INTO abc VALUES(1, 2, 3);
+  INSERT INTO abc VALUES(4, 5, 6);
+  INSERT INTO abc VALUES(7, 8, 9);
+  SELECT (
+    SELECT 'hardware' FROM ( 
+      SELECT 'software' ORDER BY 'firmware' ASC, 'sportswear' DESC 
+    ) GROUP BY 1 HAVING length(b)
+  )
+  FROM abc;
+} {hardware hardware hardware}
+
+# Here is a test for a query-planner problem reported on the SQLite
+# mailing list on 2014-09-18 by "Merike".  Beginning with version 3.8.0,
+# a separate sort was being used rather than using the single-column
+# index.  This was due to an oversight in the indexMightHelpWithOrderby()
+# routine in where.c.
+#
+do_execsql_test 7.0 {
+  CREATE TABLE t7(a,b);
+  CREATE INDEX t7a ON t7(a);
+  CREATE INDEX t7ab ON t7(a,b);
+  EXPLAIN QUERY PLAN
+  SELECT * FROM t7 WHERE a=?1 ORDER BY rowid;
+} {~/ORDER BY/}
 
 
 finish_test
