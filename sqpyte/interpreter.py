@@ -189,31 +189,38 @@ class Sqlite3Query(object):
         return capi.sqlite3_column_type(self.p, iCol)
 
     def python_sqlite3_column_text(self, iCol):
+        self.invalidate_caches_outside()
         return capi.sqlite3_column_text(self.p, iCol)
 
     def python_sqlite3_column_bytes(self, iCol):
         return capi.sqlite3_column_bytes(self.p, iCol)
 
     def python_sqlite3_column_int64(self, iCol):
+        self.invalidate_caches_outside()
         return capi.sqlite3_column_int64(self.p, iCol)
 
     def python_sqlite3_column_double(self, iCol):
+        self.invalidate_caches_outside()
         return capi.sqlite3_column_double(self.p, iCol)
 
     def python_sqlite3_bind_parameter_count(self):
         return rffi.cast(lltype.Signed, capi.sqlite3_bind_parameter_count(self.p))
 
     def python_sqlite3_bind_int64(self, i, val):
+        self.invalidate_caches_outside()
         return rffi.cast(lltype.Signed, capi.sqlite3_bind_int64(self.p, i, val))
 
     def python_sqlite3_bind_double(self, i, val):
+        self.invalidate_caches_outside()
         return rffi.cast(lltype.Signed, capi.sqlite3_bind_double(self.p, i, val))
 
     def python_sqlite3_bind_null(self, i):
+        self.invalidate_caches_outside()
         return rffi.cast(lltype.Signed, capi.sqlite3_bind_null(self.p, i))
 
     @jit.dont_look_inside
-    def python_sqlite3_bind_text(self, i, s):
+    def python_bind_str(self, i, s):
+        self.invalidate_caches_outside()
         with rffi.scoped_str2charp(s) as charp:
             return rffi.cast(
                 lltype.Signed,
@@ -226,6 +233,9 @@ class Sqlite3Query(object):
     # cache invalidation
     def invalidate_caches(self):
         self.mem_cache.invalidate_all()
+
+    def invalidate_caches_outside(self):
+        self.mem_cache.invalidate_all_outside()
 
     def p1_mutation(self, op):
         i = op.p_Signed(1)
@@ -317,6 +327,7 @@ class Sqlite3Query(object):
         return _cache_safe_opcodes[opcode]
 
     def reset_query(self):
+        self.invalidate_caches_outside()
         capi.sqlite3_reset(self.p)
 
     def python_OP_Init(self, pc, op):

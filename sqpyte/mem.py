@@ -844,6 +844,11 @@ class CacheHolder(object):
     def invalidate_all(self):
         self.set_cache_state(self._invalid_cache_state)
 
+    def invalidate_all_outside(self):
+        if not jit.we_are_jitted():
+            assert self._virt_cache_state is None
+        self._nonvirt_cache_state = self._invalid_cache_state
+
     def get_flags(self, mem):
         i = mem._cache_index
         if i == -1:
