@@ -224,7 +224,6 @@ class Sqlite3Query(object):
 
     # _______________________________________________________________
     # cache invalidation
-    @jit.unroll_safe
     def invalidate_caches(self):
         self.mem_cache.invalidate_all()
 
