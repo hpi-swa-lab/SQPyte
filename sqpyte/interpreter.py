@@ -785,6 +785,7 @@ class Sqlite3Query(object):
                 pc, rc = self.python_OP_Rewind(pc, op)
             elif opcode == CConfig.OP_Transaction:
                 rc = self.python_OP_Transaction(pc, op)
+                jit.promote(rc)
                 if rc == CConfig.SQLITE_BUSY:
                     print 'ERROR: in OP_Transaction SQLITE_BUSY'
                     break
