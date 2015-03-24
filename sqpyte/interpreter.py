@@ -989,6 +989,7 @@ class Op(object):
     def __init__(self, hlquery, pOp, pc):
         self.hlquery = hlquery
         self.pOp = pOp
+        self.pc = pc
 
     @jit.elidable
     def get_opcode(self):
