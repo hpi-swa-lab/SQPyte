@@ -178,6 +178,10 @@ class Sqlite3Query(object):
     def python_sqlite3_data_count(self):
         if rffi.getintfield(self.p, 'pResultSet') == 0:
             return 0
+        return self._nres_column()
+
+    @jit.elidable
+    def _nres_column(self):
         return rffi.getintfield(self.p, 'nResColumn')
 
     def python_sqlite3_column_type(self, iCol):
