@@ -262,6 +262,9 @@ class Mem(object):
         return capi.sqlite3_sqlite3VdbeMemStringify(self.pMem, enc, bForce)
 
     def sqlite3VdbeMemNulTerminate(self):
+        """
+        Make sure the given Mem is \u0000 terminated.
+        """
         if self.get_flags() & CConfig.MEM_Term:
             return 0
         return rffi.cast(
