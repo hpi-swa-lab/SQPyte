@@ -13,8 +13,7 @@ testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test/test.db"
 
 def get_printable_location(pc, rc, self, cache_state):
     op = self._hlops[pc]
-    opcode = op.get_opcode()
-    name = self.get_opcode_str(opcode)
+    name = op.get_opcode_str()
     unsafe = ''
     if not _cache_safe_opcodes[opcode]:
         unsafe = ' UNSAFE'
