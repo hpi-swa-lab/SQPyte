@@ -39,7 +39,7 @@ class Mem(object):
         self.hlquery.mem_cache.set_flags(self, newflags)
 
     def assure_flags(self, newflags):
-        if not objectmodel.we_are_translated():
+        if not jit.we_are_jitted():
             assert self.pMem.flags == newflags
         self.hlquery.mem_cache.assure_flags(self, newflags)
 
@@ -801,26 +801,34 @@ class CacheHolder(object):
 
     def __init__(self, num_flags):
         self._invalid_cache_state = all_unknown(num_flags)
-        self.set_cache_state(self._invalid_cache_state)
         self._nonvirt_cache_state = None
+        self.set_cache_state(self._invalid_cache_state)
         self.integers = [0] * num_flags
         self.floats = [0.0] * num_flags
         self.prepare_return() # mainloop not running
 
     def cache_state(self):
+        if not jit.we_are_jitted():
+            assert self._nonvirt_cache_state is None
         return jit.promote(self._virt_cache_state.cs)
 
     def set_cache_state(self, cache_state):
+        if not jit.we_are_jitted():
+            assert self._nonvirt_cache_state is None
         self._virt_cache_state = Virt(cache_state)
 
     def prepare_return(self):
+        if not jit.we_are_jitted():
+            assert self._nonvirt_cache_state is None
         self._nonvirt_cache_state = self.cache_state()
         self._virt_cache_state = None
 
     def reenter(self):
+        if not jit.we_are_jitted():
+            assert self._virt_cache_state is None
         cache_state = self._nonvirt_cache_state
-        self.set_cache_state(cache_state)
         self._nonvirt_cache_state = None
+        self.set_cache_state(cache_state)
         return cache_state
 
     def hide(self):
@@ -842,7 +850,7 @@ class CacheHolder(object):
             return rffi.cast(lltype.Unsigned, mem.pMem.flags)
         state = self.cache_state()
         if state.is_flag_known(i):
-            if not objectmodel.we_are_translated() and mem.pMem:
+            if not jit.we_are_jitted() and mem.pMem:
                 assert state.get_flags(i) == rffi.cast(lltype.Unsigned, mem.pMem.flags)
             return state.get_flags(i)
         flags = rffi.cast(lltype.Unsigned, mem.pMem.flags)
@@ -867,7 +875,7 @@ class CacheHolder(object):
         if needs_write:
             rffi.setintfield(mem.pMem, 'flags', newflags)
         self.set_cache_state(state.change_flags(i, newflags))
-        if not objectmodel.we_are_translated() and mem.pMem:
+        if not jit.we_are_jitted() and mem.pMem:
             assert self.cache_state().get_flags(i) == rffi.cast(lltype.Unsigned, mem.pMem.flags) == newflags
 
 
