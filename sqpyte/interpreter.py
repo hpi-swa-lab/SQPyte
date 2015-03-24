@@ -157,7 +157,7 @@ class Sqlite3Query(object):
         nVar = rffi.getintfield(self.p, 'nVar')
         self._var_as_python_list = [Mem(self, self.p.aVar[i], i + nMem + 1)
                 for i in range(nVar)]
-        self._hlops = [Op(self, self.p.aOp[i]) for i in range(self.p.nOp)]
+        self._hlops = [Op(self, self.p.aOp[i], i) for i in range(self.p.nOp)]
         self.init_mem_cache()
 
     def init_mem_cache(self):
@@ -984,9 +984,9 @@ class Sqlite3Query(object):
         return rc
 
 class Op(object):
-    _immutable_fields_ = ['hlquery', 'pOp']
+    _immutable_fields_ = ['hlquery', 'pOp', 'pc']
 
-    def __init__(self, hlquery, pOp):
+    def __init__(self, hlquery, pOp, pc):
         self.hlquery = hlquery
         self.pOp = pOp
 
