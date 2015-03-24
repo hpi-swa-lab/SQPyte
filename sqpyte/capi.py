@@ -65,7 +65,8 @@ sqlite_codes = ['SQLITE_NULLEQ', 'SQLITE_JUMPIFNULL', 'SQLITE_STOREP2', 'SQLITE_
 mem_codes = ['SQLITE_STATIC', 'SQLITE_TRANSIENT']
 affinity_codes = ['SQLITE_AFF_TEXT', 'SQLITE_AFF_NONE', 'SQLITE_AFF_INTEGER', 'SQLITE_AFF_REAL', 'SQLITE_AFF_NUMERIC']
 btree_values = ['BTCURSOR_MAX_DEPTH', 'BTREE_BULKLOAD']
-other_constants = ['SQLITE_MAX_VARIABLE_NUMBER', 'CACHE_STALE', 'SQLITE_LIMIT_LENGTH', 'CURSOR_VALID']
+other_constants = ['SQLITE_MAX_VARIABLE_NUMBER', 'CACHE_STALE', 'SQLITE_LIMIT_LENGTH', 'CURSOR_VALID', 'SAVEPOINT_RELEASE',
+                   'SQLITE_STMTSTATUS_VM_STEP']
 encodings = ['SQLITE_UTF8']
 memValues = ['MEM_Null', 'MEM_Real', 'MEM_Cleared', 'MEM_TypeMask', 'MEM_Zero',
              'MEM_Int', 'MEM_Str', 'MEM_RowSet', 'MEM_Blob', 'MEM_Agg',
@@ -835,6 +836,8 @@ sqlite3VdbeChangeEncoding = llexternal('sqlite3VdbeChangeEncoding', [MEMP, rffi.
     rffi.INT)
 sqlite3VdbeMemTooBig = llexternal('sqlite3VdbeMemTooBig', [MEMP],
     rffi.INT)
+sqlite3VdbeCheckFk = llexternal('sqlite3VdbeCheckFk', [VDBEP, rffi.INT], rffi.INT)
+sqlite3VdbeCloseStatement = llexternal('sqlite3VdbeCloseStatement', [VDBEP, rffi.INT], rffi.INT)
 
 # (char **, sqlite3*, const char*, ...);
 sqlite3SetString1 = llexternal('sqlite3SetString', [rffi.CCHARPP, SQLITE3P, rffi.CCHARP, rffi.VOIDP],
@@ -881,3 +884,5 @@ sqlite3_bind_null = llexternal('sqlite3_bind_null', [VDBEP, rffi.INT], rffi.INT)
 
 
 valueToText = llexternal('valueToText', [MEMP, CConfig.u8], rffi.VOIDP)
+_sqpyte_get_lastRowid = llexternal('_sqpyte_get_lastRowid', [], CConfig.i64)
+sqlite3VdbeLeave = llexternal('sqlite3VdbeLeave', [VDBEP], lltype.Void)

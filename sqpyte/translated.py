@@ -221,11 +221,11 @@ def sqlite3BtreePrevious(hlquery, pCur, pRes):
     return rc, retRes
 
 @jit.dont_look_inside
-def _increase_counter_hidden_from_jit(p, p5):
+def _increase_counter_hidden_from_jit(p, counter_num, increase=1):
     # the JIT can't deal with FixedSizeArrays
-    aCounterValue = rffi.cast(lltype.Unsigned, p.aCounter[p5])
-    aCounterValue += 1
-    p.aCounter[p5] = rffi.cast(rffi.UINT, aCounterValue)
+    aCounterValue = rffi.cast(lltype.Unsigned, p.aCounter[counter_num])
+    aCounterValue += increase
+    p.aCounter[counter_num] = rffi.cast(rffi.UINT, aCounterValue)
 
 def python_OP_Next_translated(hlquery, pc, op):
     p = hlquery.p
@@ -2080,3 +2080,102 @@ def python_OP_Variable(hlquery, pc, rc, op):
     pOut = op.mem_of_p(2)
     pOut.sqlite3VdbeMemShallowCopy(pVar, CConfig.MEM_Static)
     return rc
+
+
+# Opcode: ResultRow P1 P2 * * *
+# Synopsis:  output=r[P1@P2]
+#
+# The registers P1 through P1+P2-1 contain a single row of
+# results. This opcode causes the sqlite3_step() call to terminate
+# with an SQLITE_ROW return code and it sets up the sqlite3_stmt
+# structure to provide access to the r(P1)..r(P1+P2-1) values as
+# the result row.
+
+def python_OP_ResultRow(hlquery, pc, op):
+    p = hlquery.p
+    db = hlquery.db
+    assert rffi.getintfield(p, 'nResColumn') == op.p_Signed(2)
+
+#ifndef SQLITE_OMIT_PROGRESS_CALLBACK
+#  /* Run the progress counter just before returning.
+#  */
+#  if( db->xProgress!=0
+#   && nVmStep>=nProgressLimit
+#   && db->xProgress(db->pProgressArg)!=0
+#  ){
+#    rc = SQLITE_INTERRUPT;
+#    // goto vdbe_error_halt;
+#    rc = gotoVdbeErrorHalt(p, db, (int)pc, rc);
+#    return (long)rc;
+#  }
+#endif
+
+    # If this statement has violated immediate foreign key constraints, do
+    # not return the number of rows modified. And do not RELEASE the statement
+    # transaction. It needs to be rolled back.
+    rc = capi.sqlite3VdbeCheckFk(p, 0)
+    if rc != CConfig.SQLITE_OK:
+        #assert( db->flags&SQLITE_CountRows );
+        #assert( p->usesStmtJournal );
+        #// break;
+        return rc
+
+    # If the SQLITE_CountRows flag is set in sqlite3.flags mask, then
+    # DML statements invoke this opcode to return the number of rows
+    # modified to the user. This is the only way that a VM that
+    # opens a statement transaction may invoke this opcode.
+    #
+    # In case this is such a statement, close any statement transaction
+    # opened by this VM before returning control to the user. This is to
+    # ensure that statement-transactions are always nested, not overlapping.
+    # If the open statement-transaction is not closed here, then the user
+    # may step another VM that opens its own statement transaction. This
+    # may lead to overlapping statement transactions.
+    #
+    # The statement transaction is never a top-level transaction.  Hence
+    # the RELEASE call below can never fail.
+
+    #assert( p->iStatement==0 || db->flags&SQLITE_CountRows );
+    rc = capi.sqlite3VdbeCloseStatement(p, CConfig.SAVEPOINT_RELEASE)
+    if rc != CConfig.SQLITE_OK:
+        return rc
+
+    # Invalidate all ephemeral cursor row caches
+    rffi.setintfield(p, 'cacheCtr', (rffi.getintfield(p, 'cacheCtr') + 2) | 1)
+
+    # Make sure the results of the current row are \000 terminated
+    # and have an assigned type.  The results are de-ephemeralized as
+    # a side effect.
+    result_set = op.mem_of_p(1)
+    p.pResultSet = rffi.cast(lltype.typeOf(p.pResultSet), result_set.pMem)
+    #pMem = p->pResultSet = &aMem[pOp->p1];
+    for i in range(op.p_Signed(2)):
+        pMem = hlquery.mem_with_index(op.p_Signed(1) + i)
+        assert pMem.memIsValid()
+        # Translated Deephemeralize(&pMem[i]);
+        if pMem.get_flags() & CConfig.MEM_Ephem and pMem.sqlite3VdbeMemMakeWriteable():
+            # goto no_mem
+            print "In python_OP_ResultRow(): no_mem."
+            return hlquery.gotoNoMem(pc)
+
+        #assert( (pMem[i].flags & MEM_Ephem)==0
+        #        || (pMem[i].flags & (MEM_Str|MEM_Blob))==0 );
+        pMem.sqlite3VdbeMemNulTerminate()
+        #REGISTER_TRACE(pOp->p1+i, &pMem[i]);
+    if rffi.cast(lltype.Bool, db.mallocFailed):
+        # goto no_mem;
+        print "In python_OP_ResultRow(): no_mem."
+        return hlquery.gotoNoMem(pc)
+
+    # Return SQLITE_ROW
+    rffi.setintfield(p, 'pc', pc + 1)
+    rc = CConfig.SQLITE_ROW
+    # Translated: goto vdbe_return;
+    db.lastRowid = capi._sqpyte_get_lastRowid()
+    # testcase( nVmStep>0 );
+    # XXX right now we don't count nVmStep correctly
+    _increase_counter_hidden_from_jit(p, CConfig.SQLITE_STMTSTATUS_VM_STEP, 5)
+    #p->aCounter[SQLITE_STMTSTATUS_VM_STEP] += (int)nVmStep;
+    capi.sqlite3VdbeLeave(p)
+    return rc
+

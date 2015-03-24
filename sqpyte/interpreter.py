@@ -228,7 +228,6 @@ class Sqlite3Query(object):
                     self.p, i, charp, len(s),
                     rffi.cast(rffi.VOIDP, CConfig.SQLITE_TRANSIENT)))
 
-
     # _______________________________________________________________
     # cache invalidation
     def invalidate_caches(self):
@@ -366,8 +365,9 @@ class Sqlite3Query(object):
     def python_OP_Column(self, pc, op):
         return translated.python_OP_Column(self, pc, op)
 
-    @cache_safe(mutates="p1@p2")
+    @cache_safe()
     def python_OP_ResultRow(self, pc, op):
+        return translated.python_OP_ResultRow(self, pc, op)
         return capi.impl_OP_ResultRow(self.p, self.db, pc, op.pOp)
 
     @cache_safe()

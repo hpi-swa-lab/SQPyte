@@ -1,6 +1,7 @@
 
 #include <assert.h>
 
+// these globals are safe because sqpyte is single-threaded
 i64 lastRowid;
 unsigned nVmStep = 0;      /* Number of virtual machine steps */
 u8 resetSchemaOnFault = 0; /* Reset schema after an error if positive */
@@ -8,6 +9,10 @@ u8 resetSchemaOnFault = 0; /* Reset schema after an error if positive */
 unsigned nProgressLimit = 0;/* Invoke xProgress() when nVmStep reaches this */
 #endif
 int iCompare = 0;          /* Result of last OP_Compare operation */
+
+i64 _sqpyte_get_lastRowid() {
+    return lastRowid;
+}
 
 int gotoVdbeErrorHalt(Vdbe *p, sqlite3 *db, int pc, int rc) {
   // vdbe_error_halt:
