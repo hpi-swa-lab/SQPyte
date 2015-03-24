@@ -15,6 +15,7 @@ def get_printable_location(pc, rc, self, cache_state):
     op = self._hlops[pc]
     name = op.get_opcode_str()
     unsafe = ''
+    opcode = op.get_opcode()
     if not _cache_safe_opcodes[opcode]:
         unsafe = ' UNSAFE'
     return "%s %s %s %s %s" % (pc, rc, name, cache_state.repr(), unsafe)
