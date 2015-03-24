@@ -650,7 +650,8 @@ class Sqlite3Query(object):
 
 
     def debug_print(self, s):
-        return
+        if objectmodel.we_are_translated():
+            return
         if not jit.we_are_jitted():
             print s
 
