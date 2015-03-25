@@ -7,7 +7,7 @@ def get_data(filename):
         reader = csv.reader(csvfile, delimiter=',')
         ret = []
         for row in reader:
-            ret.append(row)
+            ret.append([float(e) for e in row])
     return ret
 
 def process_data(data):
@@ -156,6 +156,7 @@ def create_warmup_line_plot(series, queryNum, outfile):
 
     # define plot size in inches (width, height) & resolution(DPI)
     fig, ax = plt.subplots(1)
+    plt.ylim(0, max(series) + 0.4)
 
     # define font size
     plt.rc("font", size=9)
@@ -211,7 +212,7 @@ def run(argv):
                 print "Error: '%s' is not a valid query number.%s" % (argv[2], usageMsg)
                 return 1
             series4 = get_data(argv[3])
-            create_warmup_line_plot(series4[0], queryNum, outfile)
+            create_warmup_line_plot(series4[queryNum - 1], queryNum, outfile)
         elif argv[1] == '-a':
             data1 = get_data(argv[2])
             data2 = get_data(argv[3])

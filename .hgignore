@@ -205,6 +205,9 @@ sqlite/tsrc/wal.h
 sqlite/tsrc/walker.c
 sqlite/tsrc/where.c
 sqlite/tsrc/whereInt.h
+sqlite/tsrc/msvc.h
+sqlite/tsrc/threads.c
+
 
 sqlite/config.h
 sqlite/lemon.dSYM

@@ -3065,7 +3065,7 @@ static int fts3PromoteSegments(
     sqlite3_bind_int64(pRange, 1, iAbsLevel+1);
     sqlite3_bind_int64(pRange, 2, iLast);
     while( SQLITE_ROW==sqlite3_step(pRange) ){
-      i64 nSize, dummy;
+      i64 nSize = 0, dummy;
       fts3ReadEndBlockField(pRange, 2, &dummy, &nSize);
       if( nSize<=0 || nSize>nLimit ){
         /* If nSize==0, then the %_segdir.end_block field does not not 
@@ -3082,8 +3082,8 @@ static int fts3PromoteSegments(
 
     if( bOk ){
       int iIdx = 0;
-      sqlite3_stmt *pUpdate1;
-      sqlite3_stmt *pUpdate2;
+      sqlite3_stmt *pUpdate1 = 0;
+      sqlite3_stmt *pUpdate2 = 0;
 
       if( rc==SQLITE_OK ){
         rc = fts3SqlStmt(p, SQL_UPDATE_LEVEL_IDX, &pUpdate1, 0);
@@ -4870,7 +4870,7 @@ int sqlite3Fts3Incrmerge(Fts3Table *p, int nMerge, int nMin){
       rc = fts3IncrmergeOutputIdx(p, iAbsLevel, &iIdx);
       assert( bUseHint==1 || bUseHint==0 );
       if( iIdx==0 || (bUseHint && iIdx==1) ){
-        int bIgnore;
+        int bIgnore = 0;
         rc = fts3SegmentIsMaxLevel(p, iAbsLevel+1, &bIgnore);
         if( bIgnore ){
           pFilter->flags |= FTS3_SEGMENT_IGNORE_EMPTY;
@@ -5174,34 +5174,36 @@ static int fts3IntegrityCheck(Fts3Table *p, int *pbOk){
       int iCol;
 
       for(iCol=0; rc==SQLITE_OK && iCol<p->nColumn; iCol++){
-        const char *zText = (const char *)sqlite3_column_text(pStmt, iCol+1);
-        int nText = sqlite3_column_bytes(pStmt, iCol+1);
-        sqlite3_tokenizer_cursor *pT = 0;
+        if( p->abNotindexed[iCol]==0 ){
+          const char *zText = (const char *)sqlite3_column_text(pStmt, iCol+1);
+          int nText = sqlite3_column_bytes(pStmt, iCol+1);
+          sqlite3_tokenizer_cursor *pT = 0;
 
-        rc = sqlite3Fts3OpenTokenizer(p->pTokenizer, iLang, zText, nText, &pT);
-        while( rc==SQLITE_OK ){
-          char const *zToken;       /* Buffer containing token */
-          int nToken = 0;           /* Number of bytes in token */
-          int iDum1 = 0, iDum2 = 0; /* Dummy variables */
-          int iPos = 0;             /* Position of token in zText */
+          rc = sqlite3Fts3OpenTokenizer(p->pTokenizer, iLang, zText, nText,&pT);
+          while( rc==SQLITE_OK ){
+            char const *zToken;       /* Buffer containing token */
+            int nToken = 0;           /* Number of bytes in token */
+            int iDum1 = 0, iDum2 = 0; /* Dummy variables */
+            int iPos = 0;             /* Position of token in zText */
 
-          rc = pModule->xNext(pT, &zToken, &nToken, &iDum1, &iDum2, &iPos);
-          if( rc==SQLITE_OK ){
-            int i;
-            cksum2 = cksum2 ^ fts3ChecksumEntry(
-                zToken, nToken, iLang, 0, iDocid, iCol, iPos
-            );
-            for(i=1; i<p->nIndex; i++){
-              if( p->aIndex[i].nPrefix<=nToken ){
-                cksum2 = cksum2 ^ fts3ChecksumEntry(
-                  zToken, p->aIndex[i].nPrefix, iLang, i, iDocid, iCol, iPos
-                );
+            rc = pModule->xNext(pT, &zToken, &nToken, &iDum1, &iDum2, &iPos);
+            if( rc==SQLITE_OK ){
+              int i;
+              cksum2 = cksum2 ^ fts3ChecksumEntry(
+                  zToken, nToken, iLang, 0, iDocid, iCol, iPos
+              );
+              for(i=1; i<p->nIndex; i++){
+                if( p->aIndex[i].nPrefix<=nToken ){
+                  cksum2 = cksum2 ^ fts3ChecksumEntry(
+                      zToken, p->aIndex[i].nPrefix, iLang, i, iDocid, iCol, iPos
+                  );
+                }
               }
             }
           }
+          if( pT ) pModule->xClose(pT);
+          if( rc==SQLITE_DONE ) rc = SQLITE_OK;
         }
-        if( pT ) pModule->xClose(pT);
-        if( rc==SQLITE_DONE ) rc = SQLITE_OK;
       }
     }
 
