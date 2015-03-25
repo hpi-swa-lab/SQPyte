@@ -14,6 +14,43 @@ class Mem(object):
         self._cache_index = _cache_index
         self._python_ctx = None
 
+    def _debug_print(self):
+        flags = self.get_flags()
+        if flags & CConfig.MEM_Undefined:
+            print "undefined"
+        elif flags & CConfig.MEM_Null:
+            print "NULL"
+        elif flags & (CConfig.MEM_Int|CConfig.MEM_Str) == (CConfig.MEM_Int|CConfig.MEM_Str):
+            print "si:%s" % self.get_u_i()
+        elif flags & CConfig.MEM_Int:
+            print "i:%s" % self.get_u_i()
+        elif flags & (CConfig.MEM_Real|CConfig.MEM_Str) == (CConfig.MEM_Real|CConfig.MEM_Str):
+            print "sr:%s" % self.get_u_r()
+        elif flags & CConfig.MEM_Real:
+            print "r:%s" % self.get_u_r()
+        elif flags & CConfig.MEM_RowSet:
+            print "(rowset)"
+        else:
+            result = []
+            if flags & CConfig.MEM_Dyn:
+                result.append('z')
+            elif flags & CConfig.MEM_Static:
+                result.append('t')
+            elif flags & CConfig.MEM_Ephem:
+                result.append('e')
+            else:
+                result.append('s')
+            result.append(str(self.get_n()))
+            result.append('[')
+            z = self.get_z()
+            for i in range(0, self.get_n()):
+                c = z[i]
+                result.append(c)
+            result.append(']')
+            if self.get_enc_signed() & CConfig.SQLITE_UTF8:
+                result.append('(8)')
+            print ''.join(result)
+
     def invalidate_cache(self):
         if self._cache_index != -1:
             self.hlquery.mem_cache.invalidate(self._cache_index)
