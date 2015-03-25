@@ -210,6 +210,7 @@ class Mem(object):
             self.set_flags(flags)
             self.applyAffinity(CConfig.SQLITE_AFF_TEXT, encoding);
             assert self.get_flags() & CConfig.MEM_Str or rffi.getintfield(self.pMem.db, 'mallocFailed')
+            flags = self.get_flags()
             flags &= ~(CConfig.MEM_Int|CConfig.MEM_Real|CConfig.MEM_Blob|CConfig.MEM_Zero)
             self.set_flags(flags)
         else:
