@@ -711,6 +711,7 @@ class Sqlite3Query(object):
                 mutates="p2")
     def python_OP_RowKey_RowData(self, pc, rc, op):
         rc = capi.impl_OP_RowKey_RowData(self.p, self.db, pc, rc, op.pOp)
+        # this always returns a blob
         return rc
 
     def python_OP_Blob(self, op):
