@@ -308,7 +308,7 @@ def test_argument():
     assert count == 22
 
     query = db.execute('select age from contacts where name = ?;')
-    query.python_sqlite3_bind_text(1, 'Dean Shepherd')
+    query.python_bind_str(1, 'Dean Shepherd')
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
     assert query.python_sqlite3_column_int64(0) == 31
