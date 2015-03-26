@@ -76,7 +76,8 @@ class RPyFunc(AbstractFunc):
     @jit.unroll_safe
     def call_in_python(self, hlquery, op, index, numargs, memout):
         args = [hlquery.mem_with_index(index + i) for i in range(numargs)]
-        self.rpyfunc(hlquery, args, memout)
+        self.rpyfunc(self, args, memout)
+
 
 class RPyAggregate(AbstractFunc):
     _immutable_fields_ = ["pfunc", "name", "nArg", "contextcls"]
