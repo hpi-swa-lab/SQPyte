@@ -7,35 +7,23 @@ from rpython.rtyper.lltypesystem import lltype
 class FunctionError(interpreter.SQPyteException):
     pass
 
-class Func(object):
-    _immutable_fields_ = ["pfunc", "name", "nArg", "contextcls"]
+class AbstractFunc(object):
+    _immutable_fields_ = ["name", "nArg"]
 
-    def __init__(self, name, narg, contextcls=None):
+    def __init__(self, name, narg):
         # will be set before first use
-        self.pfunc = lltype.nullptr(capi.FUNCDEFP.TO)
         self.name = name
         self.nArg = narg
-        assert not isinstance(contextcls, int)
-        self.contextcls = contextcls
-
-    def apArg(self):
-        return self.pfunc.apArg
 
     @jit.elidable
-    def exists_in_python(self):
+    def agg_exists_in_python(self):
         return self.python_context_class() is not Context
 
-    @jit.elidable
+    def func_exists_in_python(self):
+        return False
+
     def python_context_class(self):
-        if self.contextcls is not None:
-            return self.contextcls
-        if self.name == "count":
-            return CountCtx
-        if self.name == "sum" and self.nArg == 1:
-            return SumCtx
-        if self.name == "avg" and self.nArg == 1:
-            return AvgCtx
-        return Context
+        return None
 
     @jit.unroll_safe
     def aggstep_in_python(self, hlquery, op, index, numargs):
@@ -52,20 +40,77 @@ class Func(object):
         memout._python_ctx = None
         return 0
 
+    def call_in_python(self, hlquery, op, index, numargs, memout):
+        raise NotImplementedError("abstract base class")
+
+
+class CFunc(AbstractFunc):
+    def __init__(self, name, narg, pfunc):
+        AbstractFunc.__init__(self, name, narg)
+        self.pfunc = pfunc
+
+    def apArg(self):
+        return self.pfunc.apArg
+
+    @jit.elidable
+    def python_context_class(self):
+        if self.name == "count":
+            return CountCtx
+        if self.name == "sum" and self.nArg == 1:
+            return SumCtx
+        if self.name == "avg" and self.nArg == 1:
+            return AvgCtx
+        return Context
+
+
+class RPyFunc(AbstractFunc):
+    _immutable_fields_ = ["callable"]
+
+    def __init__(self, name, narg, callable):
+        AbstractFunc.__init__(self, name, narg)
+        self.rpyfunc = callable
+
+    def func_exists_in_python(self):
+        return True
+
+    @jit.unroll_safe
+    def call_in_python(self, hlquery, op, index, numargs, memout):
+        args = [hlquery.mem_with_index(index + i) for i in range(numargs)]
+        self.rpyfunc(hlquery, args, memout)
+
+class RPyAggregate(AbstractFunc):
+    _immutable_fields_ = ["pfunc", "name", "nArg", "contextcls"]
+
+    def __init__(self, name, narg, contextcls):
+        AbstractFunc.__init__(self, name, narg)
+        assert not isinstance(contextcls, int)
+        self.contextcls = contextcls
+
+    @jit.elidable
+    def python_context_class(self):
+        return self.contextcls
+
 
 class FuncRegistry(object):
 
     def __init__(self):
-        self.aggregates = {}
+        self.funcdict = {}
         self.funcs = [None] # dummy func
 
-    def create_aggregate(self, name, numargs, contextcls):
-        func = Func(name, numargs, contextcls)
+    def _register_func(self, name, numargs, func):
         key = name, numargs
-        assert key not in self.aggregates
-        self.aggregates[key] = contextcls
+        assert key not in self.funcdict
+        self.funcdict[key] = None
         self.funcs.append(func)
-        return len(self.aggregates), func
+        return len(self.funcdict), func
+
+    def create_aggregate(self, name, numargs, contextcls):
+        func = RPyAggregate(name, numargs, contextcls)
+        return self._register_func(name, numargs, func)
+
+    def create_function(self, name, numargs, callable):
+        func = RPyFunc(name, numargs, callable)
+        return self._register_func(name, numargs, func)
 
     def get_func(self, pfunc):
         step_as_int = rffi.cast(lltype.Signed, pfunc.xStep)
@@ -73,14 +118,20 @@ class FuncRegistry(object):
             assert rffi.cast(lltype.Signed, pfunc.xFinalize) == 1
             index = rffi.cast(lltype.Signed, pfunc.pUserData)
             func = self.funcs[index]
-            if func and not func.pfunc:
-                func.pfunc = pfunc
+            assert isinstance(func, RPyAggregate)
+            return func
+        func_as_int = rffi.cast(lltype.Signed, pfunc.xFunc)
+        if func_as_int == 1: # an rpython-defined function
+            assert step_as_int == 0
+            assert rffi.cast(lltype.Signed, pfunc.xFinalize) == 0
+            index = rffi.cast(lltype.Signed, pfunc.pUserData)
+            func = self.funcs[index]
+            assert isinstance(func, RPyFunc)
             return func
         # XXX what here?
         name = rffi.charp2str(pfunc.zName)
         nArg = rffi.cast(lltype.Signed, pfunc.nArg)
-        func = Func(name, nArg)
-        func.pfunc = pfunc
+        func = CFunc(name, nArg, pfunc)
         return func
 
 def aggregate_context(mem, cls, func):

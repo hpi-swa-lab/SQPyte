@@ -5,11 +5,11 @@ from sqpyte import function
 from sqpyte.capi import CConfig
 from sqpyte import capi
 import os, sys
+import math
 
 testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test.db")
 
-def test_create_function():
-    pytest.skip("fixme")
+def test_create_aggregate():
     class MyContext(function.Context):
         def __init__(self, pfunc):
             self.pfunc = pfunc
@@ -28,6 +28,21 @@ def test_create_function():
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
     assert query.python_sqlite3_column_int64(0) == query.python_sqlite3_column_int64(1)
+
+def test_create_function():
+    def sin(func, args, result):
+        arg, = args
+        arg = arg.sqlite3_value_double()
+        result.sqlite3_result_double(math.sin(arg))
+
+    db = Sqlite3DB(testdb)
+    db.create_function("sin", 1, sin)
+    query = db.execute('select sin(age), age from contacts;')
+    while True:
+        rc = query.mainloop()
+        if rc != CConfig.SQLITE_ROW:
+            break
+        assert query.python_sqlite3_column_double(0) == math.sin(query.python_sqlite3_column_double(1))
 
 def test_sum():
     db = Sqlite3DB(testdb)
