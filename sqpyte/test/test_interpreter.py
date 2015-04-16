@@ -321,6 +321,9 @@ def test_create_table_and_insert():
     query = db.execute('insert into cos values (0, 1)')
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_DONE
+    query = db.execute('delete from cos;')
+    rc = query.mainloop()
+    assert rc == CConfig.SQLITE_DONE
 
 def test_disable_cache():
     db = Sqlite3DB(testdb)

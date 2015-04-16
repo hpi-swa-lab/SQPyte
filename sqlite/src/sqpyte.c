@@ -4543,3 +4543,43 @@ long impl_OP_CreateIndex_CreateTable(Vdbe* p, sqlite3 *db, long rc, Op *pOp) {
   pOut->u.i = pgno;
   return (long)rc;
 }
+
+
+/* Opcode: Clear P1 P2 P3
+**
+** Delete all contents of the database table or index whose root page
+** in the database file is given by P1.  But, unlike Destroy, do not
+** remove the table or index from the database file.
+**
+** The table being clear is in the main database file if P2==0.  If
+** P2==1 then the table to be clear is in the auxiliary database file
+** that is used to store tables create using CREATE TEMPORARY TABLE.
+**
+** If the P3 value is non-zero, then the table referred to must be an
+** intkey table (an SQL table, not an index). In this case the row change 
+** count is incremented by the number of rows in the table being cleared. 
+** If P3 is greater than zero, then the value stored in register P3 is
+** also incremented by the number of rows in the table being cleared.
+**
+** See also: Destroy
+*/
+long impl_OP_Clear(Vdbe* p, sqlite3 *db, long rc, Op *pOp) {
+  int nChange;
+  Mem *aMem = p->aMem;       /* Copy of p->aMem */
+ 
+  nChange = 0;
+  assert( p->readOnly==0 );
+  assert( DbMaskTest(p->btreeMask, pOp->p2) );
+  rc = sqlite3BtreeClearTable(
+      db->aDb[pOp->p2].pBt, pOp->p1, (pOp->p3 ? &nChange : 0)
+  );
+  if( pOp->p3 ){
+    p->nChange += nChange;
+    if( pOp->p3>0 ){
+      assert( memIsValid(&aMem[pOp->p3]) );
+      memAboutToChange(p, &aMem[pOp->p3]);
+      aMem[pOp->p3].u.i += nChange;
+    }
+  }
+  return rc;
+}

@@ -809,6 +809,9 @@ class Sqlite3Query(object):
     def python_OP_CreateTable_CreateIndex(self, rc, op):
         return capi.impl_OP_CreateIndex_CreateTable(self.p, self.db, rc, op.pOp)
 
+    def python_OP_Clear(self, rc, op):
+        return capi.impl_OP_Clear(self.p, self.db, rc, op.pOp)
+
     def debug_print(self, pc, op):
         if objectmodel.we_are_translated():
             return
@@ -1061,6 +1064,8 @@ class Sqlite3Query(object):
                 rc = self.python_OP_Variable(pc, rc, op)
             elif opcode == CConfig.OP_CreateTable or opcode == CConfig.OP_CreateIndex:
                 rc = self.python_OP_CreateTable_CreateIndex(rc, op)
+            elif opcode == CConfig.OP_Clear:
+                rc = self.python_OP_Clear(rc, op)
             else:
                 raise SQPyteException("SQPyteException: Unimplemented bytecode %s." % opcode)
             pc = jit.promote(rffi.cast(lltype.Signed, pc))
