@@ -51,8 +51,8 @@ class Sqlite3DB(object):
             assert errorcode == 0
             self.db = rffi.cast(capi.SQLITE3P, result[0])
 
-    def execute(self, sql):
-        return Sqlite3Query(self, sql)
+    def execute(self, sql, use_flag_cache=True):
+        return Sqlite3Query(self, sql, use_flag_cache)
 
     def close(self):
         if self.db:
@@ -135,14 +135,14 @@ class Sqlite3Query(object):
                           '_llmem_as_python_list[*]', 'intp', 'longp',
                           'unpackedrecordp', '_hlops[*]', 'mem_cache']
 
-    def __init__(self, hldb, query):
+    def __init__(self, hldb, query, use_flag_cache=True):
         self.hldb = hldb
         self.db = hldb.db
         self.internalPc = lltype.malloc(rffi.LONGP.TO, 1, flavor='raw')
         self.unpackedrecordp = lltype.malloc(capi.UNPACKEDRECORD, flavor='raw')
         self.intp = lltype.malloc(rffi.INTP.TO, 1, flavor='raw')
         self.longp = lltype.malloc(rffi.LONGP.TO, 1, flavor='raw')
-        self.prepare(query)
+        self.prepare(query, use_flag_cache)
         self.iCompare = 0
         self.result_set_index = -1
 
@@ -158,16 +158,16 @@ class Sqlite3Query(object):
         self.close()
 
 
-    def prepare(self, query):
+    def prepare(self, query, use_flag_cache):
         length = len(query)
         with rffi.scoped_str2charp(query) as query, lltype.scoped_alloc(rffi.VOIDPP.TO, 1) as result, lltype.scoped_alloc(rffi.CCHARPP.TO, 1) as unused_buffer:
             errorcode = capi.sqlite3_prepare_v2(rffi.cast(rffi.VOIDP, self.db), query, length, result, unused_buffer)
             if not errorcode == 0:
                 raise SqliteException(errorcode, rffi.charp2str(capi.sqlite3_errmsg(self.db)))
             self.p = rffi.cast(capi.VDBEP, result[0])
-        self._init_python_data()
+        self._init_python_data(use_flag_cache)
 
-    def _init_python_data(self):
+    def _init_python_data(self, use_flag_cache):
         from sqpyte.mem import Mem
         nMem = rffi.getintfield(self.p, 'nMem')
         self._llmem_as_python_list = [self.p.aMem[i] for i in range(nMem + 1)]
@@ -177,12 +177,12 @@ class Sqlite3Query(object):
         self._var_as_python_list = [Mem(self, self.p.aVar[i], i + nMem + 1)
                 for i in range(nVar)]
         self._hlops = [Op(self, self.p.aOp[i], i) for i in range(self.p.nOp)]
-        self.init_mem_cache()
+        self.init_mem_cache(use_flag_cache)
 
-    def init_mem_cache(self):
+    def init_mem_cache(self, use_flag_cache):
         from sqpyte.mem import CacheHolder
         self.mem_cache = CacheHolder(len(self._mem_as_python_list) +
-                len(self._var_as_python_list))
+                len(self._var_as_python_list), use_flag_cache)
 
     def check_cache_consistency(self):
         if objectmodel.we_are_translated():
@@ -865,9 +865,7 @@ class Sqlite3Query(object):
             op = self._hlops[pc]
             opcode = op.get_opcode()
             oldpc = pc
-            self.debug_print('%s %s %s %s %s %s' % (
-                pc, op.get_opcode_str(), op.p_Signed(1),
-                op.p_Signed(2), op.p_Signed(3), op.p_Signed(5)))
+            self.debug_print(pc, op)
 
             opflags = op.opflags()
             if opflags & CConfig.OPFLG_OUT2_PRERELEASE:

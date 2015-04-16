@@ -850,14 +850,15 @@ class Virt(object):
         self.cs = cs
 
 class CacheHolder(object):
-    _immutable_fields_ = ['integers', 'floats', '_invalid_cache_state']
+    _immutable_fields_ = ['integers', 'floats', '_invalid_cache_state', 'use_cache']
 
-    def __init__(self, num_flags):
+    def __init__(self, num_flags, use_cache=True):
         self._invalid_cache_state = all_unknown(num_flags)
         self._nonvirt_cache_state = self._invalid_cache_state
         self._virt_cache_state = None
         self.integers = [0] * num_flags
         self.floats = [0.0] * num_flags
+        self.use_cache = use_cache
 
     def cache_state(self):
         if self._virt_cache_state is not None:
@@ -866,6 +867,8 @@ class CacheHolder(object):
             return jit.promote(self._nonvirt_cache_state)
 
     def set_cache_state(self, cache_state):
+        if not self.use_cache:
+            cache_state = self._invalid_cache_state
         if self._virt_cache_state is not None:
             self._virt_cache_state = Virt(cache_state)
         else:
@@ -932,6 +935,8 @@ class CacheHolder(object):
             return
         if needs_write:
             rffi.setintfield(mem.pMem, 'flags', newflags)
+        if not self.use_cache:
+            return
         self.set_cache_state(state.change_flags(i, newflags))
         if not jit.we_are_jitted() and mem.pMem:
             assert self.cache_state().get_flags(i) == rffi.cast(lltype.Unsigned, mem.pMem.flags) == newflags

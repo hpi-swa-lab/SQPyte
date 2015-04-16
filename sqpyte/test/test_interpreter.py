@@ -322,3 +322,12 @@ def test_create_table_and_insert():
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_DONE
 
+def test_disable_cache():
+    db = Sqlite3DB(testdb)
+    query = db.execute('select count(name) from contacts where age > 20;', use_flag_cache=False)
+    rc = query.mainloop()
+    assert rc == CConfig.SQLITE_ROW
+    textlen = query.python_sqlite3_column_bytes(0)
+    count = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), textlen)
+    assert int(count) == 76
+
