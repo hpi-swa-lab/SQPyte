@@ -2097,6 +2097,7 @@ def python_OP_Variable(hlquery, pc, rc, op):
 # structure to provide access to the r(P1)..r(P1+P2-1) values as
 # the result row.
 
+@jit.unroll_safe
 def python_OP_ResultRow(hlquery, pc, op):
     p = hlquery.p
     db = hlquery.db
@@ -2152,6 +2153,8 @@ def python_OP_ResultRow(hlquery, pc, op):
     # Make sure the results of the current row are \000 terminated
     # and have an assigned type.  The results are de-ephemeralized as
     # a side effect.
+    result_set_index = op.p_Signed(1)
+    hlquery.result_set_index = result_set_index
     result_set = op.mem_of_p(1)
     p.pResultSet = rffi.cast(lltype.typeOf(p.pResultSet), result_set.pMem)
     #pMem = p->pResultSet = &aMem[pOp->p1];

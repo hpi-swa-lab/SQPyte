@@ -77,6 +77,7 @@ class RPyFunc(AbstractFunc):
     def call_in_python(self, hlquery, op, index, numargs, memout):
         args = [hlquery.mem_with_index(index + i) for i in range(numargs)]
         self.rpyfunc(self, args, memout)
+        return 0
 
 
 class RPyAggregate(AbstractFunc):

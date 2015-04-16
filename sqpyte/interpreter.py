@@ -144,6 +144,7 @@ class Sqlite3Query(object):
         self.longp = lltype.malloc(rffi.LONGP.TO, 1, flavor='raw')
         self.prepare(query)
         self.iCompare = 0
+        self.result_set_index = -1
 
     def close(self):
         if self.internalPc:
@@ -189,6 +190,59 @@ class Sqlite3Query(object):
         for mem in self._mem_as_python_list:
             mem.check_cache_consistency()
 
+    def columnMem(self, i):
+        """
+        Check to see if column iCol of the given statement is valid.  If
+        it is, return a pointer to the Mem for the value of that column.
+        If iCol is not valid, return a pointer to a Mem which has a value
+        of NULL.
+        """
+        # mutexes are commented out, we assume no other thread is allowed to
+        # use sqpyte (which rpython doesn't support atm anyway)
+        # sqlite3_mutex_enter(pVm->db->mutex);
+        return self.mem_with_index(self.result_set_index + i)
+
+    def get_isPrepareV2(self):
+        return True # because prepare always uses v2
+
+    # _______________________________________________________________
+
+    def vdbeUnbind(self, i):
+        """
+        ** Unbind the value bound to variable i in virtual machine p. This is the 
+        ** the same as binding a NULL value to the column. If the "i" parameter is
+        ** out of range, then SQLITE_RANGE is returned. Othewise SQLITE_OK.
+        **
+        ** A successful evaluation of this routine acquires the mutex on p.
+        ** the mutex is released if any kind of error occurs.
+        **
+        ** The error code stored in database p->db is overwritten with the return
+        ** value in any case.
+        """
+        p = self.p
+        if rffi.getintfield(p, 'magic') != CConfig.VDBE_MAGIC_RUN or rffi.getintfield(p, 'pc') >= 0:
+            raise SQPyteException("bind on a busy prepared statement") #: [%s]", p.zSql
+        i -= 1
+        pVar = self.var_with_index(i)
+        pVar.sqlite3VdbeMemRelease()
+        pVar.set_flags(CConfig.MEM_Null)
+        # sqlite3Error(p->db, SQLITE_OK); # XXX
+
+        # If the bit corresponding to this variable in Vdbe.expmask is set, then
+        # binding a new value to this variable invalidates the current query plan.
+
+        # IMPLEMENTATION-OF: R-48440-37595 If the specific value bound to host
+        # parameter in the WHERE clause might influence the choice of query plan
+        # for a statement, then the statement will be automatically recompiled,
+        # as if there had been a schema change, on the first sqlite3_step() call
+        # following any change to the bindings of that parameter.
+
+        if self.get_isPrepareV2() and i < 32:
+            expmask = rffi.getintfield(p, 'expmask')
+            if expmask & (1 << i) or expmask == 0xffffffff:
+                raise SQPyteException("XXX expiry not supported :-(")
+                #p.expired = 1
+
     # _______________________________________________________________
     # externally useful API
 
@@ -202,38 +256,43 @@ class Sqlite3Query(object):
         return rffi.getintfield(self.p, 'nResColumn')
 
     def python_sqlite3_column_type(self, iCol):
-        # XXX use the cache!
-        return capi.sqlite3_column_type(self.p, iCol)
+        mem = self.columnMem(iCol)
+        return mem.sqlite3_value_type()
 
     def python_sqlite3_column_text(self, iCol):
-        self.invalidate_caches_outside()
-        return capi.sqlite3_column_text(self.p, iCol)
+        mem = self.columnMem(iCol)
+        return mem.sqlite3_value_text()
 
     def python_sqlite3_column_bytes(self, iCol):
-        return capi.sqlite3_column_bytes(self.p, iCol)
+        mem = self.columnMem(iCol)
+        return mem.sqlite3_value_bytes()
 
     def python_sqlite3_column_int64(self, iCol):
-        self.invalidate_caches_outside()
-        return capi.sqlite3_column_int64(self.p, iCol)
+        mem = self.columnMem(iCol)
+        return mem.sqlite3_value_int64()
 
     def python_sqlite3_column_double(self, iCol):
-        self.invalidate_caches_outside()
-        return capi.sqlite3_column_double(self.p, iCol)
+        mem = self.columnMem(iCol)
+        return mem.sqlite3_value_double()
 
+    @jit.elidable
     def python_sqlite3_bind_parameter_count(self):
-        return rffi.cast(lltype.Signed, capi.sqlite3_bind_parameter_count(self.p))
+        return rffi.getintfield(self.p, 'nVar')
 
     def python_sqlite3_bind_int64(self, i, val):
         self.invalidate_caches_outside()
         return rffi.cast(lltype.Signed, capi.sqlite3_bind_int64(self.p, i, val))
 
+    def sqlite3_bind_int64(self, i, iValue):
+        self.vdbeUnbind(i)
+        self.var_with_index(i - 1).sqlite3VdbeMemSetInt64(iValue)
+
     def python_sqlite3_bind_double(self, i, val):
-        self.invalidate_caches_outside()
-        return rffi.cast(lltype.Signed, capi.sqlite3_bind_double(self.p, i, val))
+        self.vdbeUnbind(i)
+        self.var_with_index(i - 1).sqlite3VdbeMemSetDouble(val)
 
     def python_sqlite3_bind_null(self, i):
-        self.invalidate_caches_outside()
-        return rffi.cast(lltype.Signed, capi.sqlite3_bind_null(self.p, i))
+        self.vdbeUnbind(i)
 
     @jit.dont_look_inside
     def python_bind_str(self, i, s):
@@ -747,11 +806,12 @@ class Sqlite3Query(object):
             return translated.python_OP_Variable(self, pc, rc, op)
         return capi.impl_OP_Variable(self.p, self.db, pc, rc, op.pOp)
 
-    def debug_print(self, s):
+    def debug_print(self, pc, op):
         if objectmodel.we_are_translated():
             return
-        if not jit.we_are_jitted():
-            print s
+        print '%s %s %s %s %s %s' % (
+                pc, op.get_opcode_str(), op.p_Signed(1),
+                op.p_Signed(2), op.p_Signed(3), op.p_Signed(5))
 
     @jit.elidable
     def get_opcode_str(self, opcode):
@@ -767,10 +827,16 @@ class Sqlite3Query(object):
         return self.db.enc
 
     def mem_with_index(self, i):
-        return self._mem_as_python_list[i]
+        try:
+            return self._mem_as_python_list[i]
+        except IndexError:
+            raise SQPyteException("unknown mem location")
 
     def var_with_index(self, i):
-        return self._var_as_python_list[i]
+        try:
+            return self._var_as_python_list[i]
+        except IndexError:
+            raise SQPyteException("unknown var location")
 
     def gotoNoMem(self, pc):
         return rffi.cast(lltype.Signed, capi.gotoNoMem(self.p, self.db, rffi.cast(rffi.INT, pc)))
@@ -784,6 +850,9 @@ class Sqlite3Query(object):
         if pc < 0:
             pc = 0 # XXX maybe more to do, see vdbeapi.c:418
         cache_state = self.mem_cache.reenter()
+
+        self.p.pResultSet = lltype.nullptr(lltype.typeOf(self.p.pResultSet).TO)
+        self.result_set_index = -1
 
         while True:
             jitdriver.jit_merge_point(pc=pc, self_=self, rc=rc, cache_state=cache_state)

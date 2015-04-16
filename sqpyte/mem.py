@@ -303,7 +303,7 @@ class Mem(object):
         """
         Make sure the given Mem is \u0000 terminated.
         """
-        if self.get_flags() & CConfig.MEM_Term:
+        if (self.get_flags() & (CConfig.MEM_Term | CConfig.MEM_Str)) != CConfig.MEM_Str:
             return 0
         return rffi.cast(
             lltype.Signed, capi.sqlite3_sqlite3VdbeMemNulTerminate(self.pMem))
@@ -742,6 +742,21 @@ class Mem(object):
         self.invalidate_cache()
         return capi.valueToText(self.pMem, enc)
 
+    def sqlite3ValueBytes(self, enc):
+        """
+        Return the number of bytes in the sqlite3_value object assuming
+        that it uses the encoding "enc"
+        """
+        if self.get_flags() & CConfig.MEM_Blob or self.sqlite3ValueText(enc):
+            if self.get_flags() & CConfig.MEM_Zero:
+                return self.get_n() + self.get_u_nZero()
+            else:
+                return self.get_n()
+        return 0
+
+    def sqlite3_value_bytes(self):
+        return self.sqlite3ValueBytes(CConfig.SQLITE_UTF8)
+
     sqlite3_result_int64 = sqlite3VdbeMemSetInt64
     sqlite3_result_double = sqlite3VdbeMemSetDouble
     sqlite3_result_null = sqlite3VdbeMemSetNull
@@ -839,21 +854,22 @@ class CacheHolder(object):
 
     def __init__(self, num_flags):
         self._invalid_cache_state = all_unknown(num_flags)
-        self._nonvirt_cache_state = None
-        self.set_cache_state(self._invalid_cache_state)
+        self._nonvirt_cache_state = self._invalid_cache_state
+        self._virt_cache_state = None
         self.integers = [0] * num_flags
         self.floats = [0.0] * num_flags
-        self.prepare_return() # mainloop not running
 
     def cache_state(self):
-        if not jit.we_are_jitted():
-            assert self._nonvirt_cache_state is None
-        return jit.promote(self._virt_cache_state.cs)
+        if self._virt_cache_state is not None:
+            return jit.promote(self._virt_cache_state.cs)
+        else:
+            return jit.promote(self._nonvirt_cache_state)
 
     def set_cache_state(self, cache_state):
-        if not jit.we_are_jitted():
-            assert self._nonvirt_cache_state is None
-        self._virt_cache_state = Virt(cache_state)
+        if self._virt_cache_state is not None:
+            self._virt_cache_state = Virt(cache_state)
+        else:
+            self._nonvirt_cache_state = cache_state
 
     def prepare_return(self):
         if not jit.we_are_jitted():
@@ -866,15 +882,14 @@ class CacheHolder(object):
             assert self._virt_cache_state is None
         cache_state = self._nonvirt_cache_state
         self._nonvirt_cache_state = None
-        self.set_cache_state(cache_state)
+        self._virt_cache_state = Virt(cache_state)
         return cache_state
 
     def hide(self):
         self._virt_cache_state = None
 
     def reveal(self, x):
-        if self._virt_cache_state is None:
-            self.set_cache_state(x)
+        self._virt_cache_state = Virt(x)
 
     def invalidate(self, i):
         self.set_cache_state(self.cache_state().set_unknown(i))
