@@ -312,3 +312,9 @@ def test_argument():
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
     assert query.python_sqlite3_column_int64(0) == 31
+
+def test_create_table():
+    db = Sqlite3DB(":memory:")
+    query = db.execute('create table cos (x real, y real);')
+    rc = query.mainloop()
+    assert rc == CConfig.SQLITE_DONE

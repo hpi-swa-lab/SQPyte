@@ -9,6 +9,7 @@ void impl_OP_Blob(Vdbe *p, sqlite3 *db, Op *pOp);
 long impl_OP_Column(Vdbe *p, sqlite3 *db, long pc, Op *pOp);
 long impl_OP_Concat(Vdbe* p, sqlite3 *db, long pc, long rc, Op *pOp);
 long impl_OP_Copy(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp);
+long impl_OP_CreateIndex_CreateTable(Vdbe* p, sqlite3 *db, long rc, Op *pOp);
 long impl_OP_Delete(Vdbe *p, sqlite3 *db, long pc, Op *pOp);
 long impl_OP_EndCoroutine(Vdbe *p, Op *pOp);
 long impl_OP_Function(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp);
