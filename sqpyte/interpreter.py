@@ -401,6 +401,7 @@ class Sqlite3Query(object):
         self.invalidate_caches_outside()
         capi.sqlite3_reset(self.p)
 
+    @cache_safe()
     def python_OP_Init(self, pc, op):
         return translated.python_OP_Init_translated(self, pc, op)
 
@@ -411,9 +412,11 @@ class Sqlite3Query(object):
         retPc = self.internalPc[0]
         return retPc, rc
 
+    @cache_safe() # XXX not 100% sure
     def python_OP_Transaction(self, pc, op):
         return capi.impl_OP_Transaction(self.p, self.db, pc, op.pOp)
 
+    @cache_safe() # XXX not 100% sure
     def python_OP_TableLock(self, rc, op):
         return capi.impl_OP_TableLock(self.p, self.db, rc, op.pOp)
 
@@ -455,6 +458,7 @@ class Sqlite3Query(object):
     def python_OP_Close(self, op):
         capi.impl_OP_Close(self.p, op.pOp)
 
+    @cache_safe() # XXX not 100% sure
     def python_OP_Halt(self, pc, op):
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         rc = capi.impl_OP_Halt(self.p, self.db, self.internalPc, op.pOp)
@@ -797,6 +801,7 @@ class Sqlite3Query(object):
     def python_OP_Concat(self, pc, rc, op):
         return capi.impl_OP_Concat(self.p, self.db, pc, rc, op.pOp)
 
+    @cache_safe()
     def python_OP_Variable(self, pc, rc, op):
         if objectmodel.we_are_translated():
             return translated.python_OP_Variable(self, pc, rc, op)

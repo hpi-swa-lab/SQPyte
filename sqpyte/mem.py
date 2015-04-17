@@ -643,7 +643,8 @@ class Mem(object):
         return capi.sqlite3VdbeChangeEncoding(self.pMem, encoding)
 
     def sqlite3VdbeMemTooBig(self):
-        self.invalidate_cache()
+        if not (self.get_flags() & (CConfig.MEM_Str | CConfig.MEM_Blob)):
+            return 0
         return capi.sqlite3VdbeMemTooBig(self.pMem)
 
     def sqlite3VdbeMemMove(self, from_):
