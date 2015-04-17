@@ -805,6 +805,7 @@ class Sqlite3Query(object):
     def python_OP_Variable(self, pc, rc, op):
         if objectmodel.we_are_translated():
             return translated.python_OP_Variable(self, pc, rc, op)
+        self.invalidate_caches() # XXX annoying
         return capi.impl_OP_Variable(self.p, self.db, pc, rc, op.pOp)
 
     def python_OP_CreateTable_CreateIndex(self, rc, op):
