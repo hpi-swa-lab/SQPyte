@@ -27,7 +27,7 @@ def test_create_aggregate():
     query = db.execute('select sumlength(name), sum(length(name)) from contacts;')
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
-    assert query.python_sqlite3_column_int64(0) == query.python_sqlite3_column_int64(1)
+    assert query.column_int64(0) == query.column_int64(1)
 
 def test_create_function():
     def sin(func, args, result):
@@ -42,14 +42,14 @@ def test_create_function():
         rc = query.mainloop()
         if rc != CConfig.SQLITE_ROW:
             break
-        assert query.python_sqlite3_column_double(0) == math.sin(query.python_sqlite3_column_double(1))
+        assert query.column_double(0) == math.sin(query.column_double(1))
 
 def test_sum():
     db = Sqlite3DB(testdb)
     query = db.execute('select sum(age) from contacts;')
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
-    res = query.python_sqlite3_column_int64(0)
+    res = query.column_int64(0)
     assert res == 4832
 
 
@@ -58,7 +58,7 @@ def test_sum_none():
     query = db.execute('select sum(age) from contacts where age < 0;')
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
-    res = query.python_sqlite3_column_int64(0)
+    res = query.column_int64(0)
     assert res == 0
 
 def test_avg():
@@ -66,7 +66,7 @@ def test_avg():
     query = db.execute('select avg(age) from contacts where age > 18;')
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
-    res = query.python_sqlite3_column_double(0)
+    res = query.column_double(0)
     assert round(res, 2) == 58.91
 
 def test_max():
@@ -74,5 +74,5 @@ def test_max():
     query = db.execute('select max(age) from contacts where age > 18;')
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
-    res = query.python_sqlite3_column_double(0)
+    res = query.column_double(0)
     assert round(res, 2) == 99

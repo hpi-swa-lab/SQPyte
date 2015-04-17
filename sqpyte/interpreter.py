@@ -246,7 +246,7 @@ class Sqlite3Query(object):
     # _______________________________________________________________
     # externally useful API
 
-    def python_sqlite3_data_count(self):
+    def data_count(self):
         if rffi.getintfield(self.p, 'pResultSet') == 0:
             return 0
         return self._nres_column()
@@ -255,47 +255,43 @@ class Sqlite3Query(object):
     def _nres_column(self):
         return rffi.getintfield(self.p, 'nResColumn')
 
-    def python_sqlite3_column_type(self, iCol):
+    def column_type(self, iCol):
         mem = self.columnMem(iCol)
         return mem.sqlite3_value_type()
 
-    def python_sqlite3_column_text(self, iCol):
+    def column_text(self, iCol):
         mem = self.columnMem(iCol)
         return mem.sqlite3_value_text()
 
-    def python_sqlite3_column_bytes(self, iCol):
+    def column_bytes(self, iCol):
         mem = self.columnMem(iCol)
         return mem.sqlite3_value_bytes()
 
-    def python_sqlite3_column_int64(self, iCol):
+    def column_int64(self, iCol):
         mem = self.columnMem(iCol)
         return mem.sqlite3_value_int64()
 
-    def python_sqlite3_column_double(self, iCol):
+    def column_double(self, iCol):
         mem = self.columnMem(iCol)
         return mem.sqlite3_value_double()
 
     @jit.elidable
-    def python_sqlite3_bind_parameter_count(self):
+    def bind_parameter_count(self):
         return rffi.getintfield(self.p, 'nVar')
 
-    def python_sqlite3_bind_int64(self, i, val):
-        self.invalidate_caches_outside()
-        return rffi.cast(lltype.Signed, capi.sqlite3_bind_int64(self.p, i, val))
-
-    def sqlite3_bind_int64(self, i, iValue):
+    def bind_int64(self, i, val):
         self.vdbeUnbind(i)
-        self.var_with_index(i - 1).sqlite3VdbeMemSetInt64(iValue)
+        self.var_with_index(i - 1).sqlite3VdbeMemSetInt64(val)
 
-    def python_sqlite3_bind_double(self, i, val):
+    def bind_double(self, i, val):
         self.vdbeUnbind(i)
         self.var_with_index(i - 1).sqlite3VdbeMemSetDouble(val)
 
-    def python_sqlite3_bind_null(self, i):
+    def bind_null(self, i):
         self.vdbeUnbind(i)
 
     @jit.dont_look_inside
-    def python_bind_str(self, i, s):
+    def bind_str(self, i, s):
         self.invalidate_caches_outside()
         with rffi.scoped_str2charp(s) as charp:
             return rffi.cast(

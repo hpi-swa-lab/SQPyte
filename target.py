@@ -21,13 +21,13 @@ def run(query, queryRes, printRes):
         while rc == CConfig.SQLITE_ROW:
             jitdriver.jit_merge_point(query=query, queryRes=queryRes, printRes=printRes, rc=rc)
             if printRes:
-                result = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(0)), query.python_sqlite3_column_bytes(0))
+                result = rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.column_text(0)), query.column_bytes(0))
                 i = 1
-                textlen = query.python_sqlite3_column_bytes(i)
+                textlen = query.column_bytes(i)
                 while textlen > 0:
-                    result += "|" + rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.python_sqlite3_column_text(i)), textlen)
+                    result += "|" + rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.column_text(i)), textlen)
                     i += 1
-                    textlen = query.python_sqlite3_column_bytes(i)    
+                    textlen = query.column_bytes(i)    
                 print result
             rc = query.mainloop()
 
