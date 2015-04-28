@@ -200,7 +200,7 @@ class Sqlite3Query(object):
         # mutexes are commented out, we assume no other thread is allowed to
         # use sqpyte (which rpython doesn't support atm anyway)
         # sqlite3_mutex_enter(pVm->db->mutex);
-        return self.mem_with_index(self.result_set_index + i)
+        return self.mem_with_index(jit.promote(self.result_set_index) + i)
 
     def get_isPrepareV2(self):
         return True # because prepare always uses v2
