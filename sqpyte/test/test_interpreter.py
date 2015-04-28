@@ -171,7 +171,7 @@ def test_string_comparison():
 
 def test_makerecord():
     db = Sqlite3DB(testdb)
-    query = db.execute("select age, name from contacts order by age;")
+    query = db.execute("select age, name from contacts order by age, age * 0.5;")
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
     textlen = query.column_bytes(1)
