@@ -401,9 +401,88 @@ class Sqlite3Query(object):
         self.invalidate_caches_outside()
         capi.sqlite3_reset(self.p)
 
+    # _______________________________________________________________
+    # C-based opcodes
+
+    def python_OP_CreateTable_CreateIndex(self, rc, op):
+        return capi.impl_OP_CreateIndex_CreateTable(self.p, self.db, rc, op.pOp)
+
+    def python_OP_Clear(self, rc, op):
+        return capi.impl_OP_Clear(self.p, self.db, rc, op.pOp)
+
+    @cache_safe(mutates=["p1", "p2", "p3"])
+    def python_OP_Concat(self, pc, rc, op):
+        return capi.impl_OP_Concat(self.p, self.db, pc, rc, op.pOp)
+
+    @cache_safe(opcodes=[CConfig.OP_Insert, CConfig.OP_InsertInt])
+    def python_OP_Insert_InsertInt(self, op):
+        return capi.impl_OP_Insert_InsertInt(self.p, self.db, op.pOp)
+
     @cache_safe()
-    def python_OP_Init(self, pc, op):
-        return translated.OP_Init(self, pc, op)
+    def python_OP_NewRowid(self, pc, rc, op):
+        return capi.impl_OP_NewRowid(self.p, self.db, pc, rc, op.pOp)
+
+    def python_OP_ParseSchema(self, pc, rc, op):
+        return capi.impl_OP_ParseSchema(self.p, self.db, pc, rc, op.pOp)
+
+    def python_OP_ReadCookie(self, op):
+        capi.impl_OP_ReadCookie(self.p, self.db, op.pOp)
+
+    def python_OP_RowSetAdd(self, pc, rc, op):
+        return capi.impl_OP_RowSetAdd(self.p, self.db, pc, rc, op.pOp)
+
+    def python_OP_RowSetRead(self, pc, rc, op):
+        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
+        retRc = capi.impl_OP_RowSetRead(self.p, self.db, self.internalPc, rc, op.pOp)
+        retPc = self.internalPc[0]
+        return retPc, retRc
+
+    @cache_safe()
+    def python_OP_Delete(self, pc, op):
+        return capi.impl_OP_Delete(self.p, self.db, pc, op.pOp)
+
+    def python_OP_DropTable(self, op):
+        return capi.impl_OP_DropTable(self.db, op.pOp)
+
+    @cache_safe(opcodes=[CConfig.OP_RowKey, CConfig.OP_RowData],
+                mutates="p2")
+    def python_OP_RowKey_RowData(self, pc, rc, op):
+        rc = capi.impl_OP_RowKey_RowData(self.p, self.db, pc, rc, op.pOp)
+        # this always returns a blob
+        return rc
+
+    def python_OP_Blob(self, op):
+        capi.impl_OP_Blob(self.p, self.db, op.pOp)
+
+    @cache_safe()
+    def python_OP_Close(self, op):
+        capi.impl_OP_Close(self.p, op.pOp)
+
+    @cache_safe() # XXX not 100% sure
+    def python_OP_Halt(self, pc, op):
+        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
+        rc = capi.impl_OP_Halt(self.p, self.db, self.internalPc, op.pOp)
+        retPc = self.internalPc[0]
+        return retPc, rc
+
+    @cache_safe(
+        opcodes=[CConfig.OP_NoConflict, CConfig.OP_NotFound, CConfig.OP_Found],
+        mutates="p3@p4 or p3")
+    def python_OP_NoConflict_NotFound_Found(self, pc, rc, op):
+        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
+        rc = capi.impl_OP_NoConflict_NotFound_Found(self.p, self.db, self.internalPc, rc, op.pOp)
+        retPc = self.internalPc[0]
+        return retPc, rc        
+
+    @cache_safe()
+    def python_OP_NullRow(self, op):
+        capi.impl_OP_NullRow(self.p, op.pOp)
+
+    def python_OP_OpenAutoindex_OpenEphemeral(self, pc, op):
+        return capi.impl_OP_OpenAutoindex_OpenEphemeral(self.p, self.db, pc, op.pOp)
+
+    def python_OP_OpenPseudo(self, pc, rc, op):
+        return capi.impl_OP_OpenPseudo(self.p, self.db, pc, rc, op.pOp)
 
     @cache_safe()
     def python_OP_Rewind(self, pc, op):
@@ -412,13 +491,68 @@ class Sqlite3Query(object):
         retPc = self.internalPc[0]
         return retPc, rc
 
-    @cache_safe() # XXX not 100% sure
-    def python_OP_Transaction(self, pc, op):
-        return capi.impl_OP_Transaction(self.p, self.db, pc, op.pOp)
+    @cache_safe(mutates="p2")
+    def python_OP_Rowid(self, pc, rc, op):
+        return capi.impl_OP_Rowid(self.p, self.db, pc, rc, op.pOp)
+
+    def python_OP_RowSetTest(self, pc, rc, op):
+        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
+        rc = capi.impl_OP_RowSetTest(self.p, self.db, self.internalPc, rc, op.pOp)
+        retPc = self.internalPc[0]
+        return retPc, rc        
+
+    def python_OP_SetCookie(self, op):
+        return capi.impl_OP_SetCookie(self.p, self.db, op.pOp)
+
+    @cache_safe(mutates="p2")
+    def python_OP_String(self, op):
+        capi.impl_OP_String(self.p, self.db, op.pOp)
+
+    @cache_safe(mutates="p2")
+    def python_OP_String8(self, pc, rc, op):
+        return capi.impl_OP_String8(self.p, self.db, pc, rc, op.pOp)
+
+    @cache_safe(opcodes=[CConfig.OP_SorterInsert, CConfig.OP_IdxInsert],
+                mutates=["p2"])
+    def python_OP_SorterInsert_IdxInsert(self, op):
+        return capi.impl_OP_SorterInsert_IdxInsert(self.p, self.db, op.pOp)
+
+    def python_OP_SorterSort_Sort(self, pc, op):
+        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
+        rc = capi.impl_OP_SorterSort_Sort(self.p, self.db, self.internalPc, op.pOp)
+        retPc = self.internalPc[0]
+        return retPc, rc        
+
+    @cache_safe(mutates="p2")
+    def python_OP_SorterData(self, op):
+        return capi.impl_OP_SorterData(self.p, op.pOp)
+
+    @cache_safe()
+    def python_OP_SorterNext(self, pc, op):
+        # XXX would be very simple to port, it looks like half of OP_Next
+        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
+        rc = capi.impl_OP_SorterNext(self.p, self.db, self.internalPc, op.pOp)
+        retPc = self.internalPc[0]
+        return retPc, rc        
+
+    def python_OP_SorterOpen(self, pc, op):
+        return capi.impl_OP_SorterOpen(self.p, self.db, pc, op.pOp)
 
     @cache_safe() # XXX not 100% sure
     def python_OP_TableLock(self, rc, op):
         return capi.impl_OP_TableLock(self.p, self.db, rc, op.pOp)
+
+    @cache_safe() # XXX not 100% sure
+    def python_OP_Transaction(self, pc, op):
+        return capi.impl_OP_Transaction(self.p, self.db, pc, op.pOp)
+
+    @cache_safe()
+    def python_OP_Column(self, pc, op):
+        # not really translated
+        return translated.OP_Column(self, pc, op)
+
+    # _______________________________________________________________
+    # both implementations exist
 
     @cache_safe()
     def python_OP_Goto(self, pc, rc, op):
@@ -437,10 +571,6 @@ class Sqlite3Query(object):
         # translated.OP_OpenRead_OpenWrite(self, self.db, pc, op)
 
     @cache_safe()
-    def python_OP_Column(self, pc, op):
-        return translated.OP_Column(self, pc, op)
-
-    @cache_safe()
     def python_OP_ResultRow(self, pc, op):
         return translated.OP_ResultRow(self, pc, op)
         return capi.impl_OP_ResultRow(self.p, self.db, pc, op.pOp)
@@ -453,17 +583,6 @@ class Sqlite3Query(object):
         # return retPc, rc
 
         return translated.OP_Next(self, pc, op)
-
-    @cache_safe()
-    def python_OP_Close(self, op):
-        capi.impl_OP_Close(self.p, op.pOp)
-
-    @cache_safe() # XXX not 100% sure
-    def python_OP_Halt(self, pc, op):
-        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        rc = capi.impl_OP_Halt(self.p, self.db, self.internalPc, op.pOp)
-        retPc = self.internalPc[0]
-        return retPc, rc
 
     @cache_safe(
         opcodes=[CConfig.OP_Eq, CConfig.OP_Ne, CConfig.OP_Lt, CConfig.OP_Le,
@@ -486,15 +605,10 @@ class Sqlite3Query(object):
         #capi.impl_OP_Null(self.p, op.pOp)
         translated.OP_Null(self, op)
 
-    @cache_safe() # invalidation done in the slow path
-    def python_OP_AggStep(self, rc, pc, op):
-        #return capi.impl_OP_AggStep(self.p, self.db, rc, op.pOp)
-        return translated.OP_AggStep(self, rc, pc, op)
-
-    @cache_safe() # invalidation done in the slow path
-    def python_OP_AggFinal(self, pc, rc, op):
-        #return capi.impl_OP_AggFinal(self.p, self.db, pc, rc, op.pOp)
-        return translated.OP_AggFinal(self, rc, pc, op)
+    @cache_safe()
+    def python_OP_MustBeInt(self, pc, rc, op):
+        # XXX
+        return translated.OP_MustBeInt(self, pc, rc, op)
 
     @cache_safe()
     def python_OP_Copy(self, pc, rc, op):
@@ -504,29 +618,12 @@ class Sqlite3Query(object):
         return capi.impl_OP_Copy(self.p, self.db, pc, rc, op.pOp)
 
     @cache_safe()
-    def python_OP_MustBeInt(self, pc, rc, op):
-        return translated.OP_MustBeInt(self, pc, rc, op)
-
-    @cache_safe()
     def python_OP_NotExists(self, pc, op):
         return translated.OP_NotExists(self, pc, op)
         #self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         #rc = capi.impl_OP_NotExists(self.p, self.db, self.internalPc, op.pOp)
         #retPc = self.internalPc[0]
         #return retPc, rc
-
-    @cache_safe(mutates="p2")
-    def python_OP_String(self, op):
-        capi.impl_OP_String(self.p, self.db, op.pOp)
-
-    @cache_safe(mutates="p2")
-    def python_OP_String8(self, pc, rc, op):
-        return capi.impl_OP_String8(self.p, self.db, pc, rc, op.pOp)
-
-    @cache_safe(mutates=["p2@p5"])
-    def python_OP_Function(self, pc, rc, op):
-        # return capi.impl_OP_Function(self.p, self.db, pc, rc, op.pOp)
-        return translated.OP_Function(self, pc, rc, op)
 
     @cache_safe()
     def python_OP_Real(self, op):
@@ -556,10 +653,6 @@ class Sqlite3Query(object):
     def python_OP_If_IfNot(self, pc, op):
         # return capi.impl_OP_If_IfNot(self.p, pc, op.pOp)
         return translated.OP_If_IfNot(self, pc, op)
-
-    @cache_safe(mutates="p2")
-    def python_OP_Rowid(self, pc, rc, op):
-        return capi.impl_OP_Rowid(self.p, self.db, pc, rc, op.pOp)
 
     @cache_safe()
     def python_OP_IsNull(self, pc, op):
@@ -628,33 +721,10 @@ class Sqlite3Query(object):
         # capi.impl_OP_Affinity(self.p, self.db, op.pOp)
         translated.OP_Affinity(self, op)
 
-    def python_OP_OpenAutoindex_OpenEphemeral(self, pc, op):
-        return capi.impl_OP_OpenAutoindex_OpenEphemeral(self.p, self.db, pc, op.pOp)
-
     @cache_safe()
     def python_OP_MakeRecord(self, pc, rc, op):
         # return capi.impl_OP_MakeRecord(self.p, self.db, pc, rc, op.pOp)
         return translated.OP_MakeRecord(self, pc, rc, op)
-
-    @cache_safe(opcodes=[CConfig.OP_SorterInsert, CConfig.OP_IdxInsert],
-                mutates=["p2"])
-    def python_OP_SorterInsert_IdxInsert(self, op):
-        return capi.impl_OP_SorterInsert_IdxInsert(self.p, self.db, op.pOp)
-
-    @cache_safe(
-        opcodes=[CConfig.OP_NoConflict, CConfig.OP_NotFound, CConfig.OP_Found],
-        mutates="p3@p4 or p3")
-    def python_OP_NoConflict_NotFound_Found(self, pc, rc, op):
-        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        rc = capi.impl_OP_NoConflict_NotFound_Found(self.p, self.db, self.internalPc, rc, op.pOp)
-        retPc = self.internalPc[0]
-        return retPc, rc        
-
-    def python_OP_RowSetTest(self, pc, rc, op):
-        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        rc = capi.impl_OP_RowSetTest(self.p, self.db, self.internalPc, rc, op.pOp)
-        retPc = self.internalPc[0]
-        return retPc, rc        
 
     @cache_safe()
     def python_OP_Gosub(self, pc, op):
@@ -665,9 +735,6 @@ class Sqlite3Query(object):
     def python_OP_Return(self, pc, op):
         # return capi.impl_OP_Return(self.p, pc, op.pOp)
         return translated.OP_Return(self, op)
-
-    def python_OP_SorterOpen(self, pc, op):
-        return capi.impl_OP_SorterOpen(self.p, self.db, pc, op.pOp)
 
     @cache_safe()
     def python_OP_NextIfOpen(self, pc, rc, op):
@@ -683,43 +750,25 @@ class Sqlite3Query(object):
         # capi.impl_OP_Sequence(self.p, op.pOp)
         translated.OP_Sequence(self, op)
 
-    def python_OP_OpenPseudo(self, pc, rc, op):
-        return capi.impl_OP_OpenPseudo(self.p, self.db, pc, rc, op.pOp)
-
-    def python_OP_SorterSort_Sort(self, pc, op):
-        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        rc = capi.impl_OP_SorterSort_Sort(self.p, self.db, self.internalPc, op.pOp)
-        retPc = self.internalPc[0]
-        return retPc, rc        
-
-    @cache_safe(mutates="p2")
-    def python_OP_SorterData(self, op):
-        return capi.impl_OP_SorterData(self.p, op.pOp)
-
-    @cache_safe()
-    def python_OP_SorterNext(self, pc, op):
-        # XXX would be very simple to port, it looks like half of OP_Next
-        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        rc = capi.impl_OP_SorterNext(self.p, self.db, self.internalPc, op.pOp)
-        retPc = self.internalPc[0]
-        return retPc, rc        
-
-    def python_OP_Noop_Explain(self, op):
-        translated.OP_Noop_Explain(op)
-
     @cache_safe()
     def python_OP_Compare(self, op):
+        # Compare and Jump must be implemented on the same side
         # capi.impl_OP_Compare(self.p, op.pOp)
         translated.OP_Compare(self, op)
 
     @cache_safe()
     def python_OP_Jump(self, op):
+        # Compare and Jump must be implemented on the same side
         # return capi.impl_OP_Jump(op.pOp)
         return translated.OP_Jump(self, op)
 
+
     @cache_safe()
-    def python_OP_IfPos(self, pc, op):
-        return translated.OP_IfPos(self, pc, op)
+    def python_OP_Variable(self, pc, rc, op):
+        if objectmodel.we_are_translated():
+            return translated.OP_Variable(self, pc, rc, op)
+        self.invalidate_caches() # XXX annoying
+        return capi.impl_OP_Variable(self.p, self.db, pc, rc, op.pOp)
 
     @cache_safe()
     def python_OP_CollSeq(self, op):
@@ -742,77 +791,47 @@ class Sqlite3Query(object):
         return translated.OP_Yield(self, pc, op)
 
     @cache_safe()
-    def python_OP_NullRow(self, op):
-        capi.impl_OP_NullRow(self.p, op.pOp)
-
-    @cache_safe()
     def python_OP_EndCoroutine(self, op):
         return translated.OP_EndCoroutine(self, op)
         return capi.impl_OP_EndCoroutine(self.p, op.pOp)
 
-    def python_OP_ReadCookie(self, op):
-        capi.impl_OP_ReadCookie(self.p, self.db, op.pOp)
+
+
+    # _______________________________________________________________
+    # only translated
 
     @cache_safe()
-    def python_OP_NewRowid(self, pc, rc, op):
-        return capi.impl_OP_NewRowid(self.p, self.db, pc, rc, op.pOp)
+    def python_OP_Init(self, pc, op):
+        # XXX
+        return translated.OP_Init(self, pc, op)
 
-    @cache_safe(opcodes=[CConfig.OP_Insert, CConfig.OP_InsertInt])
-    def python_OP_Insert_InsertInt(self, op):
-        return capi.impl_OP_Insert_InsertInt(self.p, self.db, op.pOp)
+    @cache_safe() # invalidation done in the slow path
+    def python_OP_AggStep(self, rc, pc, op):
+        return translated.OP_AggStep(self, rc, pc, op)
 
-    def python_OP_SetCookie(self, op):
-        return capi.impl_OP_SetCookie(self.p, self.db, op.pOp)
+    @cache_safe() # invalidation done in the slow path
+    def python_OP_AggFinal(self, pc, rc, op):
+        return translated.OP_AggFinal(self, rc, pc, op)
 
-    def python_OP_ParseSchema(self, pc, rc, op):
-        return capi.impl_OP_ParseSchema(self.p, self.db, pc, rc, op.pOp)
+    @cache_safe(mutates=["p2@p5"]) # XXX invalidation can be better
+    def python_OP_Function(self, pc, rc, op):
+        return translated.OP_Function(self, pc, rc, op)
 
-    def python_OP_RowSetAdd(self, pc, rc, op):
-        return capi.impl_OP_RowSetAdd(self.p, self.db, pc, rc, op.pOp)
-
-    def python_OP_RowSetRead(self, pc, rc, op):
-        self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        retRc = capi.impl_OP_RowSetRead(self.p, self.db, self.internalPc, rc, op.pOp)
-        retPc = self.internalPc[0]
-        return retPc, retRc   
+    def python_OP_Noop_Explain(self, op):
+        # XXX
+        translated.OP_Noop_Explain(op)
 
     @cache_safe()
-    def python_OP_Delete(self, pc, op):
-        return capi.impl_OP_Delete(self.p, self.db, pc, op.pOp)
-
-    def python_OP_DropTable(self, op):
-        return capi.impl_OP_DropTable(self.db, op.pOp)
-
-    @cache_safe(opcodes=[CConfig.OP_RowKey, CConfig.OP_RowData],
-                mutates="p2")
-    def python_OP_RowKey_RowData(self, pc, rc, op):
-        rc = capi.impl_OP_RowKey_RowData(self.p, self.db, pc, rc, op.pOp)
-        # this always returns a blob
-        return rc
-
-    def python_OP_Blob(self, op):
-        capi.impl_OP_Blob(self.p, self.db, op.pOp)
+    def python_OP_IfPos(self, pc, op):
+        # XXX
+        return translated.OP_IfPos(self, pc, op)
 
     @cache_safe()
     def python_OP_Cast(self, rc, op):
+        # XXX
         return translated.OP_Cast(self, rc, op)
 
-    @cache_safe(mutates=["p1", "p2", "p3"])
-    def python_OP_Concat(self, pc, rc, op):
-        return capi.impl_OP_Concat(self.p, self.db, pc, rc, op.pOp)
-
-    @cache_safe()
-    def python_OP_Variable(self, pc, rc, op):
-        if objectmodel.we_are_translated():
-            return translated.OP_Variable(self, pc, rc, op)
-        self.invalidate_caches() # XXX annoying
-        return capi.impl_OP_Variable(self.p, self.db, pc, rc, op.pOp)
-
-    def python_OP_CreateTable_CreateIndex(self, rc, op):
-        return capi.impl_OP_CreateIndex_CreateTable(self.p, self.db, rc, op.pOp)
-
-    def python_OP_Clear(self, rc, op):
-        return capi.impl_OP_Clear(self.p, self.db, rc, op.pOp)
+    # _______________________________________________________________
 
     def debug_print(self, pc, op):
         if objectmodel.we_are_translated():
