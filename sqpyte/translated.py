@@ -43,7 +43,7 @@ def sqlite3VdbeSorterRewind(db, pC, res):
 #
 # If P2 is not zero, jump to instruction P2.
 
-def python_OP_Init_translated(hlquery, pc, op):
+def OP_Init(hlquery, pc, op):
     p2 = op.p_Signed(2)
     if p2:
         pc = p2 - 1
@@ -92,14 +92,14 @@ def python_OP_Init_translated(hlquery, pc, op):
 # to the current line should be indented for EXPLAIN output.
 #
 
-def python_OP_Goto_translated(hlquery, pc, rc, op):
+def OP_Goto(hlquery, pc, rc, op):
     db = hlquery.db
     pc = op.p2as_pc()
 
     # Translated goto check_for_interrupt;
     if rffi.cast(lltype.Signed, db.u1.isInterrupted) != 0:
         # goto abort_due_to_interrupt;
-        print 'In python_OP_Goto_translated(): abort_due_to_interrupt.'
+        print 'In OP_Goto(): abort_due_to_interrupt.'
         rc = capi.sqlite3_gotoAbortDueToInterrupt(hlquery.p, db, pc, rc)
         return pc, rc
 
@@ -116,7 +116,7 @@ def python_OP_Goto_translated(hlquery, pc, rc, op):
     #     if( db->xProgress(db->pProgressArg) ){
     #       rc = SQLITE_INTERRUPT;
     #       // goto vdbe_error_halt;
-    #       printf("In python_OP_Goto(): vdbe_error_halt.\n");
+    #       printf("In OP_Goto(): vdbe_error_halt.\n");
     #       rc = gotoVdbeErrorHalt(p, db, *pc, rc);
     #       return rc;
     #     }
@@ -126,7 +126,7 @@ def python_OP_Goto_translated(hlquery, pc, rc, op):
     return pc, rc
 
 
-def python_OP_OpenRead_OpenWrite_translated(hlquery, db, pc, op):
+def OP_OpenRead_OpenWrite(hlquery, db, pc, op):
     pOp = op.pOp
     p = hlquery.p
     assert pOp.p5 & (CConfig.OPFLAG_P2ISREG | CConfig.OPFLAG_BULKCSR) == pOp.p5
@@ -227,7 +227,7 @@ def _increase_counter_hidden_from_jit(p, counter_num, increase=1):
     aCounterValue += increase
     p.aCounter[counter_num] = rffi.cast(rffi.UINT, aCounterValue)
 
-def python_OP_Next_translated(hlquery, pc, op):
+def OP_Next(hlquery, pc, op):
     p = hlquery.p
     db = hlquery.db
     pcRet = pc
@@ -292,7 +292,7 @@ def python_OP_Next_translated(hlquery, pc, op):
     # Translated goto check_for_interrupt;
     if rffi.cast(lltype.Signed, db.u1.isInterrupted) != 0:
         # goto abort_due_to_interrupt;
-        print 'In python_OP_Next_translated(): abort_due_to_interrupt.'
+        print 'In OP_Next(): abort_due_to_interrupt.'
         rc = capi.sqlite3_gotoAbortDueToInterrupt(p, db, pcRet, rc)
         return pcRet, rc
 
@@ -318,14 +318,14 @@ def python_OP_Next_translated(hlquery, pc, op):
 
     return pcRet, rc
 
-def python_OP_NextIfOpen_translated(hlquery, pc, rc, op):
+def OP_NextIfOpen(hlquery, pc, rc, op):
     p = hlquery.p
     db = hlquery.db
     p1 = op.p_Signed(1)
     if not p.apCsr[p1]:
         return pc, rc
     else:
-        return python_OP_Next_translated(hlquery, pc, op)
+        return OP_Next(hlquery, pc, op)
 
 @specialize.argtype(1)
 def _cmp_depending_on_opcode(opcode, a, b):
@@ -425,7 +425,7 @@ def _cmp_depending_on_opcode(opcode, a, b):
 # the content of register P3 is greater than or equal to the content of
 # register P1.  See the Lt opcode for additional information.
 
-def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, op):
+def OP_Ne_Eq_Gt_Le_Lt_Ge(hlquery, pc, rc, op):
     p = hlquery.p
     db = hlquery.db
     pIn1, flags1 = op.mem_and_flags_of_p(1)    # 1st input operand
@@ -567,7 +567,7 @@ def python_OP_Ne_Eq_Gt_Le_Lt_Ge_translated(hlquery, pc, rc, op):
 
     return pc, rc
 
-def python_OP_Noop_Explain_translated(op):
+def OP_Noop_Explain(op):
     opcode = rffi.cast(lltype.Unsigned, op.get_opcode())
     assert opcode == CConfig.OP_Noop or opcode == CConfig.OP_Explain
 
@@ -577,7 +577,7 @@ def python_OP_Noop_Explain_translated(op):
 #
 # Jump to P2 if the value in register P1 is NULL.
 
-def python_OP_IsNull(hlquery, pc, op):
+def OP_IsNull(hlquery, pc, op):
     pIn1, flags1 = op.mem_and_flags_of_p(1)
     if flags1 & CConfig.MEM_Null != 0:
         pc = op.p2as_pc()
@@ -589,7 +589,7 @@ def python_OP_IsNull(hlquery, pc, op):
 #
 # Jump to P2 if the value in register P1 is not NULL.
 
-def python_OP_NotNull(hlquery, pc, op):
+def OP_NotNull(hlquery, pc, op):
     pIn1, flags1 = op.mem_and_flags_of_p(1)
     if flags1 & CConfig.MEM_Null == 0:
         pc = op.p2as_pc()
@@ -603,7 +603,7 @@ def python_OP_NotNull(hlquery, pc, op):
 # this opcode causes all following opcodes up through P2 (but not including
 # P2) to run just once and to be skipped on subsequent times through the loop.
 
-def python_OP_Once(hlquery, pc, op):
+def OP_Once(hlquery, pc, op):
     p = hlquery.p
     p1 = op.p_Signed(1)
     assert p1 < rffi.cast(lltype.Signed, p.nOnceFlag)
@@ -614,7 +614,7 @@ def python_OP_Once(hlquery, pc, op):
     return pc
 
 
-def python_OP_MustBeInt(hlquery, pc, rc, op):
+def OP_MustBeInt(hlquery, pc, rc, op):
     # not a full translation, only translate the fast path where the argument
     # is already an int
     pIn1, flags1 = op.mem_and_flags_of_p(1)
@@ -638,7 +638,7 @@ def python_OP_MustBeInt(hlquery, pc, rc, op):
 # memory cell in the range.
 
 @jit.unroll_safe
-def python_OP_Affinity(hlquery, op):
+def OP_Affinity(hlquery, op):
     zAffinity = op.p4_z() # The affinity to be applied
     encoding = hlquery.enc()
     index = op.p_Signed(1)
@@ -658,7 +658,7 @@ def python_OP_Affinity(hlquery, op):
 # integers, for space efficiency, but after extraction we want them
 # to have only a real value.
 
-def python_OP_RealAffinity(hlquery, op):
+def OP_RealAffinity(hlquery, op):
     pIn1, flags = op.mem_and_flags_of_p(1)
     if flags & CConfig.MEM_Int and not flags & CConfig.MEM_Real:
         # only relevant parts of sqlite3VdbeMemRealify
@@ -678,7 +678,7 @@ def python_OP_RealAffinity(hlquery, op):
 # is considered false if it has a numeric value of zero.  If the value
 # in P1 is NULL then take the jump if P3 is zero.
 
-def python_OP_If_IfNot(hlquery, pc, op):
+def OP_If_IfNot(hlquery, pc, op):
     p = hlquery.p
     pIn1, flags1 = op.mem_and_flags_of_p(1)    # 1st input operand
     opcode = op.get_opcode()
@@ -744,7 +744,7 @@ def python_OP_If_IfNot(hlquery, pc, op):
 # If the value in register P1 is zero the result is NULL.
 # If either operand is NULL, the result is NULL.
 
-def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
+def OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
     p = hlquery.p
     opcode = op.get_opcode()
 
@@ -827,7 +827,7 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
             iA = 1
         rB = iB % iA
     else:
-        print "Error: Unknown opcode %s in python_OP_Add_Subtract_Multiply_Divide_Remainder()." % opcode
+        print "Error: Unknown opcode %s in OP_Add_Subtract_Multiply_Divide_Remainder()." % opcode
         assert 0
     # SQLITE_OMIT_FLOATING_POINT is not defined.
     #ifdef SQLITE_OMIT_FLOATING_POINT
@@ -848,7 +848,7 @@ def python_OP_Add_Subtract_Multiply_Divide_Remainder(hlquery, op):
 #
 # The 32-bit integer value P1 is written into register P2.
 
-def python_OP_Integer(hlquery, op):
+def OP_Integer(hlquery, op):
     pOut = op.mem_of_p(2)
     pOut.set_u_i(op.p_Signed(1), constant=True)
 
@@ -867,7 +867,7 @@ def python_OP_Integer(hlquery, op):
 #
 # See also: Found, NotFound, NoConflict
 
-def python_OP_NotExists(hlquery, pc, op):
+def OP_NotExists(hlquery, pc, op):
     p = hlquery.p
     pIn3 = op.mem_of_p(3)
     pC = p.apCsr[op.p_Signed(1)]
@@ -897,7 +897,7 @@ def python_OP_NotExists(hlquery, pc, op):
 # not contain an integer.  An assertion fault will result if you try.
 
 
-def python_OP_IfPos(hlquery, pc, op):
+def OP_IfPos(hlquery, pc, op):
     pIn1 = op.mem_of_p(1)
     if pIn1.get_u_i() > 0:
         pc = op.p2as_pc()
@@ -913,7 +913,7 @@ def python_OP_IfPos(hlquery, pc, op):
 #
 # See also: Rowid, MakeRecord.
 
-def python_OP_IdxRowid(hlquery, pc, rc, op):
+def OP_IdxRowid(hlquery, pc, rc, op):
     p = hlquery.p
     db = hlquery.db
 
@@ -931,7 +931,7 @@ def python_OP_IdxRowid(hlquery, pc, rc, op):
     # opcode, hence the NEVER() arround the check of the return value.
     rc = rffi.cast(lltype.Signed, capi.sqlite3VdbeCursorRestore(pC))
     if rc != CConfig.SQLITE_OK:
-        print "In python_OP_IdxRowid():1: abort_due_to_error."
+        print "In OP_IdxRowid():1: abort_due_to_error."
         rc = capi.gotoAbortDueToError(p, db, pc, rc)
         return rc
 
@@ -939,7 +939,7 @@ def python_OP_IdxRowid(hlquery, pc, rc, op):
         rc = capi.sqlite3VdbeIdxRowid(db, pCrsr, hlquery.longp)
         jit.promote(rc)
         if rc != CConfig.SQLITE_OK:
-            print "In python_OP_IdxRowid():2: abort_due_to_error."
+            print "In OP_IdxRowid():2: abort_due_to_error."
             rc = capi.gotoAbortDueToError(p, db, pc, rc)
             return rc
         pOut.set_u_i(hlquery.longp[0])
@@ -959,7 +959,7 @@ def python_OP_IdxRowid(hlquery, pc, rc, op):
 # the cursor is used to read a record.  That way, if no reads
 # occur, no unnecessary I/O happens.
 
-def python_OP_Seek(hlquery, op):
+def OP_Seek(hlquery, op):
     p = hlquery.p
     pC = p.apCsr[op.p_Signed(1)]
     assert pC
@@ -983,7 +983,7 @@ def python_OP_Seek(hlquery, op):
 # successors.
 
 @jit.unroll_safe
-def python_OP_AggStep(hlquery, rc, pc, op):
+def OP_AggStep(hlquery, rc, pc, op):
     from sqpyte.mem import Mem
     p = hlquery.p
     db = hlquery.db
@@ -1009,7 +1009,7 @@ def python_OP_AggStep(hlquery, rc, pc, op):
 # P4 argument is only needed for the degenerate case where
 # the step function was not previously called.
 
-def python_OP_AggFinal(hlquery, pc, rc, op):
+def OP_AggFinal(hlquery, pc, rc, op):
     func = op.p4_pFunc()
     if func.agg_exists_in_python():
         mem = op.mem_of_p(1)
@@ -1061,7 +1061,7 @@ def python_OP_AggFinal(hlquery, pc, rc, op):
 # If the P1 index entry is less than or equal to the key value then jump
 # to P2. Otherwise fall through to the next instruction.
 
-def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(hlquery, pc, op):
+def OP_IdxLE_IdxGT_IdxLT_IdxGE(hlquery, pc, op):
     p = hlquery.p
 
     assert op.p_Unsigned(1) >= 0 and op.p_Signed(1) < rffi.getintfield(p, 'nCursor')
@@ -1134,7 +1134,7 @@ def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(hlquery, pc, op):
 # and strings are less than blobs.
 
 @jit.unroll_safe
-def python_OP_Compare(hlquery, op):
+def OP_Compare(hlquery, op):
     p = hlquery.p
 
     if (op.p_Unsigned(5) & CConfig.OPFLAG_PERMUTE) == 0:
@@ -1197,7 +1197,7 @@ def python_OP_Compare(hlquery, op):
 # in the most recent OP_Compare instruction the P1 vector was less than
 # equal to, or greater than the P2 vector, respectively.
 
-def python_OP_Jump(hlquery, op):
+def OP_Jump(hlquery, op):
 
     # VdbeBranchTaken() is used for test suite validation only and
     # does not appear an production builds.
@@ -1228,7 +1228,7 @@ def python_OP_Jump(hlquery, op):
 # during the lifetime of the copy.  Use OP_Copy to make a complete
 # copy.
 
-def python_OP_SCopy(hlquery, op):
+def OP_SCopy(hlquery, op):
     pIn1 = op.mem_of_p(1)
     pOut = op.mem_of_p(2)
     assert pOut != pIn1
@@ -1249,7 +1249,7 @@ def python_OP_SCopy(hlquery, op):
 # is made of any string or blob constant.  See also OP_SCopy.
 
 @jit.unroll_safe
-def python_OP_Copy(hlquery, pc, rc, op):
+def OP_Copy(hlquery, pc, rc, op):
     n = op.p_Signed(3)
     for i in range(n + 1):
         pIn1 = hlquery.mem_with_index(op.p_Signed(1) + i)
@@ -1257,7 +1257,7 @@ def python_OP_Copy(hlquery, pc, rc, op):
         pOut.sqlite3VdbeMemShallowCopy(pIn1, CConfig.MEM_Ephem)
         if pOut.get_flags() & CConfig.MEM_Ephem and pOut.sqlite3VdbeMemMakeWriteable():
             # goto no_mem
-            print "In python_OP_Copy(): no_mem."
+            print "In OP_Copy(): no_mem."
             return hlquery.gotoNoMem(pc)
     return rc
 
@@ -1270,7 +1270,7 @@ def python_OP_Copy(hlquery, pc, rc, op):
 # The sequence number on the cursor is incremented after this
 # instruction.
 
-def python_OP_Sequence(hlquery, op):
+def OP_Sequence(hlquery, op):
     p = hlquery.p
     pOut = op.mem_of_p(2)
     assert pOut.get_flags() & CConfig.MEM_Int
@@ -1281,7 +1281,7 @@ def python_OP_Sequence(hlquery, op):
     cursor.seqCount = seqCount + 1
     pOut.set_u_i(seqCount)
 
-def python_OP_Column(hlquery, pc, op):
+def OP_Column(hlquery, pc, op):
     result = capi.impl_OP_Column(hlquery.p, hlquery.db, pc, op.pOp)
     return _decode_combined_flags_rc_for_p3(result, op)
 
@@ -1304,7 +1304,7 @@ def _decode_combined_flags_rc_for_p3(result, op):
 # Jump to the next instruction after the address in register P1.  After
 # the jump, register P1 becomes undefined.
 
-def python_OP_Return(hlquery, op):
+def OP_Return(hlquery, op):
     pIn1, flags1 = op.mem_and_flags_of_p(1)    # 1st input operand
     assert flags1 == CConfig.MEM_Int
     pc = pIn1.get_u_i()
@@ -1316,7 +1316,7 @@ def python_OP_Return(hlquery, op):
 # Write the current address onto register P1
 # and then jump to address P2.
 
-def python_OP_Gosub(hlquery, pc, op):
+def OP_Gosub(hlquery, pc, op):
     p = hlquery.p
     p1 = op.p_Signed(1)
     assert p1 > 0 and p1 <= (rffi.getintfield(p, 'nMem') - rffi.getintfield(p, 'nCursor'))
@@ -1340,7 +1340,7 @@ def python_OP_Gosub(hlquery, pc, op):
 # for P3 to be less than 1.
 
 @jit.unroll_safe
-def python_OP_Move(hlquery, op):
+def OP_Move(hlquery, op):
     p = hlquery.p
     n = op.p_Signed(3)
     p1 = op.p_Signed(1)
@@ -1398,7 +1398,7 @@ def _check_too_big_hidden_from_jit(nByte, db):
 # If P4 is NULL then all index fields have the affinity NONE.
 
 @jit.unroll_safe
-def python_OP_MakeRecord(hlquery, pc, rc, op):
+def OP_MakeRecord(hlquery, pc, rc, op):
     p = hlquery.p
     db = hlquery.db
     #u8 *zNewRecord;        # A buffer to hold the data for the new record
@@ -1487,7 +1487,7 @@ def python_OP_MakeRecord(hlquery, pc, rc, op):
     nByte = nHdr + nData
     if _check_too_big_hidden_from_jit(nByte, db):
         # goto too_big;
-        print "In python_OP_MakeRecord(): too_big."
+        print "In OP_MakeRecord(): too_big."
         return hlquery.gotoTooBig(pc)
 
     # Make sure the output register has a buffer large enough to store
@@ -1496,7 +1496,7 @@ def python_OP_MakeRecord(hlquery, pc, rc, op):
     # sqlite3VdbeMemGrow() could clobber the value before it is used).
     if pOut.sqlite3VdbeMemGrow(nByte, 0):
         # goto no_mem;
-        print "In python_OP_MakeRecord(): no_mem."
+        print "In OP_MakeRecord(): no_mem."
         return hlquery.gotoNoMem(pc)
 
     zNewRecord = pOut.get_z()
@@ -1570,7 +1570,7 @@ def putVarint32(buf, val, index=0):
 # invocation of this opcode.
 #
 # See also: AggStep and AggFinal
-def python_OP_Function(hlquery, pc, rc, op):
+def OP_Function(hlquery, pc, rc, op):
     func = op.p4_pFunc()
     if func.func_exists_in_python():
         index = op.p_Signed(2)
@@ -1581,7 +1581,7 @@ def python_OP_Function(hlquery, pc, rc, op):
     result = capi.impl_OP_Function(hlquery.p, hlquery.db, pc, rc, op.pOp)
     return _decode_combined_flags_rc_for_p3(result, op)
 
-def incomplete_python_OP_Function(hlquery, pc, rc, op):
+def incomplete_OP_Function(hlquery, pc, rc, op):
     p = hlquery.p
     db = hlquery.db
     encoding = hlquery.enc() # The database encoding
@@ -1655,7 +1655,7 @@ def incomplete_python_OP_Function(hlquery, pc, rc, op):
             # associated with such a value.
             # ctx.s.sqlite3VdbeMemRelease() # XXX
             # goto no_mem;
-            print "In python_OP_Function(): no_mem."
+            print "In OP_Function(): no_mem."
             return hlquery.gotoNoMem(pc)
 
         # If the function returned an error, throw an exception
@@ -1744,7 +1744,7 @@ def incomplete_python_OP_Function(hlquery, pc, rc, op):
 #
 # See also: Found, NotFound, Distinct, SeekGt, SeekGe, SeekLt
 
-def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
+def OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
     p = hlquery.p
     db = hlquery.db
 
@@ -1815,7 +1815,7 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
         res = rffi.cast(lltype.Signed, hlquery.intp[0])
         if rc != CConfig.SQLITE_OK:
             # goto abort_due_to_error;
-            print "In python_OP_SeekLT_SeekLE_SeekGE_SeekGT():1: abort_due_to_error."
+            print "In OP_SeekLT_SeekLE_SeekGE_SeekGT():1: abort_due_to_error."
             rc = capi.gotoAbortDueToError(p, db, pc, rc)
             return pc, rc
     else:
@@ -1844,7 +1844,7 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
         res = rffi.cast(lltype.Signed, hlquery.intp[0])
         if rc != CConfig.SQLITE_OK:
             # goto abort_due_to_error;
-            print "In python_OP_SeekLT_SeekLE_SeekGE_SeekGT():2: abort_due_to_error."
+            print "In OP_SeekLT_SeekLE_SeekGE_SeekGT():2: abort_due_to_error."
             rc = capi.gotoAbortDueToError(p, db, pc, rc)
             return pc, rc
 
@@ -1858,7 +1858,7 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
             res = rffi.cast(lltype.Signed, resRet)
             if rc != CConfig.SQLITE_OK:
                 # goto abort_due_to_error;
-                print "In python_OP_SeekLT_SeekLE_SeekGE_SeekGT():3: abort_due_to_error."
+                print "In OP_SeekLT_SeekLE_SeekGE_SeekGT():3: abort_due_to_error."
                 rc = capi.gotoAbortDueToError(p, db, pc, rc)
                 return pc, rc
         else:
@@ -1871,7 +1871,7 @@ def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(hlquery, pc, rc, op):
             res = rffi.cast(lltype.Signed, resRet)
             if rc != CConfig.SQLITE_OK:
                 # goto abort_due_to_error;
-                print "In python_OP_SeekLT_SeekLE_SeekGE_SeekGT():4: abort_due_to_error."
+                print "In OP_SeekLT_SeekLE_SeekGE_SeekGT():4: abort_due_to_error."
                 rc = capi.gotoAbortDueToError(p, db, pc, rc)
                 return pc, rc
         else:
@@ -1913,7 +1913,7 @@ def get_isOrdered(vdbecursor):
 # to the next instruction.  But if the co-routine ends with
 # OP_EndCoroutine, jump immediately to P2.
 
-def python_OP_Yield(hlquery, pc, op):
+def OP_Yield(hlquery, pc, op):
     pIn1 = op.mem_of_p(1)
     assert pIn1.VdbeMemDynamic() == 0
     pIn1.set_flags(CConfig.MEM_Int)
@@ -1935,7 +1935,7 @@ def python_OP_Yield(hlquery, pc, op):
 # OP_Ne or OP_Eq.
 
 @jit.unroll_safe
-def python_OP_Null(hlquery, op):
+def OP_Null(hlquery, op):
     # out2-prerelease
     pOut = op.mem_of_p(2)
     if op.p_Signed(1):
@@ -1957,7 +1957,7 @@ def python_OP_Null(hlquery, op):
 # The register P1 must contain an integer.  Add literal P3 to the
 # value in register P1.  If the result is exactly 0, jump to P2.
 
-def python_OP_IfZero(hlquery, pc, op):
+def OP_IfZero(hlquery, pc, op):
     pIn1 = op.mem_of_p(1)
     assert pIn1.get_flags() & CConfig.MEM_Int
     constant = pIn1.is_constant_u_i()
@@ -1984,7 +1984,7 @@ def python_OP_IfZero(hlquery, pc, op):
 #
 # A NULL value is not changed by this routine.  It remains NULL.
 
-def python_OP_Cast(hlquery, rc, op):
+def OP_Cast(hlquery, rc, op):
     aff = op.p_Signed(2)
     assert aff >= CConfig.SQLITE_AFF_NONE and aff <= CConfig.SQLITE_AFF_REAL
     pIn1 = op.mem_of_p(1)
@@ -2000,7 +2000,7 @@ def python_OP_Cast(hlquery, rc, op):
 # P4 is a pointer to a 64-bit floating point value.
 # Write that value into register P2.
 
-def python_OP_Real(hlquery, op):
+def OP_Real(hlquery, op):
 # case OP_Real: {            /* same as TK_FLOAT, out2-prerelease */
     pOut = op.mem_of_p(2)
     pOut.set_flags(CConfig.MEM_Real)
@@ -2023,7 +2023,7 @@ def python_OP_Real(hlquery, op):
 # to retrieve the collation sequence set by this opcode is not available
 # publicly, only to user functions defined in func.c.
 
-def python_OP_CollSeq(hlquery, op):
+def OP_CollSeq(hlquery, op):
     assert op.pOp.p4type == CConfig.P4_COLLSEQ
     if op.p_Signed(1):
         op.mem_of_p(1).sqlite3VdbeMemSetInt64(0, constant=True)
@@ -2040,7 +2040,7 @@ def python_OP_CollSeq(hlquery, op):
 # 
 # See also: EndCoroutine
 
-def python_OP_InitCoroutine(hlquery, pc, op):
+def OP_InitCoroutine(hlquery, pc, op):
     pOut = op.mem_of_p(1)
     assert not pOut.VdbeMemDynamic()
     pOut.set_u_i(op.p_Signed(3) - 1, constant=True)
@@ -2058,7 +2058,7 @@ def python_OP_InitCoroutine(hlquery, pc, op):
 #
 # See also: InitCoroutine
 
-def python_OP_EndCoroutine(hlquery, op):
+def OP_EndCoroutine(hlquery, op):
     pIn1 = op.mem_of_p(1)
     pCaller = hlquery._hlops[jit.promote(pIn1.get_u_i())]
     assert pCaller.get_opcode() == CConfig.OP_Yield
@@ -2075,13 +2075,13 @@ def python_OP_EndCoroutine(hlquery, op):
 # If the parameter is named, then its name appears in P4.
 # The P4 value is used by sqlite3_bind_parameter_name().
 
-def python_OP_Variable(hlquery, pc, rc, op):
+def OP_Variable(hlquery, pc, rc, op):
     # out2-prerelease
     i = op.p_Signed(1) - 1
     pVar = hlquery.var_with_index(i)
     if pVar.sqlite3VdbeMemTooBig():
         # goto too_big;
-        print "In python_OP_Variable(): too_big."
+        print "In OP_Variable(): too_big."
         return hlquery.gotoTooBig(pc)
     pOut = op.mem_of_p(2)
     pOut.sqlite3VdbeMemShallowCopy(pVar, CConfig.MEM_Static)
@@ -2098,7 +2098,7 @@ def python_OP_Variable(hlquery, pc, rc, op):
 # the result row.
 
 @jit.unroll_safe
-def python_OP_ResultRow(hlquery, pc, op):
+def OP_ResultRow(hlquery, pc, op):
     p = hlquery.p
     db = hlquery.db
     assert rffi.getintfield(p, 'nResColumn') == op.p_Signed(2)
@@ -2164,7 +2164,7 @@ def python_OP_ResultRow(hlquery, pc, op):
         # Translated Deephemeralize(&pMem[i]);
         if pMem.get_flags() & CConfig.MEM_Ephem and pMem.sqlite3VdbeMemMakeWriteable():
             # goto no_mem
-            print "In python_OP_ResultRow(): no_mem."
+            print "In OP_ResultRow(): no_mem."
             return hlquery.gotoNoMem(pc)
 
         #assert( (pMem[i].flags & MEM_Ephem)==0
@@ -2173,7 +2173,7 @@ def python_OP_ResultRow(hlquery, pc, op):
         #REGISTER_TRACE(pOp->p1+i, &pMem[i]);
     if rffi.cast(lltype.Bool, db.mallocFailed):
         # goto no_mem;
-        print "In python_OP_ResultRow(): no_mem."
+        print "In OP_ResultRow(): no_mem."
         return hlquery.gotoNoMem(pc)
 
     # Return SQLITE_ROW
