@@ -305,6 +305,7 @@ class Mem(object):
         """
         if (self.get_flags() & (CConfig.MEM_Term | CConfig.MEM_Str)) != CConfig.MEM_Str:
             return 0
+        self.invalidate_cache()
         return rffi.cast(
             lltype.Signed, capi.sqlite3_sqlite3VdbeMemNulTerminate(self.pMem))
 
