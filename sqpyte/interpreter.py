@@ -11,6 +11,8 @@ import math
 testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test/test.db")
 # testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test/big-test.db")
 
+from sqpyte import opcode
+
 def get_printable_location(pc, rc, self, cache_state):
     op = self._hlops[pc]
     name = op.get_opcode_str()
@@ -178,6 +180,7 @@ class Sqlite3Query(object):
                 for i in range(nVar)]
         self._hlops = [Op(self, self.p.aOp[i], i) for i in range(self.p.nOp)]
         self.init_mem_cache(use_flag_cache)
+        self.use_translated = opcode.OpcodeStatus(use_flag_cache)
 
     def init_mem_cache(self, use_flag_cache):
         from sqpyte.mem import CacheHolder
@@ -556,161 +559,204 @@ class Sqlite3Query(object):
 
     @cache_safe()
     def python_OP_Goto(self, pc, rc, op):
-        # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        # retRc = capi.impl_OP_Goto(self.p, self.db, self.internalPc, rc, op.pOp)
-        # retPc = self.internalPc[0]
-        # return retPc, retRc
-
-        return translated.OP_Goto(self, pc, rc, op)
+        if self.use_translated.Goto:
+            return translated.OP_Goto(self, pc, rc, op)
+        else:
+            self.internalPc[0] = rffi.cast(rffi.LONG, pc)
+            retRc = capi.impl_OP_Goto(self.p, self.db, self.internalPc, rc, op.pOp)
+            retPc = self.internalPc[0]
+            return retPc, retRc
 
     @cache_safe(opcodes=[CConfig.OP_OpenRead, CConfig.OP_OpenWrite])
     def python_OP_OpenRead_OpenWrite(self, pc, op):
-        if op.p_Signed(5):
-            self.mem_cache.invalidate(op.p_Signed(2))
-        return capi.impl_OP_OpenRead_OpenWrite(self.p, self.db, pc, op.pOp)
-        # translated.OP_OpenRead_OpenWrite(self, self.db, pc, op)
+        if self.use_translated.OpenRead_OpenWrite:
+            return translated.OP_OpenRead_OpenWrite(self, self.db, pc, op)
+        else:
+            if op.p_Signed(5):
+                self.mem_cache.invalidate(op.p_Signed(2))
+            return capi.impl_OP_OpenRead_OpenWrite(self.p, self.db, pc, op.pOp)
 
     @cache_safe()
     def python_OP_ResultRow(self, pc, op):
-        return translated.OP_ResultRow(self, pc, op)
-        return capi.impl_OP_ResultRow(self.p, self.db, pc, op.pOp)
+        if self.use_translated.ResultRow:
+            return translated.OP_ResultRow(self, pc, op)
+        else:
+            return capi.impl_OP_ResultRow(self.p, self.db, pc, op.pOp)
 
     @cache_safe()
     def python_OP_Next(self, pc, op):
-        # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        # rc = capi.impl_OP_Next(self.p, self.db, self.internalPc, op.pOp)
-        # retPc = self.internalPc[0]
-        # return retPc, rc
+        if self.use_translated.Next:
+            return translated.OP_Next(self, pc, op)
+        else:
+            self.internalPc[0] = rffi.cast(rffi.LONG, pc)
+            rc = capi.impl_OP_Next(self.p, self.db, self.internalPc, op.pOp)
+            retPc = self.internalPc[0]
+            return retPc, rc
 
-        return translated.OP_Next(self, pc, op)
 
     @cache_safe(
-        opcodes=[CConfig.OP_Eq, CConfig.OP_Ne, CConfig.OP_Lt, CConfig.OP_Le,
-                 CConfig.OP_Gt, CConfig.OP_Ge])
+    opcodes=[CConfig.OP_Eq, CConfig.OP_Ne, CConfig.OP_Lt, CConfig.OP_Le,
+             CConfig.OP_Gt, CConfig.OP_Ge])
     def python_OP_Ne_Eq_Gt_Le_Lt_Ge(self, pc, rc, op):
-        # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        # rc = capi.impl_OP_Ne_Eq_Gt_Le_Lt_Ge(self.p, self.db, self.internalPc, rc, op.pOp)
-        # retPc = self.internalPc[0]
-        # return retPc, rc
+        if self.use_translated.Ne_Eq_Gt_Le_Lt_Ge:
+            return translated.OP_Ne_Eq_Gt_Le_Lt_Ge(self, pc, rc, op)
+        else:
+            self.internalPc[0] = rffi.cast(rffi.LONG, pc)
+            rc = capi.impl_OP_Ne_Eq_Gt_Le_Lt_Ge(self.p, self.db, self.internalPc, rc, op.pOp)
+            retPc = self.internalPc[0]
+            return retPc, rc
 
-        return translated.OP_Ne_Eq_Gt_Le_Lt_Ge(self, pc, rc, op)
 
     @cache_safe()
     def python_OP_Integer(self, op):
-        translated.OP_Integer(self, op)
-        #capi.impl_OP_Integer(self.p, op.pOp)
+        if self.use_translated.Integer:
+            translated.OP_Integer(self, op)
+            #capi.impl_OP_Integer(self.p, op.pOp)
 
     @cache_safe()
     def python_OP_Null(self, op):
-        #capi.impl_OP_Null(self.p, op.pOp)
-        translated.OP_Null(self, op)
+        if self.use_translated.Null:
+            #capi.impl_OP_Null(self.p, op.pOp)
+            translated.OP_Null(self, op)
 
     @cache_safe()
     def python_OP_MustBeInt(self, pc, rc, op):
-        # XXX
-        return translated.OP_MustBeInt(self, pc, rc, op)
+        if self.use_translated.MustBeInt:
+            return translated.OP_MustBeInt(self, pc, rc, op)
+        else:
+            self.internalPc[0] = rffi.cast(rffi.LONG, pc)
+            rc = capi.impl_OP_MustBeInt(self.p, self.db, self.internalPc, rc, op.pOp)
+            retPc = self.internalPc[0]
+            return retPc, rc
 
     @cache_safe()
     def python_OP_Copy(self, pc, rc, op):
-        if objectmodel.we_are_translated():
+        if (self.use_translated.Copy and
+                objectmodel.we_are_translated()):
             return translated.OP_Copy(self, pc, rc, op)
-        self.invalidate_caches()
-        return capi.impl_OP_Copy(self.p, self.db, pc, rc, op.pOp)
+        else:
+            self.invalidate_caches()
+            return capi.impl_OP_Copy(self.p, self.db, pc, rc, op.pOp)
 
     @cache_safe()
     def python_OP_NotExists(self, pc, op):
-        return translated.OP_NotExists(self, pc, op)
-        #self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        #rc = capi.impl_OP_NotExists(self.p, self.db, self.internalPc, op.pOp)
-        #retPc = self.internalPc[0]
-        #return retPc, rc
+        if self.use_translated.NotExists:
+            return translated.OP_NotExists(self, pc, op)
+        else:
+            self.internalPc[0] = rffi.cast(rffi.LONG, pc)
+            rc = capi.impl_OP_NotExists(self.p, self.db, self.internalPc, op.pOp)
+            retPc = self.internalPc[0]
+            return retPc, rc
 
     @cache_safe()
     def python_OP_Real(self, op):
-        # aMem = self.p.aMem
-        # pOut = aMem[pOp.p2]
-        # pOut.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Real)
-        # assert not math.isnan(pOp.p4.pReal)
-        # pOut.r = pOp.p4.pReal
-        return translated.OP_Real(self, op)
-
-        capi.impl_OP_Real(self.p, op.pOp)
+        if self.use_translated.Real:
+            # aMem = self.p.aMem
+            # pOut = aMem[pOp.p2]
+            # pOut.flags = rffi.cast(rffi.USHORT, CConfig.MEM_Real)
+            # assert not math.isnan(pOp.p4.pReal)
+            # pOut.r = pOp.p4.pReal
+            return translated.OP_Real(self, op)
+        else:
+            return capi.impl_OP_Real(self.p, op.pOp)
 
     @cache_safe()
     def python_OP_RealAffinity(self, op):
-        # capi.impl_OP_RealAffinity(self.p, op.pOp)
-        translated.OP_RealAffinity(self, op)
+        if self.use_translated.RealAffinity:
+            translated.OP_RealAffinity(self, op)
+        else:
+            capi.impl_OP_RealAffinity(self.p, op.pOp)
 
     @cache_safe(
-        opcodes=[CConfig.OP_Add, CConfig.OP_Subtract, CConfig.OP_Multiply,
-                 CConfig.OP_Divide, CConfig.OP_Remainder])
+    opcodes=[CConfig.OP_Add, CConfig.OP_Subtract, CConfig.OP_Multiply,
+             CConfig.OP_Divide, CConfig.OP_Remainder])
     def python_OP_Add_Subtract_Multiply_Divide_Remainder(self, op):
-        # capi.impl_OP_Add_Subtract_Multiply_Divide_Remainder(self.p, op.pOp)
-        translated.OP_Add_Subtract_Multiply_Divide_Remainder(self, op)
+        if self.use_translated.Add_Subtract_Multiply_Divide_Remainder:
+            translated.OP_Add_Subtract_Multiply_Divide_Remainder(self, op)
+        else:
+            capi.impl_OP_Add_Subtract_Multiply_Divide_Remainder(self.p, op.pOp)
 
     @cache_safe(
         opcodes=[CConfig.OP_If, CConfig.OP_IfNot])
     def python_OP_If_IfNot(self, pc, op):
-        # return capi.impl_OP_If_IfNot(self.p, pc, op.pOp)
-        return translated.OP_If_IfNot(self, pc, op)
+        if self.use_translated.If_IfNot:
+            return translated.OP_If_IfNot(self, pc, op)
+        else:
+            return capi.impl_OP_If_IfNot(self.p, pc, op.pOp)
 
     @cache_safe()
     def python_OP_IsNull(self, pc, op):
-        # return capi.impl_OP_IsNull(self.p, pc, op.pOp)
-        return translated.OP_IsNull(self, pc, op)
+        if self.use_translated.IsNull:
+            return translated.OP_IsNull(self, pc, op)
+        else:
+            return capi.impl_OP_IsNull(self.p, pc, op.pOp)
 
     @cache_safe(
         opcodes=[CConfig.OP_SeekLT,
                  CConfig.OP_SeekLE,
                  CConfig.OP_SeekGE,
-                 CConfig.OP_SeekGT],
+             CConfig.OP_SeekGT],
         mutates="p3@p4")
     def python_OP_SeekLT_SeekLE_SeekGE_SeekGT(self, pc, rc, op):
-        # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        # rc = capi.impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(self.p, self.db, self.internalPc, rc, op.pOp)
-        # retPc = self.internalPc[0]
-        # return retPc, rc
-        return translated.OP_SeekLT_SeekLE_SeekGE_SeekGT(self, pc, rc, op)
+        if self.use_translated.SeekLT_SeekLE_SeekGE_SeekGT:
+            return translated.OP_SeekLT_SeekLE_SeekGE_SeekGT(self, pc, rc, op)
+        else:
+            self.internalPc[0] = rffi.cast(rffi.LONG, pc)
+            rc = capi.impl_OP_SeekLT_SeekLE_SeekGE_SeekGT(self.p, self.db, self.internalPc, rc, op.pOp)
+            retPc = self.internalPc[0]
+            return retPc, rc
 
     @cache_safe()
     def python_OP_Move(self, op):
-        # capi.impl_OP_Move(self.p, op.pOp)
-        translated.OP_Move(self, op)
+        if self.use_translated.Move:
+            translated.OP_Move(self, op)
+        else:
+            capi.impl_OP_Move(self.p, op.pOp)
 
     @cache_safe()
     def python_OP_IfZero(self, pc, op):
-        # return capi.impl_OP_IfZero(self.p, pc, op.pOp)
-        return translated.OP_IfZero(self, pc, op)
+        if self.use_translated.IfZero:
+            return translated.OP_IfZero(self, pc, op)
+        else:
+            return capi.impl_OP_IfZero(self.p, pc, op.pOp)
 
     @cache_safe()
     def python_OP_IdxRowid(self, pc, rc, op):
-        return translated.OP_IdxRowid(self, pc, rc, op)
-        #return capi.impl_OP_IdxRowid(self.p, self.db, pc, rc, op.pOp)
+        if self.use_translated.IdxRowid:
+            return translated.OP_IdxRowid(self, pc, rc, op)
+        else:
+            return capi.impl_OP_IdxRowid(self.p, self.db, pc, rc, op.pOp)
 
     @cache_safe(
         opcodes=[CConfig.OP_IdxLE, CConfig.OP_IdxGT, CConfig.OP_IdxLT, CConfig.OP_IdxGE],
         mutates="p3@p4")
     def python_OP_IdxLE_IdxGT_IdxLT_IdxGE(self, pc, op):
-        # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        # rc = capi.impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(self.p, self.db, self.internalPc, op.pOp)
-        # retPc = self.internalPc[0]
-        # return retPc, rc
-
-        return translated.OP_IdxLE_IdxGT_IdxLT_IdxGE(self, pc, op)
+        if self.use_translated.IdxLE_IdxGT_IdxLT_IdxGE:
+            return translated.OP_IdxLE_IdxGT_IdxLT_IdxGE(self, pc, op)
+        else:
+            self.internalPc[0] = rffi.cast(rffi.LONG, pc)
+            rc = capi.impl_OP_IdxLE_IdxGT_IdxLT_IdxGE(self.p, self.db, self.internalPc, op.pOp)
+            retPc = self.internalPc[0]
+            return retPc, rc
 
     @cache_safe()
     def python_OP_Seek(self, op):
-        #capi.impl_OP_Seek(self.p, op.pOp)
-        translated.OP_Seek(self, op)
+        if self.use_translated.Seek:
+            translated.OP_Seek(self, op)
+        else:
+            capi.impl_OP_Seek(self.p, op.pOp)
 
     @cache_safe()
     def python_OP_Once(self, pc, op):
-        # return capi.impl_OP_Once(self.p, pc, op.pOp)
-        return translated.OP_Once(self, pc, op)
+        if self.use_translated.Once:
+            return translated.OP_Once(self, pc, op)
+        else:
+            return capi.impl_OP_Once(self.p, pc, op.pOp)
 
     @cache_safe()
     def python_OP_SCopy(self, op):
-        if not objectmodel.we_are_translated():
+        if (self.use_translated.SCopy and
+                objectmodel.we_are_translated()):
             self.invalidate_caches()
             capi.impl_OP_SCopy(self.p, op.pOp)
         else:
@@ -718,82 +764,120 @@ class Sqlite3Query(object):
 
     @cache_safe()
     def python_OP_Affinity(self, op):
-        # capi.impl_OP_Affinity(self.p, self.db, op.pOp)
-        translated.OP_Affinity(self, op)
+        if self.use_translated.Affinity:
+            translated.OP_Affinity(self, op)
+        else:
+            capi.impl_OP_Affinity(self.p, self.db, op.pOp)
 
     @cache_safe()
     def python_OP_MakeRecord(self, pc, rc, op):
-        # return capi.impl_OP_MakeRecord(self.p, self.db, pc, rc, op.pOp)
-        return translated.OP_MakeRecord(self, pc, rc, op)
+        if self.use_translated.MakeRecord:
+            return translated.OP_MakeRecord(self, pc, rc, op)
+        else:
+            return capi.impl_OP_MakeRecord(self.p, self.db, pc, rc, op.pOp)
 
     @cache_safe()
     def python_OP_Gosub(self, pc, op):
-        # return capi.impl_OP_Gosub(self.p, pc, op.pOp)
-        return translated.OP_Gosub(self, pc, op)
+        if self.use_translated.Gosub:
+            return translated.OP_Gosub(self, pc, op)
+        else:
+            return capi.impl_OP_Gosub(self.p, pc, op.pOp)
 
     @cache_safe()
     def python_OP_Return(self, pc, op):
-        # return capi.impl_OP_Return(self.p, pc, op.pOp)
-        return translated.OP_Return(self, op)
+        if self.use_translated.Return:
+            return translated.OP_Return(self, op)
+        else:
+            return capi.impl_OP_Return(self.p, pc, op.pOp)
 
     @cache_safe()
     def python_OP_NextIfOpen(self, pc, rc, op):
-        # self.internalPc[0] = rffi.cast(rffi.LONG, pc)
-        # rc = capi.impl_OP_NextIfOpen(self.p, self.db, self.internalPc, rc, op.pOp)
-        # retPc = self.internalPc[0]
-        # return retPc, rc
+        if self.use_translated.NextIfOpen:
+            return translated.OP_NextIfOpen(self, pc, rc, op)
+        else:
+            self.internalPc[0] = rffi.cast(rffi.LONG, pc)
+            rc = capi.impl_OP_NextIfOpen(self.p, self.db, self.internalPc, rc, op.pOp)
+            retPc = self.internalPc[0]
+            return retPc, rc
 
-        return translated.OP_NextIfOpen(self, pc, rc, op)
 
     @cache_safe(mutates="p2")
     def python_OP_Sequence(self, op):
-        # capi.impl_OP_Sequence(self.p, op.pOp)
-        translated.OP_Sequence(self, op)
+        if self.use_translated.Sequence:
+            translated.OP_Sequence(self, op)
+        else:
+            capi.impl_OP_Sequence(self.p, op.pOp)
 
     @cache_safe()
     def python_OP_Compare(self, op):
         # Compare and Jump must be implemented on the same side
-        # capi.impl_OP_Compare(self.p, op.pOp)
-        translated.OP_Compare(self, op)
+        if self.use_translated.Compare:
+            assert self.use_translated.Jump
+            translated.OP_Compare(self, op)
+        else:
+            assert not self.use_translated.Jump
+            capi.impl_OP_Compare(self.p, op.pOp)
 
     @cache_safe()
     def python_OP_Jump(self, op):
         # Compare and Jump must be implemented on the same side
-        # return capi.impl_OP_Jump(op.pOp)
-        return translated.OP_Jump(self, op)
-
+        if self.use_translated.Jump:
+            assert self.use_translated.Compare
+            return translated.OP_Jump(self, op)
+        else:
+            assert not self.use_translated.Compare
+            return capi.impl_OP_Jump(op.pOp)
 
     @cache_safe()
     def python_OP_Variable(self, pc, rc, op):
-        if objectmodel.we_are_translated():
+        if (self.use_translated.Variable and
+                objectmodel.we_are_translated()):
             return translated.OP_Variable(self, pc, rc, op)
-        self.invalidate_caches() # XXX annoying
-        return capi.impl_OP_Variable(self.p, self.db, pc, rc, op.pOp)
+        else:
+            self.invalidate_caches() # XXX annoying
+            return capi.impl_OP_Variable(self.p, self.db, pc, rc, op.pOp)
 
     @cache_safe()
     def python_OP_CollSeq(self, op):
-        translated.OP_CollSeq(self, op)
-        #capi.impl_OP_CollSeq(self.p, op.pOp)
+        if self.use_translated.CollSeq:
+            translated.OP_CollSeq(self, op)
+        else:
+            capi.impl_OP_CollSeq(self.p, op.pOp)
 
     @cache_safe()
     def python_OP_NotNull(self, pc, op):
-        # return capi.impl_OP_NotNull(self.p, pc, op.pOp)
-        return translated.OP_NotNull(self, pc, op)
+        if self.use_translated.NotNull:
+            return translated.OP_NotNull(self, pc, op)
+        else:
+            return capi.impl_OP_NotNull(self.p, pc, op.pOp)
 
     @cache_safe()
     def python_OP_InitCoroutine(self, pc, op):
-        return translated.OP_InitCoroutine(self, pc, op)
-        return capi.impl_OP_InitCoroutine(self.p, pc, op.pOp)
+        if self.use_translated.InitCoroutine:
+            return translated.OP_InitCoroutine(self, pc, op)
+        else:
+            return capi.impl_OP_InitCoroutine(self.p, pc, op.pOp)
 
     @cache_safe(mutates="p1")
     def python_OP_Yield(self, pc, op):
-        # return capi.impl_OP_Yield(self.p, pc, op.pOp)
-        return translated.OP_Yield(self, pc, op)
+        if self.use_translated.Yield:
+            return translated.OP_Yield(self, pc, op)
+        else:
+            return capi.impl_OP_Yield(self.p, pc, op.pOp)
 
     @cache_safe()
     def python_OP_EndCoroutine(self, op):
-        return translated.OP_EndCoroutine(self, op)
-        return capi.impl_OP_EndCoroutine(self.p, op.pOp)
+        if self.use_translated.EndCoroutine:
+            return translated.OP_EndCoroutine(self, op)
+        else:
+            return capi.impl_OP_EndCoroutine(self.p, op.pOp)
+
+    @cache_safe()
+    def python_OP_IfPos(self, pc, op):
+        if self.use_translated.IfPos:
+            return translated.OP_IfPos(self, pc, op)
+        else:
+            return capi.impl_OP_IfPos(self.p, pc, op.pOp)
 
 
 
@@ -820,11 +904,6 @@ class Sqlite3Query(object):
     def python_OP_Noop_Explain(self, op):
         # XXX
         translated.OP_Noop_Explain(op)
-
-    @cache_safe()
-    def python_OP_IfPos(self, pc, op):
-        # XXX
-        return translated.OP_IfPos(self, pc, op)
 
     @cache_safe()
     def python_OP_Cast(self, rc, op):
@@ -880,6 +959,7 @@ class Sqlite3Query(object):
 
         self.p.pResultSet = lltype.nullptr(lltype.typeOf(self.p.pResultSet).TO)
         self.result_set_index = -1
+        self.use_translated.freeze()
 
         while True:
             jitdriver.jit_merge_point(pc=pc, self_=self, rc=rc, cache_state=cache_state)
