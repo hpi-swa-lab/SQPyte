@@ -40,7 +40,7 @@ opnames = [
     'OP_AggStep',
     'OP_Blob',
     'OP_Cast',
-    'OP_Clear'
+    'OP_Clear',
     'OP_Close',
     'OP_CollSeq',
     'OP_Column',
