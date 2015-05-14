@@ -38,10 +38,15 @@ def entry_point(argv):
   For testing:      ./target-c -t db_file query_file [query_results_file]
   For benchmarking: ./target-c -b [warm_up] db_file query_file
     """
+    disabled_opcodes = ""
     try:
         flag = argv[1]
         if flag == '--jit':
             jit.set_user_param(None, argv[2])
+            flag = argv[3]
+            argv = [argv[0]] + argv[3:]
+        if flag == '--disable-opcodes':
+            disabled_opcodes = argv[2]
             flag = argv[3]
             argv = [argv[0]] + argv[3:]
         if flag == '-t':
@@ -107,7 +112,9 @@ def entry_point(argv):
             return 1
 
     db = Sqlite3DB(testdb)
-    query = db.execute(queryStr)
+    query = db.execute(queryStr, use_flag_cache=not disabled_opcodes)
+    if disabled_opcodes:
+        query.use_translated.disable_from_cmdline(disabled_opcodes)
     
     if testingFlag:
         run(query, queryRes, True)

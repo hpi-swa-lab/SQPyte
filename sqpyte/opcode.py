@@ -68,7 +68,7 @@ class OpcodeStatus(object):
             raise TypeError("can't change if flag cache is used")
         for whichop in unrolling_dual_implementation_opcodes:
             if whichop == op:
-                setattr(self, op, value)
+                setattr(self, whichop, value)
                 if whichop == "Compare":
                     self.Jump = value
                 elif whichop == "Jump":
@@ -77,3 +77,13 @@ class OpcodeStatus(object):
     def freeze(self):
         if not self.frozen:
             self.frozen = True
+
+    def disable_from_cmdline(self, s):
+        if s == "all":
+            for op in unrolling_dual_implementation_opcodes:
+                setattr(self, op, False)
+            return
+        specs = s.split(":")
+        for spec in specs:
+            if spec:
+                self.set_use_translated(spec, False)
