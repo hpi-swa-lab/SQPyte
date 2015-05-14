@@ -557,6 +557,28 @@ class Sqlite3Query(object):
     # _______________________________________________________________
     # both implementations exist
 
+    @cache_safe() # invalidation done in the slow path
+    def python_OP_AggFinal(self, pc, rc, op):
+        if self.use_translated.AggFinal:
+            return translated.OP_AggFinal(self, rc, pc, op)
+        else:
+            return capi.impl_OP_AggFinal(self.p, self.db, pc, rc, op.pOp)
+
+    @cache_safe() # invalidation done in the slow path
+    def python_OP_AggStep(self, rc, pc, op):
+        if self.use_translated.AggStep:
+            return translated.OP_AggStep(self, rc, pc, op)
+        else:
+            return capi.impl_OP_AggStep(self.p, self.db, pc, rc, op.pOp)
+
+    @cache_safe()
+    def python_OP_Function(self, pc, rc, op):
+        if self.use_translated.Function:
+            return translated.OP_Function(self, pc, rc, op)
+        else:
+            result = capi.impl_OP_Function(self.p, self.db, pc, rc, op.pOp)
+            return op._decode_combined_flags_rc_for_p3(result)
+
     @cache_safe()
     def python_OP_Goto(self, pc, rc, op):
         if self.use_translated.Goto:
@@ -888,18 +910,6 @@ class Sqlite3Query(object):
     def python_OP_Init(self, pc, op):
         # XXX
         return translated.OP_Init(self, pc, op)
-
-    @cache_safe() # invalidation done in the slow path
-    def python_OP_AggStep(self, rc, pc, op):
-        return translated.OP_AggStep(self, rc, pc, op)
-
-    @cache_safe() # invalidation done in the slow path
-    def python_OP_AggFinal(self, pc, rc, op):
-        return translated.OP_AggFinal(self, rc, pc, op)
-
-    @cache_safe(mutates=["p2@p5"]) # XXX invalidation can be better
-    def python_OP_Function(self, pc, rc, op):
-        return translated.OP_Function(self, pc, rc, op)
 
     def python_OP_Noop_Explain(self, op):
         # XXX
@@ -1284,6 +1294,21 @@ class Op(object):
     @jit.elidable
     def opflags(self):
         return rffi.cast(lltype.Unsigned, self.pOp.opflags)
+
+    def _decode_combined_flags_rc_for_p3(self, result):
+        from rpython.rlib import rarithmetic
+        # this is just a trick to promote two values at once, rc and the new flags
+        # of p3
+        # it also invalidates p3 before doing that
+        jit.promote(result)
+        rc = result & 0xffff
+        if rc:
+            return rc
+        flags = rarithmetic.r_uint(result >> 16)
+        pOut = self.mem_of_p(3)
+        pOut.invalidate_cache()
+        pOut.assure_flags(flags)
+        return rc
 
 
 def main_work(query):

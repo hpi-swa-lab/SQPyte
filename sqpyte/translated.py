@@ -1283,21 +1283,7 @@ def OP_Sequence(hlquery, op):
 
 def OP_Column(hlquery, pc, op):
     result = capi.impl_OP_Column(hlquery.p, hlquery.db, pc, op.pOp)
-    return _decode_combined_flags_rc_for_p3(result, op)
-
-def _decode_combined_flags_rc_for_p3(result, op):
-    # this is just a trick to promote two values at once, rc and the new flags
-    # of p3
-    # it also invalidates p3 before doing that
-    jit.promote(result)
-    rc = result & 0xffff
-    if rc:
-        return rc
-    flags = rarithmetic.r_uint(result >> 16)
-    pOut = op.mem_of_p(3)
-    pOut.invalidate_cache()
-    pOut.assure_flags(flags)
-    return rc
+    return op._decode_combined_flags_rc_for_p3(result)
 
 # Opcode:  Return P1 * * * *
 #
@@ -1579,7 +1565,7 @@ def OP_Function(hlquery, pc, rc, op):
         return func.call_in_python(hlquery, op, index, n, memout)
     hlquery.p2_p5_mutation(op)
     result = capi.impl_OP_Function(hlquery.p, hlquery.db, pc, rc, op.pOp)
-    return _decode_combined_flags_rc_for_p3(result, op)
+    return op._decode_combined_flags_rc_for_p3(result)
 
 
 # Opcode: SeekGe P1 P2 P3 P4 *
@@ -1903,16 +1889,16 @@ def OP_Real(hlquery, op):
 
 
 # Opcode: CollSeq P1 * * P4
-# 
+#
 # P4 is a pointer to a CollSeq struct. If the next call to a user function
 # or aggregate calls sqlite3GetFuncCollSeq(), this collation sequence will
 # be returned. This is used by the built-in min(), max() and nullif()
 # functions.
-# 
+#
 # If P1 is not zero, then it is a register that a subsequent min() or
 # max() aggregate will set to 1 if the current row is not the minimum or
 # maximum.  The P1 register is initialized to 0 by this instruction.
-# 
+#
 # The interface used by the implementation of the aforementioned functions
 # to retrieve the collation sequence set by this opcode is not available
 # publicly, only to user functions defined in func.c.
@@ -1924,14 +1910,14 @@ def OP_CollSeq(hlquery, op):
 
 
 # Opcode: InitCoroutine P1 P2 P3 * *
-# 
+#
 # Set up register P1 so that it will Yield to the coroutine
 # located at address P3.
-# 
+#
 # If P2!=0 then the coroutine implementation immediately follows
 # this opcode.  So jump over the coroutine implementation to
 # address P2.
-# 
+#
 # See also: EndCoroutine
 
 def OP_InitCoroutine(hlquery, pc, op):

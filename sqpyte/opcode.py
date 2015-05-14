@@ -2,11 +2,14 @@ from rpython.rlib.unroll import unrolling_iterable
 
 dual_implementation_opcodes = [
     'Add_Subtract_Multiply_Divide_Remainder',
+    'AggFinal',
+    'AggStep',
     'Affinity',
     'CollSeq',
     'Compare',
     'Copy',
     'EndCoroutine',
+    'Function',
     'Gosub',
     'Goto',
     'IdxLE_IdxGT_IdxLT_IdxGE',
@@ -73,6 +76,10 @@ class OpcodeStatus(object):
                     self.Jump = value
                 elif whichop == "Jump":
                     self.Compare = value
+                elif whichop == "AggStep":
+                    self.AggFinal = value
+                elif whichop == "AggFinal":
+                    self.AggStep = value
 
     def freeze(self):
         if not self.frozen:
