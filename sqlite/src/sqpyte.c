@@ -4593,3 +4593,29 @@ long impl_OP_Variable(Vdbe* p, sqlite3 *db, long pc, long rc, Op *pOp) {
 }
 
 
+/* Opcode: Cast P1 P2 * * *
+** Synopsis: affinity(r[P1])
+**
+** Force the value in register P1 to be the type defined by P2.
+**
+** <ul>
+** <li value="97"> TEXT
+** <li value="98"> BLOB
+** <li value="99"> NUMERIC
+** <li value="100"> INTEGER
+** <li value="101"> REAL
+** </ul>
+**
+** A NULL value is not changed by this routine.  It remains NULL.
+*/
+long impl_OP_Cast(Vdbe* p, sqlite3 *db, long rc, Op *pOp) {
+  Mem *pIn1;
+  Mem *aMem = p->aMem;
+  u8 encoding = ENC(db);     /* The database encoding */
+  pIn1 = &aMem[pOp->p1];
+  memAboutToChange(p, pIn1);
+  rc = ExpandBlob(pIn1);
+  sqlite3VdbeMemCast(pIn1, pOp->p2, encoding);
+  UPDATE_MAX_BLOBSIZE(pIn1);
+  return (long)rc;
+}

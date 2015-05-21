@@ -901,6 +901,12 @@ class Sqlite3Query(object):
         else:
             return capi.impl_OP_IfPos(self.p, pc, op.pOp)
 
+    @cache_safe()
+    def python_OP_Cast(self, rc, op):
+        if self.use_translated.IfPos:
+            return translated.OP_Cast(self, rc, op)
+        else:
+            return capi.impl_OP_Cast(self.p, self.db, rc, op.pOp)
 
 
     # _______________________________________________________________
@@ -914,11 +920,6 @@ class Sqlite3Query(object):
     def python_OP_Noop_Explain(self, op):
         # XXX
         translated.OP_Noop_Explain(op)
-
-    @cache_safe()
-    def python_OP_Cast(self, rc, op):
-        # XXX
-        return translated.OP_Cast(self, rc, op)
 
     # _______________________________________________________________
 

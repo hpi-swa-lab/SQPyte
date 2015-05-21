@@ -923,6 +923,8 @@ impl_OP_CreateIndex_CreateTable = llexternal('impl_OP_CreateIndex_CreateTable',
         [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP], rffi.LONG)
 impl_OP_Clear = llexternal('impl_OP_Clear',
         [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP], rffi.LONG)
+impl_OP_Cast = llexternal('impl_OP_Cast',
+        [VDBEP, SQLITE3P, rffi.LONG, VDBEOPP], rffi.LONG)
 
 sqlite3_reset = llexternal('sqlite3_reset', [VDBEP],
     rffi.INT)

@@ -5,6 +5,7 @@ dual_implementation_opcodes = [
     'AggFinal',
     'AggStep',
     'Affinity',
+    'Cast',
     'CollSeq',
     'Compare',
     'Copy',
