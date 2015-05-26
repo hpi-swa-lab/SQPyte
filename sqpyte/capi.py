@@ -1027,4 +1027,3 @@ sqlite3_bind_null = llexternal('sqlite3_bind_null', [VDBEP, rffi.INT], rffi.INT)
 
 valueToText = llexternal('valueToText', [MEMP, CConfig.u8], rffi.VOIDP)
 _sqpyte_get_lastRowid = llexternal('_sqpyte_get_lastRowid', [], CConfig.i64)
-sqlite3VdbeLeave = llexternal('sqlite3VdbeLeave', [VDBEP], lltype.Void)

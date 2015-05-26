@@ -2065,6 +2065,9 @@ def OP_ResultRow(hlquery, pc, op):
     # XXX right now we don't count nVmStep correctly
     _increase_counter_hidden_from_jit(p, CConfig.SQLITE_STMTSTATUS_VM_STEP, 5)
     #p->aCounter[SQLITE_STMTSTATUS_VM_STEP] += (int)nVmStep;
-    capi.sqlite3VdbeLeave(p)
+
+    # this is comented out because it's expanded to nothing anyway
+    # since we compile without thread support
+    #capi.sqlite3VdbeLeave(p)
     return rc
 
