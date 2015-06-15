@@ -49,6 +49,7 @@ unrolling_dual_implementation_opcodes = unrolling_iterable(dual_implementation_o
 
 class OpcodeDefaults(object):
     OpenRead_OpenWrite = False
+    Cast = False
 OpcodeDefaults = OpcodeDefaults()
 
 for op in dual_implementation_opcodes:
