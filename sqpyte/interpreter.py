@@ -653,11 +653,9 @@ class Sqlite3Query(object):
 
     @cache_safe()
     def python_OP_Copy(self, pc, rc, op):
-        if (self.use_translated.Copy and
-                objectmodel.we_are_translated()):
+        if self.use_translated.Copy:
             return translated.OP_Copy(self, pc, rc, op)
         else:
-            self.invalidate_caches()
             return capi.impl_OP_Copy(self.p, self.db, pc, rc, op.pOp)
 
     @cache_safe()
@@ -777,12 +775,10 @@ class Sqlite3Query(object):
 
     @cache_safe()
     def python_OP_SCopy(self, op):
-        if (self.use_translated.SCopy and
-                objectmodel.we_are_translated()):
-            self.invalidate_caches()
-            capi.impl_OP_SCopy(self.p, op.pOp)
-        else:
+        if self.use_translated.SCopy:
             translated.OP_SCopy(self, op)
+        else:
+            capi.impl_OP_SCopy(self.p, op.pOp)
 
     @cache_safe()
     def python_OP_Affinity(self, op):
@@ -852,8 +848,7 @@ class Sqlite3Query(object):
 
     @cache_safe()
     def python_OP_Variable(self, pc, rc, op):
-        if (self.use_translated.Variable and
-                objectmodel.we_are_translated()):
+        if self.use_translated.Variable:
             return translated.OP_Variable(self, pc, rc, op)
         else:
             self.invalidate_caches() # XXX annoying

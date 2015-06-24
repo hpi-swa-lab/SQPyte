@@ -106,6 +106,25 @@ class Mem(object):
     def set_u_nZero(self, val):
         rffi.setintfield(self.pMem.u, 'nZero', val)
 
+    def get_u_pFrame(self):
+        return self.pMem.u.pFrame
+
+    def set_u_pFrame(self, val):
+        self.pMem.u.pFrame = val
+
+    def get_u_pDef(self):
+        return self.pMem.u.pDef
+
+    def set_u_pDef(self, val):
+        self.pMem.u.pDef = val
+
+    def get_u_pRowSet(self):
+        return self.pMem.u.pRowSet
+
+    def set_u_pRowSet(self, val):
+        self.pMem.u.pRowSet = val
+
+
     def get_n(self):
         return rffi.cast(lltype.Signed, self.pMem.n)
 
@@ -537,13 +556,31 @@ class Mem(object):
         assert not from_.get_flags() & CConfig.MEM_RowSet
         if self.VdbeMemDynamic():
             self.vdbeMemClearExternAndSetNull()
-        self._memcpy_partial_hidden(from_)
-        self.assure_flags(from_.get_flags())
-        if not from_.get_flags() & CConfig.MEM_Static:
-            flags = self.get_flags()
-            flags &= ~(CConfig.MEM_Dyn | CConfig.MEM_Static | CConfig.MEM_Ephem)
+        fromflags = from_.get_flags()
+        if fromflags & CConfig.MEM_Real:
+            self.set_u_r(from_.get_u_r())
+        if fromflags & CConfig.MEM_Int:
+            self.set_u_i(from_.get_u_i())
+        if fromflags & CConfig.MEM_Zero:
+            self.set_u_nZero(from_.get_u_nZero())
+        if fromflags & CConfig.MEM_Agg:
+            assert fromflags == CConfig.MEM_Agg
+            self.set_u_pDef(from_.get_u_pDef())
+        if fromflags & CConfig.MEM_RowSet:
+            assert fromflags == CConfig.MEM_RowSet
+            self.set_u_pRowSet(from_.get_u_pRowSet())
+        if fromflags & CConfig.MEM_Frame:
+            assert fromflags == CConfig.MEM_Frame
+            self.set_u_pFrame(from_.get_u_pFrame())
+        self.set_enc(from_.get_enc())
+        self.set_n(from_.get_n())
+        self.set_z(from_.get_z())
+        if not fromflags & CConfig.MEM_Static:
+            fromflags &= ~(CConfig.MEM_Dyn | CConfig.MEM_Static | CConfig.MEM_Ephem)
             assert srcType == CConfig.MEM_Ephem or srcType == CConfig.MEM_Static
-            self.set_flags(flags | srcType)
+            fromflags |= srcType
+        self.set_flags(fromflags)
+
 
     @jit.dont_look_inside
     def _memcpy_partial_hidden(self, from_):
