@@ -181,6 +181,12 @@ class Sqlite3Query(object):
         self._hlops = [Op(self, self.p.aOp[i], i) for i in range(self.p.nOp)]
         self.init_mem_cache(use_flag_cache)
         self.use_translated = opcode.OpcodeStatus(use_flag_cache)
+        # set flags to some weird value, hopefully the C code crashes if they
+        # are touched.
+        for i in range(nVar):
+            rffi.setintfield(self.p.aVar[i], 'flags', 0xffffff)
+        for i in range(nMem):
+            rffi.setintfield(self.p.aMem[i + 1], 'flags', 0xffffff)
 
     def init_mem_cache(self, use_flag_cache):
         from sqpyte.mem import CacheHolder

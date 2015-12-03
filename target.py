@@ -13,18 +13,26 @@ jitdriver = jit.JitDriver(
 def run(query, queryRes, printRes):
     try:
         query.reset_query()
+        import pdb; pdb.set_trace()
+        query.bind_int64(1, 1)
+        query.bind_int64(2, 56)
 
         if queryRes != "" and printRes:
             print 'Query result:'
 
         rc = query.mainloop()
-        while rc == CConfig.SQLITE_ROW:
+        while 1:
             jitdriver.jit_merge_point(query=query, queryRes=queryRes, printRes=printRes, rc=rc)
             if printRes:
                 print "|".join([
                     rffi.charpsize2str(rffi.cast(rffi.CCHARP, query.column_text(i)), query.column_bytes(i))
                         for i in range(query.data_count())])
             rc = query.mainloop()
+            if rc != CConfig.SQLITE_ROW:
+                query.reset_query()
+                query.bind_int64(1, 1)
+                query.bind_int64(2, 56)
+                rc = query.mainloop()
 
         if queryRes != "" and printRes:
             print '\nExpected result:\n%s' % queryRes

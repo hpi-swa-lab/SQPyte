@@ -27,19 +27,27 @@ class TestLLtype(LLJitMixin):
     def test_miniloop(self):
 
         def interp_w():
-            db = Sqlite3DB(testdb).db
-            query = Sqlite3Query(db, 'select name from contacts where age * 2 + 6 / 3> 15 - 3 * 5;')
+            db = Sqlite3DB(testdb)
+            query = Sqlite3Query(db, 'select ? + 5, ? * 12;')
 
-            rc = query.mainloop()
             i = 0
-            while rc == CConfig.SQLITE_ROW:
+            rc = CConfig.SQLITE_ROW
+            while True:
                 jitdriver.jit_merge_point(i=i, query=query, rc=rc)
-                textlen = query.python_sqlite3_column_bytes(0)
+                query.bind_int64(1, 1)
+                query.bind_int64(2, 56)
                 rc = query.mainloop()
+                if rc != CConfig.SQLITE_ROW:
+                    break
+                textlen = query.column_bytes(0)
                 i += textlen
+                textlen = query.column_bytes(1)
+                i += textlen
+                query.reset_query()
+                print i
             return i
-            
-        res = interp_w()
+
+        #res = interp_w()
         self.meta_interp(interp_w, [], listcomp=True, listops=True, backendopt=True, inline=True)
 
     def test_groupby(self):

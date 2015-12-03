@@ -6,13 +6,16 @@ import sys, math
 
 class Mem(object):
     _immutable_fields_ = ['hlquery', 'pMem', '_cache_index']
-    _attrs_ = ['hlquery', 'pMem', '_cache_index', '_cache', '_python_ctx']
+    _attrs_ = ['hlquery', 'pMem', '_cache_index', '_cache', '_python_ctx', 'u_i', 'u_r', 'flags']
 
     def __init__(self, hlquery, pMem, _cache_index=-1):
         self.hlquery = hlquery
         self.pMem = pMem
         self._cache_index = _cache_index
         self._python_ctx = None
+        self.u_i = self.pMem.u.i
+        self.u_r = self.pMem.u.r
+        self.flags = self.pMem.flags
 
     def _debug_print(self):
         flags = self.get_flags()
@@ -60,7 +63,7 @@ class Mem(object):
             return
         state = self.hlquery.mem_cache.cache_state()
         if state.is_flag_known(self._cache_index):
-            assert rffi.cast(lltype.Unsigned, self.pMem.flags) == self.get_flags()
+            assert rffi.cast(lltype.Unsigned, self.flags) == self.get_flags()
         if state.is_u_r_known(self._cache_index):
             assert self.pMem.u.r == self.get_u_r()
         if state.is_u_i_known(self._cache_index):
@@ -77,14 +80,17 @@ class Mem(object):
 
     def assure_flags(self, newflags):
         if not jit.we_are_jitted():
-            assert self.pMem.flags == newflags
+            assert self.flags == newflags
         self.hlquery.mem_cache.assure_flags(self, newflags)
 
 
     def get_u_i(self):
+        return self.u_i
         return self.hlquery.mem_cache.get_u_i(self)
 
     def set_u_i(self, val, constant=False):
+        self.u_i = val
+        return
         return self.hlquery.mem_cache.set_u_i(self, val, constant)
 
     def get_u_r(self):
@@ -947,13 +953,13 @@ class CacheHolder(object):
     def get_flags(self, mem):
         i = mem._cache_index
         if i == -1:
-            return rffi.cast(lltype.Unsigned, mem.pMem.flags)
+            return rffi.cast(lltype.Unsigned, mem.flags)
         state = self.cache_state()
         if state.is_flag_known(i):
             if not jit.we_are_jitted() and mem.pMem:
-                assert state.get_flags(i) == rffi.cast(lltype.Unsigned, mem.pMem.flags)
+                assert state.get_flags(i) == rffi.cast(lltype.Unsigned, mem.flags)
             return state.get_flags(i)
-        flags = rffi.cast(lltype.Unsigned, mem.pMem.flags)
+        flags = rffi.cast(lltype.Unsigned, mem.flags)
         self.set_cache_state(state.change_flags(i, flags))
         return flags
 
@@ -967,18 +973,20 @@ class CacheHolder(object):
         i = mem._cache_index
         if i == -1:
             if needs_write:
-                rffi.setintfield(mem.pMem, 'flags', newflags)
+                mem.flags = newflags
+                #rffi.setintfield(mem.pMem, 'flags', newflags)
             return
         state = self.cache_state()
         if state.is_flag_known(i) and state.get_flags(i) == newflags:
             return
         if needs_write:
-            rffi.setintfield(mem.pMem, 'flags', newflags)
+            mem.flags = newflags
+            #rffi.setintfield(mem.pMem, 'flags', newflags)
         if not self.use_cache:
             return
         self.set_cache_state(state.change_flags(i, newflags))
         if not jit.we_are_jitted() and mem.pMem:
-            assert self.cache_state().get_flags(i) == rffi.cast(lltype.Unsigned, mem.pMem.flags) == newflags
+            assert self.cache_state().get_flags(i) == rffi.cast(lltype.Unsigned, mem.flags) == newflags
 
 
     def get_u_i(self, mem):

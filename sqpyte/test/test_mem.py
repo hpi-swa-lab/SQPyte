@@ -10,7 +10,7 @@ class FakeHLQuery(object):
         self.mem_cache.reenter()
 
 def test_cache_flags():
-    with lltype.scoped_alloc(capi.MEM) as pMem:
+    with lltype.scoped_alloc(capi.MEM, zero=True) as pMem:
         rffi.setintfield(pMem, 'flags', CConfig.MEM_Int)
         mem = Mem(FakeHLQuery(), pMem, 0)
         assert mem.get_flags() == CConfig.MEM_Int
