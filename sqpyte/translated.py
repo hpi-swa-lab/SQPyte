@@ -674,7 +674,7 @@ def OP_Affinity(hlquery, op):
 
 def OP_RealAffinity(hlquery, op):
     pIn1, flags = op.mem_and_flags_of_p(1)
-    if flags & CConfig.MEM_Int and not flags & CConfig.MEM_Real:
+    if flags & CConfig.MEM_Int:
         # only relevant parts of sqlite3VdbeMemRealify
         pIn1.set_u_r(float(pIn1.get_u_i()))
         pIn1.MemSetTypeFlag(CConfig.MEM_Real)
