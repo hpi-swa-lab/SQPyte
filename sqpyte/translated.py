@@ -14,6 +14,20 @@ SMALLEST_INT64 = -1 - LARGEST_INT64
 TWOPOWER32 = 1 << 32
 TWOPOWER31 = 1 << 31
 
+# the following macros are for debugging only and are ignored when porting:
+# VdbeBranchTaken, REGISTER_TRACE, SQLITE_DEBUG, memAboutToChange,
+# UPDATE_MAX_BLOBSIZE
+
+# it's ok to not translate asserts, if they are annoying to translate
+# (but if they are easy, it's a good idea to do it)
+
+
+# the following features are assumed to be never on:
+# SQLITE_OMIT_FLOATING_POINT
+
+# the following features are assumed to be always on:
+# SQLITE_OMIT_PROGRESS_CALLBACK
+
 
 def allocateCursor(vdbe_struct, p1, nField, iDb, isBtreeCursor):
     return capi.sqlite3_allocateCursor(vdbe_struct, p1, nField, iDb, isBtreeCursor)
