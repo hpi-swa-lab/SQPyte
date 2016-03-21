@@ -819,6 +819,9 @@ long impl_OP_Halt(Vdbe *p, sqlite3 *db, long *pc, Op *pOp) {
 ** this transformation, the length of string P4 is computed and stored
 ** as the P1 parameter.
 */
+
+void impl_OP_String(Vdbe *p, sqlite3 *db, Op *pOp); /* forward declaration */
+
 long impl_OP_String8(Vdbe *p, sqlite3 *db, long pc, long rc, Op *pOp) {
 // case OP_String8: {         /* same as TK_STRING, out2-prerelease */
   Mem *aMem = p->aMem;       /* Copy of p->aMem */
