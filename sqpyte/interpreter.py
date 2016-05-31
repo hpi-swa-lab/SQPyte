@@ -142,6 +142,9 @@ class SQLite3Query(object):
         self.db = hldb.db
         self.prepare(query, use_flag_cache)
 
+    def __del__(self):
+        self.close()
+
     def prepare(self, query, use_flag_cache):
         length = len(query)
         with rffi.scoped_str2charp(query) as query, lltype.scoped_alloc(rffi.VOIDPP.TO, 1) as result, lltype.scoped_alloc(rffi.CCHARPP.TO, 1) as unused_buffer:
@@ -149,6 +152,38 @@ class SQLite3Query(object):
             if not errorcode == 0:
                 raise SqliteException(errorcode, rffi.charp2str(capi.sqlite3_errmsg(self.db)))
             self.p = rffi.cast(capi.VDBEP, result[0])
+        self._init_python_data(use_flag_cache)
+
+    def _init_python_data(self, use_flag_cache):
+        from sqpyte.mem import Mem
+        nMem = rffi.getintfield(self.p, 'nMem')
+        self._llmem_as_python_list = [self.p.aMem[i] for i in range(nMem + 1)]
+        self._mem_as_python_list = [Mem(self, self.p.aMem[i], i)
+                for i in range(nMem + 1)]
+        nVar = rffi.getintfield(self.p, 'nVar')
+        self._var_as_python_list = [Mem(self, self.p.aVar[i], i + nMem + 1)
+                for i in range(nVar)]
+        self._hlops = [Op(self, self.p.aOp[i], i) for i in range(self.p.nOp)]
+        self.init_mem_cache(use_flag_cache)
+        self.use_translated = opcode.OpcodeStatus(use_flag_cache)
+
+
+    def init_mem_cache(self, use_flag_cache):
+        from sqpyte.mem import CacheHolder
+        self.mem_cache = CacheHolder(len(self._mem_as_python_list) +
+                len(self._var_as_python_list), use_flag_cache)
+
+    def check_cache_consistency(self):
+        if objectmodel.we_are_translated():
+            return
+        for mem in self._mem_as_python_list:
+            mem.check_cache_consistency()
+
+    def var_with_index(self, i):
+        try:
+            return self._var_as_python_list[i]
+        except IndexError:
+            raise SQPyteException("unknown var location")
 
     def mainloop(self):
         return capi.sqlite3_step(self.p)
@@ -187,15 +222,14 @@ class SQLite3Query(object):
         return rffi.getintfield(self.p, 'nVar')
 
     def bind_int64(self, i, val):
-        self.vdbeUnbind(i)
         self.var_with_index(i - 1).sqlite3VdbeMemSetInt64(val)
 
     def bind_double(self, i, val):
-        self.vdbeUnbind(i)
         self.var_with_index(i - 1).sqlite3VdbeMemSetDouble(val)
 
     def bind_null(self, i):
-        self.vdbeUnbind(i)
+        # self.vdbeUnbind(i)
+        pass
 
     @jit.dont_look_inside
     def bind_str(self, i, s):
@@ -206,6 +240,9 @@ class SQLite3Query(object):
                 capi.sqlite3_bind_text(
                     self.p, i, charp, len(s),
                     rffi.cast(rffi.VOIDP, CConfig.SQLITE_TRANSIENT)))
+
+    def reset_query(self):
+        capi.sqlite3_reset(self.p)
 
 
 class SQPyteDB(SQLite3DB):
@@ -238,42 +275,6 @@ class SQPyteQuery(SQLite3Query):
             lltype.free(self.longp, flavor='raw')
             lltype.free(self.unpackedrecordp, flavor='raw')
             self.internalPc = lltype.nullptr(rffi.LONGP.TO)
-
-    def __del__(self):
-        self.close()
-
-    def prepare(self, query, use_flag_cache):
-        length = len(query)
-        with rffi.scoped_str2charp(query) as query, lltype.scoped_alloc(rffi.VOIDPP.TO, 1) as result, lltype.scoped_alloc(rffi.CCHARPP.TO, 1) as unused_buffer:
-            errorcode = capi.sqlite3_prepare_v2(rffi.cast(rffi.VOIDP, self.db), query, length, result, unused_buffer)
-            if not errorcode == 0:
-                raise SqliteException(errorcode, rffi.charp2str(capi.sqlite3_errmsg(self.db)))
-            self.p = rffi.cast(capi.VDBEP, result[0])
-        self._init_python_data(use_flag_cache)
-
-    def _init_python_data(self, use_flag_cache):
-        from sqpyte.mem import Mem
-        nMem = rffi.getintfield(self.p, 'nMem')
-        self._llmem_as_python_list = [self.p.aMem[i] for i in range(nMem + 1)]
-        self._mem_as_python_list = [Mem(self, self.p.aMem[i], i)
-                for i in range(nMem + 1)]
-        nVar = rffi.getintfield(self.p, 'nVar')
-        self._var_as_python_list = [Mem(self, self.p.aVar[i], i + nMem + 1)
-                for i in range(nVar)]
-        self._hlops = [Op(self, self.p.aOp[i], i) for i in range(self.p.nOp)]
-        self.init_mem_cache(use_flag_cache)
-        self.use_translated = opcode.OpcodeStatus(use_flag_cache)
-
-    def init_mem_cache(self, use_flag_cache):
-        from sqpyte.mem import CacheHolder
-        self.mem_cache = CacheHolder(len(self._mem_as_python_list) +
-                len(self._var_as_python_list), use_flag_cache)
-
-    def check_cache_consistency(self):
-        if objectmodel.we_are_translated():
-            return
-        for mem in self._mem_as_python_list:
-            mem.check_cache_consistency()
 
     def columnMem(self, i):
         """
