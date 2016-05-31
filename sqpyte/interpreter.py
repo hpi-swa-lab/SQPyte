@@ -138,10 +138,7 @@ class SQLite3DB(object):
 
 class SQLite3Query(object):
 
-    _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]',
-                          '_var_as_python_list[*]',
-                          '_llmem_as_python_list[*]', 'intp', 'longp',
-                          'unpackedrecordp', '_hlops[*]', 'mem_cache']
+    _immutable_fields_ = ['db', 'p']
 
     def __init__(self, hldb, query, use_flag_cache=True):
         self.hldb = hldb
@@ -158,88 +155,41 @@ class SQLite3Query(object):
             if not errorcode == 0:
                 raise SqliteException(errorcode, rffi.charp2str(capi.sqlite3_errmsg(self.db)))
             self.p = rffi.cast(capi.VDBEP, result[0])
-        self._init_python_data(use_flag_cache)
-
-    def _init_python_data(self, use_flag_cache):
-        from sqpyte.mem import Mem
-        nMem = rffi.getintfield(self.p, 'nMem')
-        self._llmem_as_python_list = [self.p.aMem[i] for i in range(nMem + 1)]
-        self._mem_as_python_list = [Mem(self, self.p.aMem[i], i)
-                for i in range(nMem + 1)]
-        nVar = rffi.getintfield(self.p, 'nVar')
-        self._var_as_python_list = [Mem(self, self.p.aVar[i], i + nMem + 1)
-                for i in range(nVar)]
-        self._hlops = [Op(self, self.p.aOp[i], i) for i in range(self.p.nOp)]
-        self.init_mem_cache(use_flag_cache)
-        self.use_translated = opcode.OpcodeStatus(use_flag_cache)
-
-
-    def init_mem_cache(self, use_flag_cache):
-        from sqpyte.mem import CacheHolder
-        self.mem_cache = CacheHolder(len(self._mem_as_python_list) +
-                len(self._var_as_python_list), use_flag_cache)
-
-    def check_cache_consistency(self):
-        if objectmodel.we_are_translated():
-            return
-        for mem in self._mem_as_python_list:
-            mem.check_cache_consistency()
-
-    def var_with_index(self, i):
-        try:
-            return self._var_as_python_list[i]
-        except IndexError:
-            raise SQPyteException("unknown var location")
 
     def mainloop(self):
         return capi.sqlite3_step(self.p)
 
     def data_count(self):
-        if rffi.getintfield(self.p, 'pResultSet') == 0:
-            return 0
-        return self._nres_column()
+        return capi.sqlite3_column_count(self.p)
 
-    @jit.elidable
-    def _nres_column(self):
-        return rffi.getintfield(self.p, 'nResColumn')
+    def column_type(self, i):
+        return capi.sqlite3_column_type(self.p, i)
 
-    def column_type(self, iCol):
-        mem = self.columnMem(iCol)
-        return mem.sqlite3_value_type()
+    def column_text(self, i):
+        return capi.sqlite3_column_text(self.p, i)
 
-    def column_text(self, iCol):
-        mem = self.columnMem(iCol)
-        return mem.sqlite3_value_text()
+    def column_bytes(self, i):
+        return capi.sqlite3_column_bytes(self.p, i)
 
-    def column_bytes(self, iCol):
-        mem = self.columnMem(iCol)
-        return mem.sqlite3_value_bytes()
+    def column_int64(self, i):
+        return capi.sqlite3_column_int64(self.p, i)
 
-    def column_int64(self, iCol):
-        mem = self.columnMem(iCol)
-        return mem.sqlite3_value_int64()
+    def column_double(self, i):
+        return capi.sqlite3_column_double(self.p, i)
 
-    def column_double(self, iCol):
-        mem = self.columnMem(iCol)
-        return mem.sqlite3_value_double()
-
-    @jit.elidable
     def bind_parameter_count(self):
-        return rffi.getintfield(self.p, 'nVar')
+        return capi.sqlite3_bind_parameter_count(self.p)
 
     def bind_int64(self, i, val):
-        self.var_with_index(i - 1).sqlite3VdbeMemSetInt64(val)
+        capi.sqlite3_bind_int64(self.p, i, val)
 
     def bind_double(self, i, val):
-        self.var_with_index(i - 1).sqlite3VdbeMemSetDouble(val)
+        capi.sqlite3_bind_double(self.p, i, val)
 
     def bind_null(self, i):
-        # self.vdbeUnbind(i)
-        pass
+        capi.sqlite3_bind_null(self.p, i)
 
-    @jit.dont_look_inside
     def bind_str(self, i, s):
-        self.invalidate_caches_outside()
         with rffi.scoped_str2charp(s) as charp:
             return rffi.cast(
                 lltype.Signed,
@@ -281,6 +231,42 @@ class SQPyteQuery(SQLite3Query):
             lltype.free(self.longp, flavor='raw')
             lltype.free(self.unpackedrecordp, flavor='raw')
             self.internalPc = lltype.nullptr(rffi.LONGP.TO)
+
+    def __del__(self):
+        self.close()
+
+    def prepare(self, query, use_flag_cache):
+        length = len(query)
+        with rffi.scoped_str2charp(query) as query, lltype.scoped_alloc(rffi.VOIDPP.TO, 1) as result, lltype.scoped_alloc(rffi.CCHARPP.TO, 1) as unused_buffer:
+            errorcode = capi.sqlite3_prepare_v2(rffi.cast(rffi.VOIDP, self.db), query, length, result, unused_buffer)
+            if not errorcode == 0:
+                raise SqliteException(errorcode, rffi.charp2str(capi.sqlite3_errmsg(self.db)))
+            self.p = rffi.cast(capi.VDBEP, result[0])
+        self._init_python_data(use_flag_cache)
+
+    def _init_python_data(self, use_flag_cache):
+        from sqpyte.mem import Mem
+        nMem = rffi.getintfield(self.p, 'nMem')
+        self._llmem_as_python_list = [self.p.aMem[i] for i in range(nMem + 1)]
+        self._mem_as_python_list = [Mem(self, self.p.aMem[i], i)
+                for i in range(nMem + 1)]
+        nVar = rffi.getintfield(self.p, 'nVar')
+        self._var_as_python_list = [Mem(self, self.p.aVar[i], i + nMem + 1)
+                for i in range(nVar)]
+        self._hlops = [Op(self, self.p.aOp[i], i) for i in range(self.p.nOp)]
+        self.init_mem_cache(use_flag_cache)
+        self.use_translated = opcode.OpcodeStatus(use_flag_cache)
+
+    def init_mem_cache(self, use_flag_cache):
+        from sqpyte.mem import CacheHolder
+        self.mem_cache = CacheHolder(len(self._mem_as_python_list) +
+                len(self._var_as_python_list), use_flag_cache)
+
+    def check_cache_consistency(self):
+        if objectmodel.we_are_translated():
+            return
+        for mem in self._mem_as_python_list:
+            mem.check_cache_consistency()
 
     def columnMem(self, i):
         """
