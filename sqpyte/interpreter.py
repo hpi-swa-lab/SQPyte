@@ -39,7 +39,7 @@ class SqliteException(SQPyteException):
         self.msg = msg
 
 
-class Sqlite3DB(object):
+class SQLite3DB(object):
     _immutable_fields_ = ['db']
 
     def __init__(self, db_name):
@@ -54,7 +54,7 @@ class Sqlite3DB(object):
             self.db = rffi.cast(capi.SQLITE3P, result[0])
 
     def execute(self, sql, use_flag_cache=True):
-        return Sqlite3Query(self, sql, use_flag_cache)
+        return SQLite3Query(self, sql, use_flag_cache)
 
     def close(self):
         if self.db:
@@ -130,7 +130,90 @@ def mutate_func(func, mutates):
     return mutation
 
 
-class Sqlite3Query(object):
+class SQLite3Query(object):
+
+    _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]',
+                          '_var_as_python_list[*]',
+                          '_llmem_as_python_list[*]', 'intp', 'longp',
+                          'unpackedrecordp', '_hlops[*]', 'mem_cache']
+
+    def __init__(self, hldb, query, use_flag_cache=True):
+        self.hldb = hldb
+        self.db = hldb.db
+        self.prepare(query, use_flag_cache)
+
+    def prepare(self, query, use_flag_cache):
+        length = len(query)
+        with rffi.scoped_str2charp(query) as query, lltype.scoped_alloc(rffi.VOIDPP.TO, 1) as result, lltype.scoped_alloc(rffi.CCHARPP.TO, 1) as unused_buffer:
+            errorcode = capi.sqlite3_prepare_v2(rffi.cast(rffi.VOIDP, self.db), query, length, result, unused_buffer)
+            if not errorcode == 0:
+                raise SqliteException(errorcode, rffi.charp2str(capi.sqlite3_errmsg(self.db)))
+            self.p = rffi.cast(capi.VDBEP, result[0])
+
+    def mainloop(self):
+        return capi.sqlite3_step(self.p)
+
+    def data_count(self):
+        if rffi.getintfield(self.p, 'pResultSet') == 0:
+            return 0
+        return self._nres_column()
+
+    @jit.elidable
+    def _nres_column(self):
+        return rffi.getintfield(self.p, 'nResColumn')
+
+    def column_type(self, iCol):
+        mem = self.columnMem(iCol)
+        return mem.sqlite3_value_type()
+
+    def column_text(self, iCol):
+        mem = self.columnMem(iCol)
+        return mem.sqlite3_value_text()
+
+    def column_bytes(self, iCol):
+        mem = self.columnMem(iCol)
+        return mem.sqlite3_value_bytes()
+
+    def column_int64(self, iCol):
+        mem = self.columnMem(iCol)
+        return mem.sqlite3_value_int64()
+
+    def column_double(self, iCol):
+        mem = self.columnMem(iCol)
+        return mem.sqlite3_value_double()
+
+    @jit.elidable
+    def bind_parameter_count(self):
+        return rffi.getintfield(self.p, 'nVar')
+
+    def bind_int64(self, i, val):
+        self.vdbeUnbind(i)
+        self.var_with_index(i - 1).sqlite3VdbeMemSetInt64(val)
+
+    def bind_double(self, i, val):
+        self.vdbeUnbind(i)
+        self.var_with_index(i - 1).sqlite3VdbeMemSetDouble(val)
+
+    def bind_null(self, i):
+        self.vdbeUnbind(i)
+
+    @jit.dont_look_inside
+    def bind_str(self, i, s):
+        self.invalidate_caches_outside()
+        with rffi.scoped_str2charp(s) as charp:
+            return rffi.cast(
+                lltype.Signed,
+                capi.sqlite3_bind_text(
+                    self.p, i, charp, len(s),
+                    rffi.cast(rffi.VOIDP, CConfig.SQLITE_TRANSIENT)))
+
+
+class SQPyteDB(SQLite3DB):
+    def execute(self, sql, use_flag_cache=True):
+        return SQPyteQuery(self, sql, use_flag_cache)
+
+
+class SQPyteQuery(SQLite3Query):
 
     _immutable_fields_ = ['internalPc', 'db', 'p', '_mem_as_python_list[*]',
                           '_var_as_python_list[*]',
@@ -158,7 +241,6 @@ class Sqlite3Query(object):
 
     def __del__(self):
         self.close()
-
 
     def prepare(self, query, use_flag_cache):
         length = len(query)
@@ -1308,7 +1390,7 @@ class Op(object):
 
 
 def main_work(query):
-    db = Sqlite3DB(testdb)
+    db = SQPyteDB(testdb)
     query = db.execute(query)
     rc = query.mainloop()
     count = 0

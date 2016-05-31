@@ -1024,6 +1024,9 @@ sqlite3_bind_double = llexternal('sqlite3_bind_double', [VDBEP, rffi.INT, rffi.D
 sqlite3_bind_text = llexternal('sqlite3_bind_text', [VDBEP, rffi.INT, rffi.CCHARP, rffi.INT, rffi.VOIDP], rffi.INT)
 sqlite3_bind_null = llexternal('sqlite3_bind_null', [VDBEP, rffi.INT], rffi.INT)
 
+sqlite3_step = llexternal('sqlite3_step', [VDBEP], rffi.INT)
+# sqlite3_column_count = llexternal('sqlite3_column_count', [VDBEP], rffi.INT)
+
 
 valueToText = llexternal('valueToText', [MEMP, CConfig.u8], rffi.VOIDP)
 _sqpyte_get_lastRowid = llexternal('_sqpyte_get_lastRowid', [], CConfig.i64)
