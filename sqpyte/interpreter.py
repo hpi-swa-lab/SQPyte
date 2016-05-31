@@ -295,7 +295,7 @@ class SQPyteQuery(SQLite3Query):
 
     def vdbeUnbind(self, i):
         """
-        ** Unbind the value bound to variable i in virtual machine p. This is the 
+        ** Unbind the value bound to variable i in virtual machine p. This is the
         ** the same as binding a NULL value to the column. If the "i" parameter is
         ** out of range, then SQLITE_RANGE is returned. Othewise SQLITE_OK.
         **
@@ -558,7 +558,7 @@ class SQPyteQuery(SQLite3Query):
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         rc = capi.impl_OP_NoConflict_NotFound_Found(self.p, self.db, self.internalPc, rc, op.pOp)
         retPc = self.internalPc[0]
-        return retPc, rc        
+        return retPc, rc
 
     @cache_safe()
     def python_OP_NullRow(self, op):
@@ -585,7 +585,7 @@ class SQPyteQuery(SQLite3Query):
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         rc = capi.impl_OP_RowSetTest(self.p, self.db, self.internalPc, rc, op.pOp)
         retPc = self.internalPc[0]
-        return retPc, rc        
+        return retPc, rc
 
     def python_OP_SetCookie(self, op):
         return capi.impl_OP_SetCookie(self.p, self.db, op.pOp)
@@ -607,7 +607,7 @@ class SQPyteQuery(SQLite3Query):
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         rc = capi.impl_OP_SorterSort_Sort(self.p, self.db, self.internalPc, op.pOp)
         retPc = self.internalPc[0]
-        return retPc, rc        
+        return retPc, rc
 
     @cache_safe(mutates="p2")
     def python_OP_SorterData(self, op):
@@ -619,7 +619,7 @@ class SQPyteQuery(SQLite3Query):
         self.internalPc[0] = rffi.cast(rffi.LONG, pc)
         rc = capi.impl_OP_SorterNext(self.p, self.db, self.internalPc, op.pOp)
         retPc = self.internalPc[0]
-        return retPc, rc        
+        return retPc, rc
 
     def python_OP_SorterOpen(self, pc, op):
         return capi.impl_OP_SorterOpen(self.p, self.db, pc, op.pOp)
@@ -1101,11 +1101,11 @@ class SQPyteQuery(SQLite3Query):
             elif opcode == CConfig.OP_Halt:
                 pc, rc = self.python_OP_Halt(pc, op)
                 break
-            elif (opcode == CConfig.OP_Eq or 
-                  opcode == CConfig.OP_Ne or 
-                  opcode == CConfig.OP_Lt or 
-                  opcode == CConfig.OP_Le or 
-                  opcode == CConfig.OP_Gt or 
+            elif (opcode == CConfig.OP_Eq or
+                  opcode == CConfig.OP_Ne or
+                  opcode == CConfig.OP_Lt or
+                  opcode == CConfig.OP_Le or
+                  opcode == CConfig.OP_Gt or
                   opcode == CConfig.OP_Ge):
                 pc, rc = self.python_OP_Ne_Eq_Gt_Le_Lt_Ge(pc, rc, op)
             elif opcode == CConfig.OP_Integer:
@@ -1132,10 +1132,10 @@ class SQPyteQuery(SQLite3Query):
                 self.python_OP_Real(op)
             elif opcode == CConfig.OP_RealAffinity:
                 self.python_OP_RealAffinity(op)
-            elif (opcode == CConfig.OP_Add or 
-                  opcode == CConfig.OP_Subtract or 
-                  opcode == CConfig.OP_Multiply or 
-                  opcode == CConfig.OP_Divide or 
+            elif (opcode == CConfig.OP_Add or
+                  opcode == CConfig.OP_Subtract or
+                  opcode == CConfig.OP_Multiply or
+                  opcode == CConfig.OP_Divide or
                   opcode == CConfig.OP_Remainder):
                 self.python_OP_Add_Subtract_Multiply_Divide_Remainder(op)
             elif (opcode == CConfig.OP_If or
@@ -1145,9 +1145,9 @@ class SQPyteQuery(SQLite3Query):
                 rc = self.python_OP_Rowid(pc, rc, op)
             elif opcode == CConfig.OP_IsNull:
                 pc = self.python_OP_IsNull(pc, op)
-            elif (opcode == CConfig.OP_SeekLT or 
-                  opcode == CConfig.OP_SeekLE or 
-                  opcode == CConfig.OP_SeekGE or 
+            elif (opcode == CConfig.OP_SeekLT or
+                  opcode == CConfig.OP_SeekLE or
+                  opcode == CConfig.OP_SeekGE or
                   opcode == CConfig.OP_SeekGT):
                 pc, rc = self.python_OP_SeekLT_SeekLE_SeekGE_SeekGT(pc, rc, op)
             elif opcode == CConfig.OP_Move:
@@ -1156,9 +1156,9 @@ class SQPyteQuery(SQLite3Query):
                 pc = self.python_OP_IfZero(pc, op)
             elif opcode == CConfig.OP_IdxRowid:
                 rc = self.python_OP_IdxRowid(pc, rc, op)
-            elif (opcode == CConfig.OP_IdxLE or 
-                  opcode == CConfig.OP_IdxGT or 
-                  opcode == CConfig.OP_IdxLT or 
+            elif (opcode == CConfig.OP_IdxLE or
+                  opcode == CConfig.OP_IdxGT or
+                  opcode == CConfig.OP_IdxLT or
                   opcode == CConfig.OP_IdxGE):
                 pc, rc = self.python_OP_IdxLE_IdxGT_IdxLT_IdxGE(pc, op)
             elif opcode == CConfig.OP_Seek:
@@ -1169,16 +1169,16 @@ class SQPyteQuery(SQLite3Query):
                 self.python_OP_SCopy(op)
             elif opcode == CConfig.OP_Affinity:
                 self.python_OP_Affinity(op)
-            elif (opcode == CConfig.OP_OpenAutoindex or 
+            elif (opcode == CConfig.OP_OpenAutoindex or
                   opcode == CConfig.OP_OpenEphemeral):
                 rc = self.python_OP_OpenAutoindex_OpenEphemeral(pc, op)
             elif opcode == CConfig.OP_MakeRecord:
                 rc = self.python_OP_MakeRecord(pc, rc, op)
-            elif (opcode == CConfig.OP_SorterInsert or 
+            elif (opcode == CConfig.OP_SorterInsert or
                   opcode == CConfig.OP_IdxInsert):
                 rc = self.python_OP_SorterInsert_IdxInsert(op)
-            elif (opcode == CConfig.OP_NoConflict or 
-                  opcode == CConfig.OP_NotFound or 
+            elif (opcode == CConfig.OP_NoConflict or
+                  opcode == CConfig.OP_NotFound or
                   opcode == CConfig.OP_Found):
                 pc, rc = self.python_OP_NoConflict_NotFound_Found(pc, rc, op)
             elif opcode == CConfig.OP_RowSetTest:
@@ -1195,14 +1195,14 @@ class SQPyteQuery(SQLite3Query):
                 self.python_OP_Sequence(op)
             elif opcode == CConfig.OP_OpenPseudo:
                 rc = self.python_OP_OpenPseudo(pc, rc, op)
-            elif (opcode == CConfig.OP_SorterSort or 
+            elif (opcode == CConfig.OP_SorterSort or
                   opcode == CConfig.OP_Sort):
                 pc, rc = self.python_OP_SorterSort_Sort(pc, op)
             elif opcode == CConfig.OP_SorterData:
                 rc = self.python_OP_SorterData(op)
             elif opcode == CConfig.OP_SorterNext:
                 pc, rc = self.python_OP_SorterNext(pc, op)
-            elif (opcode == CConfig.OP_Noop or 
+            elif (opcode == CConfig.OP_Noop or
                   opcode == CConfig.OP_Explain):
                 self.python_OP_Noop_Explain(op)
             elif opcode == CConfig.OP_Compare:
@@ -1227,7 +1227,7 @@ class SQPyteQuery(SQLite3Query):
                 self.python_OP_ReadCookie(op)
             elif opcode == CConfig.OP_NewRowid:
                 rc = self.python_OP_NewRowid(pc, rc, op)
-            elif (opcode == CConfig.OP_Insert or 
+            elif (opcode == CConfig.OP_Insert or
                   opcode == CConfig.OP_InsertInt):
                 rc = self.python_OP_Insert_InsertInt(op)
             elif opcode == CConfig.OP_SetCookie:
@@ -1270,6 +1270,7 @@ class SQPyteQuery(SQLite3Query):
         jit.promote(rc)
         self.mem_cache.prepare_return()
         return rc
+
 
 class Op(object):
     _immutable_fields_ = ['hlquery', 'pOp', 'pc']
@@ -1406,12 +1407,12 @@ def entry_point(argv):
     except IndexError:
         print "You must supply a query to be run: e.g., 'select first_name from people where age > 1;'."
         return 1
-    
+
     main_work(query)
     return 0
 
 def target(*args):
     return entry_point
-    
+
 if __name__ == "__main__":
     entry_point(sys.argv)

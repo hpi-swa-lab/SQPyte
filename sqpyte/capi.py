@@ -458,8 +458,8 @@ SQLITE3.become(lltype.Struct("sqlite3",         # src/sqliteInt.h: 960
     #   int *pnBytesFreed;            /* If not NULL, increment this in DbFree() */
 
     # #ifdef SQLITE_ENABLE_UNLOCK_NOTIFY
-    #   /* The following variables are all protected by the STATIC_MASTER 
-    #   ** mutex, not by sqlite3.mutex. They are used by code in notify.c. 
+    #   /* The following variables are all protected by the STATIC_MASTER
+    #   ** mutex, not by sqlite3.mutex. They are used by code in notify.c.
     #   **
     #   ** When X.pUnlockConnection==Y, that means that X is waiting for Y to
     #   ** unlock so that it can proceed.
@@ -536,7 +536,7 @@ MEM = lltype.Struct("Mem",          # src/vdbeInt.h: 164
     ("flags", CConfig.u16),         # Some combination of MEM_Null, MEM_Str, MEM_Dyn, etc.
     ("enc", CConfig.u8),            # SQLITE_UTF8, SQLITE_UTF16BE, SQLITE_UTF16LE
     ("n", rffi.INT),                # Number of characters in string value, excluding '\0'
-    ("z", rffi.CCHARP),             # String or BLOB value    
+    ("z", rffi.CCHARP),             # String or BLOB value
     ("zMalloc", rffi.CCHARP),       # Dynamic buffer allocated by sqlite3_malloc()
     ("szMalloc", rffi.INT),         # Size of the zMalloc allocation
     ("uTemp", CConfig.u32),         # Transient storage for serial_type in OP_MakeRecord
@@ -633,7 +633,7 @@ VDBE.become(lltype.Struct("Vdbe",               # src/vdbeInt.h: 325
     ("errorAction", CConfig.u8),                # Recovery action to do in case of an error
     ("minWriteFileFormat", CConfig.u8),         # Minimum file format for writable database files
     ("scary_bitfield", lltype.Signed),          #   bft explain:2;          /* True if EXPLAIN present on SQL command */
-    #("inVtabMethod", CConfig.u16),              #   bft inVtabMethod:2;     /* See comments above */        
+    #("inVtabMethod", CConfig.u16),              #   bft inVtabMethod:2;     /* See comments above */
     #("changeCntOn", CConfig.u16),               #   bft changeCntOn:1;      /* True to update the change-counter */
     #("expired", CConfig.u16),                   #   bft expired:1;          /* True if the VM needs to be recompiled */
     #("runOnlyOnce", CConfig.u16),               #   bft runOnlyOnce:1;      /* Automatically expire on reset */
@@ -668,7 +668,7 @@ VDBE.become(lltype.Struct("Vdbe",               # src/vdbeInt.h: 325
     #   i64 *anExec;            /* Number of times each op has been executed */
     #   int nScan;              /* Entries in aScan[] */
     #   ScanStatus *aScan;      /* Scan definitions for sqlite3_stmt_scanstatus() */
-    # #endif    
+    # #endif
     ))
 
 
