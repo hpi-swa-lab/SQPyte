@@ -1,7 +1,6 @@
 from rpython.rlib import jit, objectmodel
 from rpython.rtyper.lltypesystem import rffi, lltype
 from capi import CConfig
-from rpython.rlib.rarithmetic import intmask
 import sys
 import os
 import capi
@@ -27,7 +26,7 @@ def get_printable_location(pc, rc, self, cache_state):
 _cache_safe_opcodes = [False] * 256
 
 
-def cache_safe(opcodes=None, hide=False, mutates=None):
+def cache_safe(opcodes=None, mutates=None):
     assert opcodes is None or isinstance(opcodes, list)
     def decorate(func):
         ops = opcodes
@@ -36,10 +35,8 @@ def cache_safe(opcodes=None, hide=False, mutates=None):
             assert name.startswith("python_")
             opcodename = name[len("python_"):]
             ops = [getattr(CConfig, opcodename)]
-        for opcode in ops:
-            _cache_safe_opcodes[opcode] = True
-        if hide:
-            func = hide_cache(func)
+        for op in ops:
+            _cache_safe_opcodes[op] = True
         if mutates is not None:
             if not isinstance(mutates, list):
                 all_mutates = [mutates]
@@ -181,14 +178,15 @@ class SQLite3Query(object):
         return capi.sqlite3_bind_parameter_count(self.p)
 
     def bind_int64(self, i, val):
-        capi.sqlite3_bind_int64(self.p, i, val)
+        return capi.sqlite3_bind_int64(self.p, i, val)
 
     def bind_double(self, i, val):
-        capi.sqlite3_bind_double(self.p, i, val)
+        return capi.sqlite3_bind_double(self.p, i, val)
 
     def bind_null(self, i):
-        capi.sqlite3_bind_null(self.p, i)
+        return capi.sqlite3_bind_null(self.p, i)
 
+    @jit.dont_look_inside
     def bind_str(self, i, s):
         with rffi.scoped_str2charp(s) as charp:
             return rffi.cast(
@@ -360,13 +358,16 @@ class SQPyteQuery(SQLite3Query):
     def bind_int64(self, i, val):
         self.vdbeUnbind(i)
         self.var_with_index(i - 1).sqlite3VdbeMemSetInt64(val)
+        return CConfig.SQLITE_OK
 
     def bind_double(self, i, val):
         self.vdbeUnbind(i)
         self.var_with_index(i - 1).sqlite3VdbeMemSetDouble(val)
+        return CConfig.SQLITE_OK
 
     def bind_null(self, i):
         self.vdbeUnbind(i)
+        return CConfig.SQLITE_OK
 
     @jit.dont_look_inside
     def bind_str(self, i, s):
@@ -427,49 +428,7 @@ class SQPyteQuery(SQLite3Query):
     def p2_p5_mutation(self, op):
         for i in range(op.p_Signed(2), op.p_Signed(2) + op.p_Signed(5)):
             self.mem_cache.invalidate(i)
-    # _______________________________________________________________
 
-    def p1_mutation(self, op):
-        i = op.p_Signed(1)
-        self.mem_cache.invalidate(i)
-
-    def p2_mutation(self, op):
-        i = op.p_Signed(2)
-        self.mem_cache.invalidate(i)
-
-    def p3_mutation(self, op):
-        i = op.p_Signed(3)
-        self.mem_cache.invalidate(i)
-
-    @jit.unroll_safe
-    def p1_p2_mutation(self, op):
-        for i in range(op.p_Signed(1), op.p_Signed(1) + op.p_Signed(2)):
-            self.mem_cache.invalidate(i)
-
-    @jit.unroll_safe
-    def p2_p3_mutation(self, op):
-        self.mem_cache.invalidate(op.p_Signed(2))
-        if op.p_Signed(3) > op.p_Signed(2):
-            for i in range(op.p_Signed(2) + 1, op.p_Signed(3) + 1):
-                self.mem_cache.invalidate(i)
-
-    @jit.unroll_safe
-    def p3_p4_mutation(self, op):
-        for i in range(op.p_Signed(3), op.p_Signed(3) + op.p4_i()):
-            self.mem_cache.invalidate(i)
-
-    @jit.unroll_safe
-    def p3_p4_or_p3_mutation(self, op):
-        length = op.p4_i()
-        if not length:
-            length = 1
-        for i in range(op.p_Signed(3), op.p_Signed(3) + length):
-            self.mem_cache.invalidate(i)
-
-    @jit.unroll_safe
-    def p2_p5_mutation(self, op):
-        for i in range(op.p_Signed(2), op.p_Signed(2) + op.p_Signed(5)):
-            self.mem_cache.invalidate(i)
     # _______________________________________________________________
 
     def is_op_cache_safe(self, opcode):
