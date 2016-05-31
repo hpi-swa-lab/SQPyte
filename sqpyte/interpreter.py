@@ -13,6 +13,7 @@ testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test/test.db"
 
 from sqpyte import opcode
 
+
 def get_printable_location(pc, rc, self, cache_state):
     op = self._hlops[pc]
     name = op.get_opcode_str()
@@ -29,9 +30,11 @@ jitdriver = jit.JitDriver(
     should_unroll_one_iteration=lambda *args: True,
     get_printable_location=get_printable_location)
 
+
 class SQPyteException(Exception):
     def __init__(self, msg):
         print msg
+
 
 class SqliteException(SQPyteException):
     def __init__(self, errorcode, msg):
