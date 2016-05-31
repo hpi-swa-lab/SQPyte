@@ -24,6 +24,44 @@ def get_printable_location(pc, rc, self, cache_state):
     return "%s %s %s %s %s" % (pc, rc, name, cache_state.repr(), unsafe)
 
 
+_cache_safe_opcodes = [False] * 256
+
+
+def cache_safe(opcodes=None, hide=False, mutates=None):
+    assert opcodes is None or isinstance(opcodes, list)
+    def decorate(func):
+        ops = opcodes
+        if ops is None:
+            name = func.func_name
+            assert name.startswith("python_")
+            opcodename = name[len("python_"):]
+            ops = [getattr(CConfig, opcodename)]
+        for opcode in ops:
+            _cache_safe_opcodes[opcode] = True
+        if hide:
+            func = hide_cache(func)
+        if mutates is not None:
+            if not isinstance(mutates, list):
+                all_mutates = [mutates]
+            else:
+                all_mutates = mutates
+
+            for mut in all_mutates:
+                func = mutate_func(func, mut)
+        return func
+    return decorate
+
+
+def mutate_func(func, mutates):
+    methname = mutates.replace("@", "_").replace(":", "_").replace(" ", "_") + "_mutation"
+    def mutation(hlquery, *args):
+        result = func(hlquery, *args)
+        op = args[-1]
+        getattr(hlquery, methname)(op)
+        return result
+    return mutation
+
+
 jitdriver = jit.JitDriver(
     greens=['pc', 'rc', 'self_', 'cache_state'],
     reds=[],#['_mem_caches'],
@@ -96,41 +134,6 @@ class SQLite3DB(object):
             )
             assert errorcode == 0
         return func
-
-_cache_safe_opcodes = [False] * 256
-
-def cache_safe(opcodes=None, hide=False, mutates=None):
-    assert opcodes is None or isinstance(opcodes, list)
-    def decorate(func):
-        ops = opcodes
-        if ops is None:
-            name = func.func_name
-            assert name.startswith("python_")
-            opcodename = name[len("python_"):]
-            ops = [getattr(CConfig, opcodename)]
-        for opcode in ops:
-            _cache_safe_opcodes[opcode] = True
-        if hide:
-            func = hide_cache(func)
-        if mutates is not None:
-            if not isinstance(mutates, list):
-                all_mutates = [mutates]
-            else:
-                all_mutates = mutates
-
-            for mut in all_mutates:
-                func = mutate_func(func, mut)
-        return func
-    return decorate
-
-def mutate_func(func, mutates):
-    methname = mutates.replace("@", "_").replace(":", "_").replace(" ", "_") + "_mutation"
-    def mutation(hlquery, *args):
-        result = func(hlquery, *args)
-        op = args[-1]
-        getattr(hlquery, methname)(op)
-        return result
-    return mutation
 
 
 class SQLite3Query(object):
