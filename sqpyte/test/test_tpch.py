@@ -1,5 +1,5 @@
 from rpython.rtyper.lltypesystem import rffi
-from sqpyte.interpreter import Sqlite3DB, Sqlite3Query
+from sqpyte.interpreter import SQPyteDB, SQPyteQuery
 from sqpyte.capi import CConfig
 from sqpyte import capi
 import os, sys
@@ -7,7 +7,7 @@ import os, sys
 tpchdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tpch.db")
 
 def test_join():
-    db = Sqlite3DB(tpchdb)
+    db = SQPyteDB(tpchdb)
     query = db.execute('select S.name, N.name from Supplier S, Nation N where S.nationkey = N.nationkey;')
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
@@ -18,7 +18,7 @@ def test_join():
     assert i == 100
 
 def test_query_6():
-    db = Sqlite3DB(tpchdb)
+    db = SQPyteDB(tpchdb)
     queryStr = ("select "
                     "sum(l.extendedprice * l.discount) as revenue "
                 "from "
@@ -37,7 +37,7 @@ def test_query_6():
     assert float(result) == 1524721.6695
 
 def test_query_14():
-    db = Sqlite3DB(tpchdb)
+    db = SQPyteDB(tpchdb)
     queryStr = ("select "
                     "100.00 * sum(case "
                         "when p.type like 'PROMO%' "
@@ -60,7 +60,7 @@ def test_query_14():
     assert float(result) == 15.9871053076363
 
 def test_query_17():
-    db = Sqlite3DB(tpchdb)
+    db = SQPyteDB(tpchdb)
     queryStr = ("select "
                     "sum(l.extendedprice) / 7.0 as avg_yearly "
                 "from "
@@ -89,7 +89,7 @@ def test_query_17():
     assert float(result) == 3655.76571428571
 
 def test_query_19():
-    db = Sqlite3DB(tpchdb)
+    db = SQPyteDB(tpchdb)
     queryStr = ("select "
                     "sum(l.extendedprice* (1 - l.discount)) as revenue "
                 "from "
@@ -134,7 +134,7 @@ def test_query_19():
     assert float(result) == 22923.028
 
 def test_query_20():
-    db = Sqlite3DB(tpchdb)
+    db = SQPyteDB(tpchdb)
     queryStr = ("select "
                     "s.name, "
                     "s.address "

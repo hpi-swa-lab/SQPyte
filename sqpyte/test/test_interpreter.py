@@ -1,6 +1,6 @@
 import pytest
 from rpython.rtyper.lltypesystem import rffi
-from sqpyte.interpreter import Sqlite3DB, Sqlite3Query
+from sqpyte.interpreter import SQPyteDB, SQPyteQuery
 from sqpyte.capi import CConfig
 from sqpyte import capi
 from sqpyte.translated import allocateCursor, sqlite3BtreeCursor
@@ -11,11 +11,11 @@ testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test.db")
 # testdb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "big-test.db")
 
 def test_opendb():
-    db = Sqlite3DB(testdb).db
+    db = SQPyteDB(testdb).db
     assert db
 
 def test_prepare():
-    db = Sqlite3DB(testdb)
+    db = SQPyteDB(testdb)
     query = db.execute('select * from contacts;')
     assert query.p and query.db
     assert query.p.db == query.db
@@ -37,7 +37,7 @@ def test_prepare():
     assert query.p.aOp[2].p3 == 0
 
 def test_multiple_queries():
-    db = Sqlite3DB(testdb)
+    db = SQPyteDB(testdb)
     query = db.execute('select name from contacts;')
     rc = query.mainloop()
     count = 0
@@ -54,7 +54,7 @@ def test_multiple_queries():
     assert(count == 48)
 
 def test_reset():
-    db = Sqlite3DB(testdb)
+    db = SQPyteDB(testdb)
     query = db.execute('select name from contacts;')
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
@@ -68,7 +68,7 @@ def test_reset():
     assert name == name2
 
 def test_mainloop_over50():
-    db = Sqlite3DB(testdb)
+    db = SQPyteDB(testdb)
     query = db.execute('select name from contacts where age > 50;')
     rc = query.mainloop()
     count = 0
@@ -78,7 +78,7 @@ def test_mainloop_over50():
     assert(count == 48)
 
 def test_mainloop_arithmetic():
-    db = Sqlite3DB(testdb)
+    db = SQPyteDB(testdb)
     query = db.execute('select name from contacts where 2 * age + 2 - age / 1 > 48;')
     rc = query.mainloop()
     count = 0
@@ -88,7 +88,7 @@ def test_mainloop_arithmetic():
     assert(count == 53)
 
 def test_mainloop_mixed_arithmetic():
-    db = Sqlite3DB(testdb)
+    db = SQPyteDB(testdb)
     query = db.execute('select name from contacts where 2.1 * age + 2 - age / 0.909 > 48;')
     rc = query.mainloop()
     count = 0
@@ -98,7 +98,7 @@ def test_mainloop_mixed_arithmetic():
     assert(count == 53)
 
 def test_count_avg_sum():
-    db = Sqlite3DB(testdb)
+    db = SQPyteDB(testdb)
     query = db.execute('select count(*), avg(age), sum(age) from contacts where 2 * age + 2 - age / 1 > 48;')
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
@@ -113,7 +113,7 @@ def test_count_avg_sum():
     assert sum == "3844"
 
 def test_select_without_from():
-    db = Sqlite3DB(testdb)
+    db = SQPyteDB(testdb)
     query = db.execute('select 1, 2;')
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
@@ -121,7 +121,7 @@ def test_select_without_from():
 def test_mainloop_namelist():
     fname = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'names.txt')
     names = [name.strip() for name in open(fname)]
-    db = Sqlite3DB(testdb)
+    db = SQPyteDB(testdb)
     query = db.execute('select name from contacts;')
     rc = query.mainloop()
     i = 0
@@ -134,7 +134,7 @@ def test_mainloop_namelist():
     assert(len(names) == i)
 
 def test_count():
-    db = Sqlite3DB(testdb)
+    db = SQPyteDB(testdb)
     query = db.execute('select count(name) from contacts where age > 20;')
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
@@ -143,7 +143,7 @@ def test_count():
     assert int(count) == 76
 
 def test_null_comparison():
-    db = Sqlite3DB(testdb)
+    db = SQPyteDB(testdb)
     query = db.execute('select count(*) from contacts where age > 10 and age < 14;')
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
@@ -152,7 +152,7 @@ def test_null_comparison():
     assert int(count) == 3
 
 def test_comparison():
-    db = Sqlite3DB(testdb)
+    db = SQPyteDB(testdb)
     query = db.execute('select count(*) from contacts where age > 40 and age < 60;')
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
@@ -161,7 +161,7 @@ def test_comparison():
     assert int(count) == 18
 
 def test_string_comparison():
-    db = Sqlite3DB(testdb)
+    db = SQPyteDB(testdb)
     query = db.execute("select count(*) from contacts where name = 'Raphael Paul';")
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
@@ -170,7 +170,7 @@ def test_string_comparison():
     assert int(count) == 1    
 
 def test_makerecord():
-    db = Sqlite3DB(testdb)
+    db = SQPyteDB(testdb)
     query = db.execute("select age, name from contacts order by age, age * 0.5;")
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
@@ -179,12 +179,12 @@ def test_makerecord():
     assert name == "Jermaine Mayo"
 
 def test_translated_allocateCursor():
-    db = Sqlite3DB(testdb)
+    db = SQPyteDB(testdb)
     p = db.execute('select name from contacts;').p
     vdbe = allocateCursor(p, p.aOp[0].p1, p.aOp[0].p4.i, p.aOp[0].p3, 1)
 
 def test_translated_sqlite3BtreeCursorHints():
-    db = Sqlite3DB(testdb)
+    db = SQPyteDB(testdb)
     p = db.execute('select name from contacts;').p
     pOp = p.aOp[0]
     iDb = pOp.p3
@@ -196,7 +196,7 @@ def test_translated_sqlite3BtreeCursorHints():
 # NOTE: Currently sqlite3VdbeSorterRewind() function is not used and segfaults.
 #
 # def test_translated_sqlite3VdbeSorterRewind():
-#     db = Sqlite3DB(testdb)
+#     db = SQPyteDB(testdb)
 #     p = db.execute('select name from contacts;').p
 #     pOp = p.aOp[0]
 #     p2 = pOp.p2
@@ -217,7 +217,7 @@ def test_translated_sqlite3BtreeCursorHints():
 #     assert(rc == CConfig.SQLITE_OK)
 
 def test_real():
-    db = Sqlite3DB(':memory:')
+    db = SQPyteDB(':memory:')
     query = db.execute('select 2.3 + 4.5;')
     rc = query.mainloop()
     res = query.column_double(0)
@@ -244,7 +244,7 @@ def test_mandelbrot():
       )
     SELECT group_concat(rtrim(t),x'0a') FROM a;
     """
-    db = Sqlite3DB(":memory:")
+    db = SQPyteDB(":memory:")
     query = db.execute(s)
     rc = query.mainloop()
 
@@ -284,7 +284,7 @@ def test_nqueens():
     -- Perform a selector over the CTE to extract the solutions with 8 queens
     SELECT board,n_queens FROM solutions WHERE n_queens = 8;
     """
-    db = Sqlite3DB(':memory:')
+    db = SQPyteDB(':memory:')
     query = db.execute(s)
     rc = query.mainloop()
 
@@ -296,7 +296,7 @@ def test_argument():
             rc = query.mainloop()
             count += 1
         return count
-    db = Sqlite3DB(testdb)
+    db = SQPyteDB(testdb)
     query = db.execute('select name from contacts where age > ?;')
     query.bind_int64(1, 50)
     count = c()
@@ -314,7 +314,7 @@ def test_argument():
     assert query.column_int64(0) == 31
 
 def test_create_table_and_insert():
-    db = Sqlite3DB(":memory:")
+    db = SQPyteDB(":memory:")
     query = db.execute('create table cos (x real, y real);')
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_DONE
@@ -326,7 +326,7 @@ def test_create_table_and_insert():
     assert rc == CConfig.SQLITE_DONE
 
 def test_disable_cache():
-    db = Sqlite3DB(testdb)
+    db = SQPyteDB(testdb)
     query = db.execute('select count(name) from contacts where age > 20;', use_flag_cache=False)
     rc = query.mainloop()
     assert rc == CConfig.SQLITE_ROW
