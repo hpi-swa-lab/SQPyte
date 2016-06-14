@@ -198,6 +198,9 @@ class SQLite3Query(object):
     def reset_query(self):
         capi.sqlite3_reset(self.p)
 
+    def close(self):
+        pass
+
 
 class SQPyteDB(SQLite3DB):
     def execute(self, sql, use_flag_cache=True):
