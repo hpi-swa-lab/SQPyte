@@ -1,5 +1,6 @@
 import os
 import sys
+from rpython.rlib.objectmodel import we_are_translated
 from rpython.rtyper.tool import rffi_platform as platform
 from rpython.rtyper.lltypesystem import rffi, lltype
 from rpython.translator.tool.cbuild import ExternalCompilationInfo
@@ -13,6 +14,20 @@ if os.environ.has_key("LD_LIBRARY_PATH"):
     os.environ["LD_LIBRARY_PATH"] = "%s:%s" % (lib_dir, os.environ["LD_LIBRARY_PATH"])
 else:
     os.environ["LD_LIBRARY_PATH"] = lib_dir
+
+if not we_are_translated():
+    # ctypes.util.find_library does not lookup libraries in LD_LIBRARY_PATH on
+    # OS X, so we need to override it to make sure it is returning the right lib
+    import ctypes
+    old_find_library = ctypes.util.find_library
+    def func(name):
+        lib = old_find_library(name)
+        if name == "sqlite3":
+            return os.path.join(lib_dir, os.path.basename(lib))
+        else:
+            return lib
+    ctypes.util.find_library = func
+
 
 class CConfig:
     _compilation_info_ = ExternalCompilationInfo(
