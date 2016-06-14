@@ -958,6 +958,8 @@ class SQPyteQuery(SQLite3Query):
     def debug_print(self, pc, op):
         if objectmodel.we_are_translated():
             return
+        if '-debug-print' not in sys.argv:
+            return
         print '%s %s %s %s %s %s' % (
                 pc, op.get_opcode_str(), op.p_Signed(1),
                 op.p_Signed(2), op.p_Signed(3), op.p_Signed(5))
