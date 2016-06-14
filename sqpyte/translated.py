@@ -1,5 +1,5 @@
 from rpython.rlib import jit, rarithmetic
-from rpython.rlib.objectmodel import specialize
+from rpython.rlib.objectmodel import specialize, we_are_translated
 from rpython.rtyper.lltypesystem import rffi
 from sqpyte.capi import CConfig
 from rpython.rtyper.lltypesystem import lltype
@@ -236,6 +236,8 @@ def sqlite3BtreePrevious(hlquery, pCur, pRes):
 
 @jit.dont_look_inside
 def _increase_counter_hidden_from_jit(p, counter_num, increase=1):
+    if not we_are_translated():
+        return
     # the JIT can't deal with FixedSizeArrays
     aCounterValue = rffi.cast(lltype.Unsigned, p.aCounter[counter_num])
     aCounterValue += increase
@@ -1377,6 +1379,8 @@ def OP_Move(hlquery, op):
 
 @jit.dont_look_inside
 def _check_too_big_hidden_from_jit(nByte, db):
+    if not we_are_translated():
+        return False
     # the JIT can't deal with FixedSizeArrays
     return nByte > rffi.cast(lltype.Signed, db.aLimit[CConfig.SQLITE_LIMIT_LENGTH])
 
