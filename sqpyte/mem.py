@@ -241,7 +241,9 @@ class Mem(object):
         MEM_Int if we can.
         """
         flags = self.get_flags()
-        assert flags & CConfig.MEM_Real
+        # this assertion doesn't make sense - this codepath is reached from
+        # the applyAffinity function if CConfig.MEM_Real is NOT true
+        # assert flags & CConfig.MEM_Real
         assert not flags & CConfig.MEM_RowSet
         # assert( mem->db==0 || sqlite3_mutex_held(mem->db->mutex) );
         # assert( EIGHT_BYTE_ALIGNMENT(mem) );
