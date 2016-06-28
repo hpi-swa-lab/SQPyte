@@ -159,6 +159,9 @@ class SQLite3Query(object):
     def data_count(self):
         return capi.sqlite3_column_count(self.p)
 
+    def column_name(self, i):
+        return capi.sqlite3_column_name(self.p, i)
+
     def column_type(self, i):
         return capi.sqlite3_column_type(self.p, i)
 

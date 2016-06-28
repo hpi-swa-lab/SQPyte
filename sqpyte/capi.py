@@ -944,6 +944,8 @@ impl_OP_Cast = llexternal('impl_OP_Cast',
 sqlite3_reset = llexternal('sqlite3_reset', [VDBEP],
     rffi.INT)
 
+sqlite3_column_name = llexternal('sqlite3_column_name', [VDBEP, rffi.INT],
+    rffi.CCHARP)
 sqlite3_column_type = llexternal('sqlite3_column_type', [VDBEP, rffi.INT],
     rffi.INT)
 sqlite3_column_text = llexternal('sqlite3_column_text', [VDBEP, rffi.INT],
