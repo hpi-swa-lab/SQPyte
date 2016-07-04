@@ -213,6 +213,7 @@ p4names = ['P4_INT32', 'P4_KEYINFO', 'P4_COLLSEQ', 'P4_FUNCDEF']
 p5flags = ['OPFLAG_P2ISREG', 'OPFLAG_BULKCSR', 'OPFLAG_CLEARCACHE', 'OPFLAG_LENGTHARG', 'OPFLAG_TYPEOFARG', 'OPFLG_OUT2_PRERELEASE', 'OPFLAG_PERMUTE']
 result_codes = ['SQLITE_OK', 'SQLITE_ABORT', 'SQLITE_N_LIMIT', 'SQLITE_DONE', 'SQLITE_ROW', 'SQLITE_BUSY', 'SQLITE_CORRUPT_BKPT', 'SQLITE_NOMEM']
 sqlite_codes = ['SQLITE_NULLEQ', 'SQLITE_JUMPIFNULL', 'SQLITE_STOREP2', 'SQLITE_AFF_MASK', 'SQLITE_FUNC_NEEDCOLL']
+sqlite_flags = ['SQLITE_QueryOnly', 'SQLITE_ReadUncommitted']
 mem_codes = ['SQLITE_STATIC', 'SQLITE_TRANSIENT']
 affinity_codes = ['SQLITE_AFF_TEXT', 'SQLITE_AFF_NONE', 'SQLITE_AFF_INTEGER', 'SQLITE_AFF_REAL', 'SQLITE_AFF_NUMERIC']
 btree_values = ['BTCURSOR_MAX_DEPTH', 'BTREE_BULKLOAD']
@@ -233,7 +234,7 @@ sqlite_types = [
 
 for name in (p4names + opnames + p5flags + result_codes + sqlite_codes +
              btree_values + other_constants + memValues + affinity_codes +
-             encodings + sqlite_types + mem_codes):
+             encodings + sqlite_types + mem_codes + sqlite_flags):
     setattr(CConfig, name, platform.DefinedConstantInteger(name))
 
 
