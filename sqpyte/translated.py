@@ -2089,3 +2089,23 @@ def OP_ResultRow(hlquery, pc, op):
     #capi.sqlite3VdbeLeave(p)
     return rc
 
+
+# Opcode: TableLock P1 P2 P3 P4 *
+# Synopsis: iDb=P1 root=P2 write=P3
+#
+# Obtain a lock on a particular table. This instruction is only used when
+# the shared-cache feature is enabled.
+#
+# P1 is the index of the database in sqlite3.aDb[] of the database
+# on which the lock is acquired.  A readlock is obtained if P3==0 or
+# a write lock if P3==1.
+#
+# P2 contains the root-page of the table to lock.
+#
+# P4 contains a pointer to the name of the table being locked. This is only
+# used to generate an error message if the lock cannot be obtained.
+def OP_TableLock(hlquery, rc, op):
+    isWriteLock = op.p_Signed(3)
+    if isWriteLock != 0: # XXX: ReadUncommitted is assumed to be false
+        return capi.impl_OP_TableLock(hlquery.p, hlquery.db, rc, op.pOp)
+    return rc

@@ -583,7 +583,7 @@ class SQPyteQuery(SQLite3Query):
 
     @cache_safe() # XXX not 100% sure
     def python_OP_TableLock(self, rc, op):
-        return capi.impl_OP_TableLock(self.p, self.db, rc, op.pOp)
+        return translated.OP_TableLock(self, rc, op)
 
     @cache_safe() # XXX not 100% sure
     def python_OP_Transaction(self, pc, op):
