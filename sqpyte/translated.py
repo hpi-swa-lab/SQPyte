@@ -2108,7 +2108,7 @@ def OP_ResultRow(hlquery, pc, op):
 # used to generate an error message if the lock cannot be obtained.
 def OP_TableLock(hlquery, rc, op):
     isWriteLock = op.p_Signed(3)
-    flags = hlquery.db.c_flags
+    flags = hlquery.db.flags
     if isWriteLock != 0 or 0 == (rffi.cast(rffi.LONG, flags) & rffi.cast(rffi.LONG, CConfig.SQLITE_ReadUncommitted)):
         return capi.impl_OP_TableLock(hlquery.p, hlquery.db, rc, op.pOp)
     return rc
