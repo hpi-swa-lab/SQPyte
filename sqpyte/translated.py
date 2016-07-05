@@ -2109,6 +2109,6 @@ def OP_ResultRow(hlquery, pc, op):
 def OP_TableLock(hlquery, rc, op):
     isWriteLock = op.p_Signed(3)
     flags = hlquery.db.c_flags
-    if isWriteLock != 0 or 0 == (flags & CConfig.SQLITE_ReadUncommitted):
+    if isWriteLock != 0 or 0 == (rffi.cast(rffi.LONG, flags) & rffi.cast(rffi.LONG, CConfig.SQLITE_ReadUncommitted)):
         return capi.impl_OP_TableLock(hlquery.p, hlquery.db, rc, op.pOp)
     return rc
