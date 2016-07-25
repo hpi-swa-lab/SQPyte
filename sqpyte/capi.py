@@ -966,7 +966,9 @@ sqlite3BtreeMovetoUnpacked = llexternal('sqlite3BtreeMovetoUnpacked', [BTCURSORP
     rffi.INT)
 
 # XXX ugly hack, we need macro=True, but only when translating
-if sys.argv[0].endswith("rpython"): # we're translating
+import traceback
+if any(t[0].endswith('translate.py') for
+       t in traceback.extract_stack()): # we're translating
     kwargs = dict(macro=True)
 else:
     kwargs = {}
