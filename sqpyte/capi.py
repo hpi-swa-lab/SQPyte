@@ -6,28 +6,29 @@ from rpython.rtyper.lltypesystem import rffi, lltype
 from rpython.translator.tool.cbuild import ExternalCompilationInfo
 
 
+#
+# Where to find the C-stuff of SQLite.
+# Fail if absent, we can't do without them.
+#
 sqlite_inst_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sqlite-install")
+assert os.path.exists(sqlite_inst_dir)
 sqlite_src_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sqlite")
+assert os.path.exists(sqlite_src_dir)
+
+
+
+if sys.platform == 'darwin':
+    # darwin / Mach-O
+    ENV_LIBRARY_PATH="DYLD_LIBRARY_PATH"
+else:
+    # ELF / Linux, the like
+    ENV_LIBRARY_PATH="LD_LIBRARY_PATH"
 
 lib_dir = os.path.join(sqlite_inst_dir, "lib")
-if os.environ.has_key("LD_LIBRARY_PATH"):
-    os.environ["LD_LIBRARY_PATH"] = "%s:%s" % (lib_dir, os.environ["LD_LIBRARY_PATH"])
+if os.environ.has_key(ENV_LIBRARY_PATH):
+    os.environ[ENV_LIBRARY_PATH] = "%s:%s" % (lib_dir, os.environ[ENV_LIBRARY_PATH])
 else:
-    os.environ["LD_LIBRARY_PATH"] = lib_dir
-
-if not we_are_translated():
-    # ctypes.util.find_library does not lookup libraries in LD_LIBRARY_PATH on
-    # OS X, so we need to override it to make sure it is returning the right lib
-    import ctypes
-    old_find_library = ctypes.util.find_library
-    def func(name):
-        lib = old_find_library(name)
-        if name == "sqlite3":
-            return os.path.join(lib_dir, os.path.basename(lib))
-        else:
-            return lib
-    ctypes.util.find_library = func
-
+    os.environ[ENV_LIBRARY_PATH] = lib_dir
 
 class CConfig:
     _compilation_info_ = ExternalCompilationInfo(
